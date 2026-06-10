@@ -35,6 +35,7 @@ public class IPDService {
     private final BedRepository bedRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
+    private final BedIsolationRepository isolationRepository;
     private final PatientRepository patientRepository;
     private final PatientVisitSummaryRepository visitSummaryRepository;
     private final PolicyService policyService;
@@ -171,9 +172,13 @@ public class IPDService {
      * For a NORMAL discharge the blocking checklist (policy {@code ipd.discharge.checklist_blocking_items})
      * must be fully acknowledged. LAMA / DEATH bypass blocking — you cannot trap a body or a patient
      * leaving against advice behind an unpaid bill — but the acknowledged set is still audited.
+     *
+     * <p>If {@code isolationType} is given (infectious patient), the bed goes into ISOLATION
+     * instead of VACANT and cannot be allocated until infection control clears it.
      */
     public IPDAdmission discharge(Long admissionId, IPDAdmission.DischargeType dischargeType,
-                                  List<String> acknowledgedChecklistItems) {
+                                  List<String> acknowledgedChecklistItems,
+                                  BedIsolation.IsolationType isolationType, String isolationReason) {
         var ctx = TenantContext.get();
         IPDAdmission admission = getActiveAdmission(admissionId);
 
@@ -185,7 +190,12 @@ public class IPDService {
 
         LocalDateTime now = LocalDateTime.now();
         BedAllocation closed = closeActiveAllocation(admission, now);
-        vacateBed(admission.getCurrentBedId());
+        Long releasedBedId = admission.getCurrentBedId();
+        if (isolationType != null) {
+            openIsolation(releasedBedId, admission.getId(), isolationType, isolationReason);
+        } else {
+            vacateBed(releasedBedId);
+        }
 
         admission.setAdmissionStatus(IPDAdmission.AdmissionStatus.DISCHARGED);
         admission.setDischargedAt(now);
@@ -205,6 +215,108 @@ public class IPDService {
         log.info("Admission {} discharged ({}) total bed charge {}",
                 saved.getAdmissionNumber(), dischargeType, saved.getTotalBedCharge());
         return saved;
+    }
+
+    // ------------------------------------------------------------
+    // Bed isolation (infection control)
+    // ------------------------------------------------------------
+
+    /**
+     * Manually place a VACANT bed into isolation (e.g. housekeeping flags contamination).
+     * While isolated the bed cannot be allocated — lockVacantBed rejects any non-VACANT status.
+     */
+    public BedIsolation isolateBed(Long bedId, BedIsolation.IsolationType isolationType, String reason) {
+        var ctx = TenantContext.get();
+        Bed bed = bedRepository.findByIdAndTenantIdAndBranchId(bedId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("BED_NOT_FOUND", "Bed not found: " + bedId));
+        if (bed.getBedStatus() != Bed.BedStatus.VACANT) {
+            throw new BusinessException("BED_NOT_VACANT",
+                    "Only a vacant bed can be isolated; bed " + bed.getBedNumber() + " is " + bed.getBedStatus());
+        }
+        return openIsolation(bedId, null, isolationType, reason);
+    }
+
+    /**
+     * Clear an active isolation (infection control / housekeeping sign-off). Bed returns to VACANT.
+     */
+    public BedIsolation clearBedIsolation(Long bedId, String clearanceNotes) {
+        var ctx = TenantContext.get();
+        BedIsolation isolation = isolationRepository
+                .findByTenantIdAndBranchIdAndBedIdAndIsolationStatus(ctx.getTenantId(), branchId(),
+                        bedId, BedIsolation.IsolationStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException("NO_ACTIVE_ISOLATION",
+                        "No active isolation for bed: " + bedId));
+
+        isolation.setIsolationStatus(BedIsolation.IsolationStatus.CLEARED);
+        isolation.setClearedAt(LocalDateTime.now());
+        isolation.setClearedBy(userId());
+        isolation.setClearanceNotes(clearanceNotes);
+        isolation.setUpdatedBy(userId());
+        BedIsolation saved = isolationRepository.save(isolation);
+
+        vacateBed(bedId);
+
+        outboxEventService.publish("BedIsolation", String.valueOf(saved.getId()), "BedIsolationCleared",
+                Map.of("bedId", bedId, "isolationId", saved.getId(), "clearedAt", saved.getClearedAt().toString()));
+        auditService.audit("BedIsolation", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
+                null, isolationSnapshot(saved), UUID.randomUUID().toString());
+
+        log.info("Bed {} isolation cleared (isolation {})", bedId, saved.getId());
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<BedIsolation> getActiveIsolations() {
+        var ctx = TenantContext.get();
+        return isolationRepository.findByTenantIdAndBranchIdAndIsolationStatusOrderByStartedAtDesc(
+                ctx.getTenantId(), branchId(), BedIsolation.IsolationStatus.ACTIVE);
+    }
+
+    private BedIsolation openIsolation(Long bedId, Long sourceAdmissionId,
+                                       BedIsolation.IsolationType isolationType, String reason) {
+        var ctx = TenantContext.get();
+
+        int defaultHours = Integer.parseInt(
+                policyService.getPolicyValue(HospitalPolicyCode.IPD_BED_ISOLATION_DEFAULT_HOURS, "24"));
+        LocalDateTime now = LocalDateTime.now();
+
+        BedIsolation isolation = new BedIsolation();
+        isolation.setBedId(bedId);
+        isolation.setSourceAdmissionId(sourceAdmissionId);
+        isolation.setIsolationType(isolationType);
+        isolation.setReason(reason);
+        isolation.setStartedAt(now);
+        isolation.setExpectedEndAt(now.plusHours(defaultHours));
+        isolation.setIsolationStatus(BedIsolation.IsolationStatus.ACTIVE);
+        stamp(isolation);
+        BedIsolation saved = isolationRepository.save(isolation);
+
+        bedRepository.findByIdAndTenantIdAndBranchId(bedId, ctx.getTenantId(), branchId()).ifPresent(bed -> {
+            bed.setBedStatus(Bed.BedStatus.ISOLATION);
+            bed.setUpdatedBy(userId());
+            bedRepository.save(bed);
+        });
+
+        outboxEventService.publish("BedIsolation", String.valueOf(saved.getId()), "BedIsolated",
+                isolationSnapshot(saved));
+        auditService.audit("BedIsolation", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
+                null, isolationSnapshot(saved), UUID.randomUUID().toString());
+
+        log.info("Bed {} placed in {} isolation until {} (admission {})",
+                bedId, isolationType, saved.getExpectedEndAt(), sourceAdmissionId);
+        return saved;
+    }
+
+    private Map<String, Object> isolationSnapshot(BedIsolation i) {
+        return Map.of(
+                "id", i.getId(),
+                "bedId", i.getBedId(),
+                "isolationType", i.getIsolationType().name(),
+                "isolationStatus", i.getIsolationStatus().name(),
+                "startedAt", i.getStartedAt().toString(),
+                "expectedEndAt", i.getExpectedEndAt() == null ? "" : i.getExpectedEndAt().toString(),
+                "sourceAdmissionId", i.getSourceAdmissionId() == null ? "" : i.getSourceAdmissionId().toString()
+        );
     }
 
     @Transactional(readOnly = true)

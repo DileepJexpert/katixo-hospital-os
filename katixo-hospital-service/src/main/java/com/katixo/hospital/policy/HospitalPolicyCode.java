@@ -13,6 +13,7 @@ public enum HospitalPolicyCode {
     IPD_ICU_HOURLY_RATE("ipd.icu.hourly_rate", "ICU bed hourly charging rate"),
     IPD_INDENT_APPROVAL_REQUIRED("ipd.indent.approval_required", "Require approval for indent items"),
     IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS("ipd.discharge.checklist_blocking_items", "Items that block discharge"),
+    IPD_BED_ISOLATION_DEFAULT_HOURS("ipd.bed.isolation_default_hours", "Default bed isolation duration in hours"),
 
     // Prescription Policies
     RX_ALLERGY_CHECK_ENABLED("rx.allergy.check_enabled", "Block prescribing medicines that match patient allergies"),

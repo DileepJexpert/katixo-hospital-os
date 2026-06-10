@@ -43,6 +43,6 @@ public class Bed extends BaseEntity {
     }
 
     public enum BedStatus {
-        VACANT, OCCUPIED, RESERVED, MAINTENANCE
+        VACANT, OCCUPIED, RESERVED, MAINTENANCE, ISOLATION
     }
 }

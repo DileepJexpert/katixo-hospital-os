@@ -152,6 +152,9 @@ public class IPDController {
         private IPDAdmission.DischargeType dischargeType;
         /** Checklist item codes the discharging staff confirms (e.g. FINAL_BILL_CLEARED). */
         private List<String> acknowledgedChecklistItems;
+        /** If the patient was infectious, set the precaution class — bed goes to ISOLATION, not VACANT. */
+        private BedIsolation.IsolationType bedIsolationType;
+        private String bedIsolationReason;
     }
 
     @PostMapping("/admissions/{id}/discharge")
@@ -159,8 +162,52 @@ public class IPDController {
     public ResponseEntity<ApiResponse<AdmissionView>> discharge(@PathVariable Long id,
                                                                 @Valid @RequestBody DischargeRequest req) {
         return respond(AdmissionView.from(
-                        ipdService.discharge(id, req.getDischargeType(), req.getAcknowledgedChecklistItems())),
+                        ipdService.discharge(id, req.getDischargeType(), req.getAcknowledgedChecklistItems(),
+                                req.getBedIsolationType(), req.getBedIsolationReason())),
                 "Patient discharged", HttpStatus.OK);
+    }
+
+    // ---------- bed isolation (infection control) ----------
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class IsolateBedRequest {
+        @NotNull
+        private BedIsolation.IsolationType isolationType;
+        @NotBlank
+        private String reason;
+    }
+
+    @PostMapping("/beds/{bedId}/isolate")
+    @PreAuthorize("hasAnyRole('NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<IsolationView>> isolateBed(@PathVariable Long bedId,
+                                                                 @Valid @RequestBody IsolateBedRequest req) {
+        return respond(IsolationView.from(ipdService.isolateBed(bedId, req.getIsolationType(), req.getReason())),
+                "Bed isolated", HttpStatus.CREATED);
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ClearIsolationRequest {
+        @NotBlank
+        private String clearanceNotes;
+    }
+
+    @PostMapping("/beds/{bedId}/clear-isolation")
+    @PreAuthorize("hasAnyRole('NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<IsolationView>> clearIsolation(@PathVariable Long bedId,
+                                                                     @Valid @RequestBody ClearIsolationRequest req) {
+        return respond(IsolationView.from(ipdService.clearBedIsolation(bedId, req.getClearanceNotes())),
+                "Bed isolation cleared", HttpStatus.OK);
+    }
+
+    @GetMapping("/beds/isolations")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<IsolationView>>> activeIsolations() {
+        return respond(ipdService.getActiveIsolations().stream().map(IsolationView::from).toList(),
+                "Active bed isolations", HttpStatus.OK);
     }
 
     // ---------- views ----------
@@ -252,6 +299,39 @@ public class IPDController {
                     .tariffRate(a.getTariffRate())
                     .unitsCharged(a.getUnitsCharged())
                     .allocationCharge(a.getAllocationCharge())
+                    .build();
+        }
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class IsolationView {
+        private Long id;
+        private Long bedId;
+        private Long sourceAdmissionId;
+        private BedIsolation.IsolationType isolationType;
+        private String reason;
+        private LocalDateTime startedAt;
+        private LocalDateTime expectedEndAt;
+        private BedIsolation.IsolationStatus isolationStatus;
+        private LocalDateTime clearedAt;
+        private String clearanceNotes;
+
+        static IsolationView from(BedIsolation i) {
+            return IsolationView.builder()
+                    .id(i.getId())
+                    .bedId(i.getBedId())
+                    .sourceAdmissionId(i.getSourceAdmissionId())
+                    .isolationType(i.getIsolationType())
+                    .reason(i.getReason())
+                    .startedAt(i.getStartedAt())
+                    .expectedEndAt(i.getExpectedEndAt())
+                    .isolationStatus(i.getIsolationStatus())
+                    .clearedAt(i.getClearedAt())
+                    .clearanceNotes(i.getClearanceNotes())
                     .build();
         }
     }
