@@ -30,6 +30,10 @@
 | Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | ✅ **DONE** |
 | Multi-visit bill prevention (safety check) | Billing | ✅ **DONE** |
 | Bed isolation tracking (infectious patients) | IPD | ✅ **DONE** |
+| Lab pending-approval dashboard (manager triage view) | Lab | ✅ **DONE** |
+| Lab TAT (turnaround time) tracking per item | Lab | ✅ **DONE** |
+| Month-based bill numbers (midnight-boundary fix) | Billing | ✅ **DONE** |
+| Discharge/visit receipt generation (FINAL bills) | Billing | ✅ **DONE** |
 
 Remaining blockers (medicine-master validation, drug contraindications) require
 ERP integration and are tracked below.
@@ -670,7 +674,7 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 4. ~~**Discharge checklist enforcement missing**~~ ✅ **FIXED**: Policy-driven blocking checklist enforced on NORMAL discharge (LAMA/DEATH bypass)
 5. ~~**Patient credit account missing**~~ ✅ **FIXED**: Tracks balance, enforces credit limits, generates audit ledger of all transactions
 6. ~~**Bill state transitions unclear**~~ ✅ **FIXED**: Bill finalization blocks if discount approval pending (DISCOUNT_PENDING error)
-7. **Lab pending approval dashboard missing**: No manager view of awaiting-review tests
+7. ~~**Lab pending approval dashboard missing**~~ ✅ **FIXED**: /lab/worklist/pending-approval lists awaiting-review tests, longest-waiting first, abnormal flagged
 8. **Pharmacy integration incomplete**: Prescription → Pharmacy → ERP invoice linkage not yet implemented
 9. ~~**Multi-visit bills**~~ ✅ **FIXED**: Prevented via BILL_ALREADY_FINALIZED check; only one FINAL bill allowed per visit/admission
 
@@ -708,13 +712,13 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 | ~~Implement referral fee splitting logic~~ ✅ DONE | OPD/Billing | Medium | Billing service |
 | ~~Add doctor availability checking (schedule/leave)~~ ✅ DONE | OPD | Medium | OPD service |
 | ~~Add patient credit account + credit limit enforcement~~ ✅ DONE | Billing | Medium | Billing service |
-| Add discharge date to bill number (or make date-less) | Billing | Low | Billing service |
+| ~~Add discharge date to bill number (or make date-less)~~ ✅ DONE: month-based BILL-yyyyMM-NNNNNN | Billing | Low | Billing service |
 | ~~Implement bill finalization locking (no discount pending)~~ ✅ DONE | Billing | Low | Billing service |
-| Add lab pending approval dashboard | Lab | Low | Lab controller |
+| ~~Add lab pending approval dashboard~~ ✅ DONE: /lab/worklist/pending-approval | Lab | Low | Lab controller |
 | ~~Add multi-visit bill prevention~~ ✅ DONE | Billing | Low | Billing service |
 | ~~Implement bed isolation tracking (post-discharge)~~ ✅ DONE | IPD | Medium | IPD service |
-| Add lab TAT (turnaround time) tracking | Lab | Low | Lab service |
-| Implement discharge receipt generation | Billing | Low | Billing service |
+| ~~Add lab TAT (turnaround time) tracking~~ ✅ DONE: /lab/order-items/{id}/tat | Lab | Low | Lab service |
+| ~~Implement discharge receipt generation~~ ✅ DONE: /billing/bills/{id}/receipt | Billing | Low | Billing service |
 
 ### Phase 2 (Nice-to-Have — Can Defer)
 
