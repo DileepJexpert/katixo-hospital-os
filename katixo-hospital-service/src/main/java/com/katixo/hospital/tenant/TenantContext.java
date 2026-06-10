@@ -3,15 +3,13 @@ package com.katixo.hospital.tenant;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-import java.util.UUID;
-
 @Getter
 @RequiredArgsConstructor
 public class TenantContext {
-    private final UUID tenantId;
-    private final UUID hospitalGroupId;
-    private final UUID branchId;
-    private final UUID userId;
+    private final String tenantId;       // VARCHAR(50) from schema
+    private final String hospitalGroupId; // Can be parsed to Long if needed
+    private final String branchId;        // Can be parsed to Long if needed
+    private final String userId;          // VARCHAR(100) from schema
     private final String username;
 
     private static final ThreadLocal<TenantContext> CONTEXT = new ThreadLocal<>();

@@ -9,7 +9,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 import static com.katixo.hospital.tenant.TenantContext.get;
 
@@ -21,7 +20,7 @@ public class AuditService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
 
-    public void audit(String entityType, UUID entityId, AuditLog.AuditAction action,
+    public void audit(String entityType, String entityId, AuditLog.AuditAction action,
                       Object beforeState, Object afterState, String correlationId) {
         try {
             var tenantContext = get();
@@ -31,7 +30,8 @@ public class AuditService {
 
             AuditLog log = AuditLog.builder()
                     .tenantId(tenantContext.getTenantId())
-                    .branchId(tenantContext.getBranchId())
+                    .hospitalGroupId(Long.parseLong(tenantContext.getHospitalGroupId()))
+                    .branchId(Long.parseLong(tenantContext.getBranchId()))
                     .actorId(tenantContext.getUserId())
                     .action(action)
                     .entityType(entityType)

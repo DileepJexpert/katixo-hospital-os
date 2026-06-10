@@ -10,9 +10,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JwtClaims {
-    private String tenantId;
-    private String hospitalGroupId;
-    private String branchId;
-    private String userId;
+    private String tenantId;      // VARCHAR(50)
+    private String hospitalGroupId; // Can be parsed to Long
+    private String branchId;       // Can be parsed to Long
+    private String userId;         // VARCHAR(100)
     private String username;
 }

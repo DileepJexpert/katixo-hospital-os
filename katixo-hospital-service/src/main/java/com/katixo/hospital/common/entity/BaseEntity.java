@@ -9,7 +9,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Getter
 @Setter
@@ -19,17 +18,17 @@ import java.util.UUID;
 public abstract class BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    protected UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    protected Long id;
+
+    @Column(nullable = false, updatable = false, length = 50)
+    protected String tenantId;
 
     @Column(nullable = false, updatable = false)
-    protected UUID tenantId;
+    protected Long hospitalGroupId;
 
     @Column(nullable = false, updatable = false)
-    protected UUID hospitalGroupId;
-
-    @Column(nullable = false, updatable = false)
-    protected UUID branchId;
+    protected Long branchId;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
@@ -40,14 +39,14 @@ public abstract class BaseEntity {
     protected LocalDateTime createdAt;
 
     @Column(nullable = false, updatable = false)
-    protected UUID createdBy;
+    protected Long createdBy;
 
     @UpdateTimestamp
     @Column(nullable = false)
     protected LocalDateTime updatedAt;
 
     @Column(nullable = false)
-    protected UUID updatedBy;
+    protected Long updatedBy;
 
     public enum EntityStatus {
         ACTIVE, INACTIVE, DELETED

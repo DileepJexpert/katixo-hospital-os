@@ -12,8 +12,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.UUID;
-
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
@@ -31,10 +29,10 @@ public abstract class IntegrationTest {
             .withEnv("discovery.type", "single-node")
             .withEnv("xpack.security.enabled", "false");
 
-    protected static final UUID TEST_TENANT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    protected static final UUID TEST_GROUP_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
-    protected static final UUID TEST_BRANCH_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
-    protected static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000004");
+    protected static final String TEST_TENANT_ID = "test-tenant-001";
+    protected static final String TEST_GROUP_ID = "1";
+    protected static final String TEST_BRANCH_ID = "1";
+    protected static final String TEST_USER_ID = "user-001";
 
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {

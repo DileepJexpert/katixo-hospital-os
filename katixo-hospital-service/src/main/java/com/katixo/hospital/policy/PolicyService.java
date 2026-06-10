@@ -17,13 +17,13 @@ public class PolicyService {
 
     private final HospitalPolicyRepository policyRepository;
 
-    @Cacheable(value = "hospital_policy", key = "#code + ':' + #root.target.getTenantContextBranchKey()")
+    @Cacheable(value = "hospital_policy", key = "#code.getCode() + ':' + #root.target.getTenantContextBranchKey()")
     public String getPolicyValue(HospitalPolicyCode code) {
-        return policyRepository.findByTenantIdAndBranchIdAndPolicyCodeAndIsActive(
-                get().getTenantId(),
-                get().getBranchId(),
-                code.getCode(),
-                true
+        var context = get();
+        return policyRepository.findActivePolicy(
+                context.getTenantId(),
+                context.getBranchId(),
+                code.getCode()
         ).map(HospitalPolicy::getPolicyValue)
                 .orElseThrow(() -> new BusinessException("POLICY_NOT_FOUND",
                         "Policy not found: " + code.getCode()));

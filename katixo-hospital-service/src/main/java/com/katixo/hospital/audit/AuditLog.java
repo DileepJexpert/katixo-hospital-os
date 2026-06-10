@@ -8,13 +8,13 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
-@Table(name = "audit_log", indexes = {
-        @Index(name = "idx_audit_tenant_branch", columnList = "tenant_id,branch_id"),
+@Table(schema = "audit", name = "audit_log", indexes = {
         @Index(name = "idx_audit_entity", columnList = "entity_type,entity_id"),
-        @Index(name = "idx_audit_created_at", columnList = "created_at")
+        @Index(name = "idx_audit_actor", columnList = "actor_id,created_at"),
+        @Index(name = "idx_audit_tenant", columnList = "tenant_id,created_at"),
+        @Index(name = "idx_audit_correlation", columnList = "correlation_id")
 })
 @Getter
 @Builder
@@ -23,45 +23,57 @@ import java.util.UUID;
 public class AuditLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false, updatable = false)
-    private UUID tenantId;
+    @Column(nullable = false, updatable = false, length = 50)
+    private String tenantId;
 
-    @Column(nullable = false, updatable = false)
-    private UUID branchId;
+    @Column(updatable = false)
+    private Long hospitalGroupId;
 
-    @Column(nullable = false, updatable = false)
-    private UUID actorId;
+    @Column(updatable = false)
+    private Long branchId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(updatable = false, length = 100)
+    private String actorId;
+
+    @Column(updatable = false, length = 200)
+    private String actorName;
+
+    @Column(nullable = false, updatable = false, length = 50)
     @Enumerated(EnumType.STRING)
     private AuditAction action;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 100)
     private String entityType;
 
-    @Column(nullable = false, updatable = false)
-    private UUID entityId;
+    @Column(nullable = false, updatable = false, length = 100)
+    private String entityId;
 
-    @Column(columnDefinition = "TEXT", updatable = false)
+    @Column(length = 64, updatable = false)
     private String beforeHash;
 
-    @Column(columnDefinition = "TEXT", updatable = false)
+    @Column(length = 64, updatable = false)
     private String afterHash;
 
-    @Column(updatable = false)
-    private String correlationId;
+    @Column(columnDefinition = "JSONB", updatable = false)
+    private String changeSummary;
 
-    @Column(updatable = false)
+    @Column(length = 45, updatable = false)
     private String ipAddress;
+
+    @Column(length = 200, updatable = false)
+    private String deviceInfo;
+
+    @Column(columnDefinition = "UUID", updatable = false)
+    private String correlationId;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     public enum AuditAction {
-        CREATE, UPDATE, DELETE, VIEW, PRINT, EXPORT
+        CREATE, UPDATE, DELETE, VIEW, EXPORT, SHARE, LOGIN, LOGOUT
     }
 }

@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.UUID;
 
 @Component
 @Slf4j
@@ -31,10 +30,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 JwtClaims claims = jwtTokenProvider.getClaimsFromToken(jwt);
 
                 TenantContext context = new TenantContext(
-                        UUID.fromString(claims.getTenantId()),
-                        UUID.fromString(claims.getHospitalGroupId()),
-                        UUID.fromString(claims.getBranchId()),
-                        UUID.fromString(claims.getUserId()),
+                        claims.getTenantId(),
+                        claims.getHospitalGroupId(),
+                        claims.getBranchId(),
+                        claims.getUserId(),
                         claims.getUsername()
                 );
                 TenantContext.set(context);

@@ -8,12 +8,10 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "idempotency_record", indexes = {
-        @Index(name = "idx_idempotency_key", columnList = "idempotency_key", unique = true),
-        @Index(name = "idx_idempotency_tenant", columnList = "tenant_id,branch_id")
+        @Index(name = "idx_idem_lookup", columnList = "tenant_id,idempotency_key")
 })
 @Getter
 @Builder
@@ -22,29 +20,23 @@ import java.util.UUID;
 public class IdempotencyRecord {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false, updatable = false)
-    private UUID tenantId;
+    @Column(nullable = false, updatable = false, length = 50)
+    private String tenantId;
 
-    @Column(nullable = false, updatable = false)
-    private UUID branchId;
-
-    @Column(nullable = false, updatable = false, unique = true)
+    @Column(nullable = false, updatable = false, unique = true, length = 200)
     private String idempotencyKey;
 
-    @Column(nullable = false, updatable = false)
-    private String requestMethod;
+    @Column(nullable = false, updatable = false, length = 100)
+    private String operation;
 
-    @Column(nullable = false, updatable = false)
-    private String requestPath;
+    @Column
+    private Integer responseStatus;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String responsePayload;
-
-    @Column(nullable = false)
-    private int responseStatus;
+    @Column(columnDefinition = "TEXT")
+    private String responseBody;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

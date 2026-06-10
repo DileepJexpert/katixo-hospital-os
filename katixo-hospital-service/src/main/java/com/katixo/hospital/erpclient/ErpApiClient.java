@@ -76,9 +76,9 @@ public class ErpApiClient {
         headers.set("Authorization", "Bearer " + serviceToken);
         headers.set("X-Correlation-Id", correlationId);
         headers.set("Idempotency-Key", idempotencyKey);
-        headers.set("X-Tenant-Id", context.getTenantId().toString());
-        headers.set("X-Group-Id", context.getHospitalGroupId().toString());
-        headers.set("X-Branch-Id", context.getBranchId().toString());
+        headers.set("X-Tenant-Id", context.getTenantId());
+        headers.set("X-Group-Id", context.getHospitalGroupId());
+        headers.set("X-Branch-Id", context.getBranchId());
         headers.set("X-Source-System", "HOSPITAL");
         headers.set("X-Source-Reference-Id", sourceReference);
         headers.set("Content-Type", "application/json");

@@ -1,74 +1,53 @@
 -- ============================================================
 -- Sample Hospital Policies for Testing
 -- V0_002__sample_policies.sql
+-- Matches actual schema: tenant_id VARCHAR(50), hospitalGroupId/branchId BIGINT
 -- ============================================================
 
-INSERT INTO hospital.hospital_policy (
+SET search_path = hospital;
+
+INSERT INTO hospital_policy (
     tenant_id, hospital_group_id, branch_id, policy_code, policy_value,
-    description, data_type, status, created_by, updated_by
+    description, version, effective_from, created_by, updated_by
 ) VALUES
 -- OPD Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'opd.followup.free_days', '7',
- 'Days within which follow-up is free', 'INTEGER', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'opd.followup.free_days', '7',
+ 'Days within which follow-up is free', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'opd.followup.reduced_fee', '50',
- 'Reduced fee percentage for follow-up', 'INTEGER', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'opd.followup.reduced_fee', '50',
+ 'Reduced fee percentage for follow-up', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'opd.consultation.fee', '500',
- 'Standard OPD consultation fee', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'opd.consultation.fee', '500',
+ 'Standard OPD consultation fee', 1, NOW(), 1, 1),
 
 -- IPD Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'ipd.general_bed.daily_rate', '2000',
- 'General bed daily charging rate', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'ipd.general_bed.daily_rate', '2000',
+ 'General bed daily charging rate', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'ipd.icu.hourly_rate', '500',
- 'ICU bed hourly charging rate', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'ipd.icu.hourly_rate', '500',
+ 'ICU bed hourly charging rate', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'ipd.indent.approval_required', 'true',
- 'Require approval for indent items', 'BOOLEAN', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'ipd.indent.approval_required', 'true',
+ 'Require approval for indent items', 1, NOW(), 1, 1),
 
 -- Pharmacy Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'pharmacy.substitution.allowed', 'true',
- 'Allow medicine substitution', 'BOOLEAN', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'pharmacy.substitution.allowed', 'true',
+ 'Allow medicine substitution', 1, NOW(), 1, 1),
 
 -- Billing Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'billing.patient.credit_limit', '100000',
- 'Maximum credit limit per patient', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'billing.patient.credit_limit', '100000',
+ 'Maximum credit limit per patient', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'billing.discount.threshold_level_1', '5000',
- 'Threshold for 1st level discount approval', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'billing.discount.threshold_level_1', '5000',
+ 'Threshold for 1st level discount approval', 1, NOW(), 1, 1),
 
 -- TPA Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'tpa.preauth.auto_approve_amount', '50000',
- 'Auto-approve preauth below this amount', 'DECIMAL', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'tpa.preauth.auto_approve_amount', '50000',
+ 'Auto-approve preauth below this amount', 1, NOW(), 1, 1),
 
 -- General Policies
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'general.enable_patient_portal', 'true',
- 'Enable patient self-service portal', 'BOOLEAN', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004'),
+('test-tenant-001', 1, 1, 'general.enable_patient_portal', 'true',
+ 'Enable patient self-service portal', 1, NOW(), 1, 1),
 
-('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002',
- '00000000-0000-0000-0000-000000000003', 'general.enable_sms_notification', 'true',
- 'Enable SMS notifications', 'BOOLEAN', 'ACTIVE',
- '00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004');
+('test-tenant-001', 1, 1, 'general.enable_sms_notification', 'true',
+ 'Enable SMS notifications', 1, NOW(), 1, 1);

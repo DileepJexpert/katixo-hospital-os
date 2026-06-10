@@ -4,11 +4,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.UUID;
 
 @Repository
-public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
-    List<OutboxEvent> findByIsPublishedFalseOrderByCreatedAtAsc();
+public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> {
+    List<OutboxEvent> findByStatusInOrderByCreatedAtAsc(List<OutboxEvent.PublishStatus> statuses);
 
-    List<OutboxEvent> findByTenantIdAndBranchIdAndIsPublishedFalse(UUID tenantId, UUID branchId);
+    List<OutboxEvent> findByTenantIdAndStatusInOrderByCreatedAtAsc(String tenantId, List<OutboxEvent.PublishStatus> statuses);
 }

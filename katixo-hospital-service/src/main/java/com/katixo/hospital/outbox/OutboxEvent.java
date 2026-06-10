@@ -12,9 +12,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "outbox_event", indexes = {
-        @Index(name = "idx_outbox_tenant_branch", columnList = "tenant_id,branch_id"),
-        @Index(name = "idx_outbox_published", columnList = "is_published"),
-        @Index(name = "idx_outbox_created_at", columnList = "created_at")
+        @Index(name = "idx_outbox_status", columnList = "status,created_at")
 })
 @Getter
 @Builder
@@ -23,44 +21,54 @@ import java.util.UUID;
 public class OutboxEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false, updatable = false)
-    private UUID tenantId;
+    @Column(nullable = false, updatable = false, length = 50)
+    private String tenantId;
 
-    @Column(nullable = false, updatable = false)
-    private UUID branchId;
+    @Column(columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID eventId;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 100)
+    private String aggregateType;
+
+    @Column(nullable = false, updatable = false, length = 100)
+    private String aggregateId;
+
+    @Column(nullable = false, updatable = false, length = 100)
     private String eventType;
 
-    @Column(nullable = false, updatable = false, columnDefinition = "TEXT")
-    private String eventPayload;
+    @Column(nullable = false, updatable = false, columnDefinition = "JSONB")
+    private String payload;
 
-    @Column(nullable = false, updatable = false)
-    private String correlationId;
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private PublishStatus status = PublishStatus.PENDING;
 
     @Column(nullable = false)
-    private boolean isPublished = false;
-
-    @Column
-    private LocalDateTime publishedAt;
-
-    @Column
-    private String publishError;
+    private Integer retryCount = 0;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    public void markPublished() {
-        this.isPublished = true;
-        this.publishedAt = LocalDateTime.now();
-        this.publishError = null;
+    @Column
+    private LocalDateTime publishedAt;
+
+    public enum PublishStatus {
+        PENDING, PUBLISHED, FAILED
     }
 
-    public void markPublishFailed(String error) {
-        this.publishError = error;
+    public void markPublished() {
+        this.status = PublishStatus.PUBLISHED;
+        this.publishedAt = LocalDateTime.now();
+    }
+
+    public void markPublishFailed() {
+        this.retryCount++;
+        if (this.retryCount >= 3) {
+            this.status = PublishStatus.FAILED;
+        }
     }
 }
