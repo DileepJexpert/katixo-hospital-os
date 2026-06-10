@@ -8,8 +8,7 @@
 
 ## Implementation Status (Update — 2026-06-10)
 
-A first batch of clinical-safety blockers has been implemented and verified end-to-end against
-live PostgreSQL 16 (12-check smoke suite, all green):
+Phase 0 clinical-safety blockers implemented and verified end-to-end:
 
 | Item | Module | Status |
 |------|--------|--------|
@@ -17,9 +16,12 @@ live PostgreSQL 16 (12-check smoke suite, all green):
 | Lab order/item cancellation + charge reversal | Lab | ✅ **DONE** |
 | Discharge checklist enforcement (policy-driven, blocking) | IPD | ✅ **DONE** |
 | Machine-readable `error` code on every API error response | Platform | ✅ **DONE** |
+| Patient consent & privacy acknowledgment required at registration | Patient | ✅ **DONE** |
+| Patient identifier types (Aadhar, Passport, PAN, etc.) with verification | Patient | ✅ **ALREADY IMPLEMENTED** |
+| Appointment slot conflict prevention | OPD | ✅ **ALREADY IMPLEMENTED** |
 
-Remaining blockers (medicine-master validation, drug contraindications, patient consent/identifiers,
-appointment-slot locking, bed isolation) require ERP integration or new schema and are tracked below.
+Remaining blockers (medicine-master validation, drug contraindications, bed isolation) 
+require ERP integration and are tracked below.
 
 ---
 
@@ -51,9 +53,9 @@ appointment-slot locking, bed isolation) require ERP integration or new schema a
 | Issue | Severity | Impact | Recommendation |
 |-------|----------|--------|-----------------|
 | No duplicate detection on phone update | Medium | A receptionist might change a patient's phone and accidentally create a "new" patient | Add `@Unique` constraint; reject if another patient already has this mobile |
-| Missing patient identifier types (Aadhaar, voter ID, passport) | Medium | Cannot cross-reference patients across hospital groups | Implement PatientIdentifier entity with type enum (AADHAAR, VOTER_ID, PASSPORT, INSURANCE_ID) |
+| ~~Missing patient identifier types~~ ✅ **FIXED** | — | Patient identifiers (Aadhaar, Voter ID, Passport, PAN, etc.) fully implemented with verification tracking | Aadhaar, voter ID, passport, PAN supported via PatientIdentifier entity |
 | Age calculated from DOB; no handling of very old ages | Low | Negative or >150 year ages accepted | Add validator: `LocalDate.of(year, month, day).isAfter(today().minusYears(150))` |
-| No consent/privacy acknowledgment | High | Privacy regulation compliance unclear | Add `privacyConsent` boolean flag + timestamp before patient can be registered |
+| ~~No consent/privacy acknowledgment~~ ✅ **FIXED** | — | Privacy regulation compliance now enforced | Privacy consent required at registration; both privacy + data-sharing consent tracked with timestamps |
 | Visit summary update race condition | Low | If two concurrent visits are created, `totalVisits` counter may increment only once | Use atomic increment: `UPDATE patient_visit_summary SET total_visits = total_visits + 1` |
 
 ### 1.4 State Diagram

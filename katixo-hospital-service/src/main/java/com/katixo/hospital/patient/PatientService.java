@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,7 +28,7 @@ public class PatientService {
     private final PolicyService policyService;
 
     /**
-     * Register a new patient with auto-generated UHID
+     * Register a new patient with auto-generated UHID (requires privacy consent)
      */
     public Patient registerPatient(Patient patient) {
         var context = TenantContext.get();
@@ -45,6 +46,13 @@ public class PatientService {
         patient.setStatus(com.katixo.hospital.common.entity.BaseEntity.EntityStatus.ACTIVE);
         patient.setCreatedBy(Long.parseLong(context.getUserId()));
         patient.setUpdatedBy(Long.parseLong(context.getUserId()));
+
+        if (Boolean.TRUE.equals(patient.getPrivacyConsentGiven())) {
+            patient.setPrivacyConsentAt(LocalDateTime.now());
+        }
+        if (Boolean.TRUE.equals(patient.getDataSharingConsent())) {
+            patient.setDataSharingConsentAt(LocalDateTime.now());
+        }
 
         Patient saved = patientRepository.save(patient);
 

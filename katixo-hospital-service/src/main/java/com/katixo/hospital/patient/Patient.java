@@ -110,6 +110,18 @@ public class Patient extends BaseEntity {
     @OneToMany(mappedBy = "patient", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private Set<PatientIdentifier> identifiers = new HashSet<>();
 
+    @Column(nullable = false)
+    private Boolean privacyConsentGiven = false;
+
+    @Column
+    private LocalDateTime privacyConsentAt;
+
+    @Column(nullable = false)
+    private Boolean dataSharingConsent = false;
+
+    @Column
+    private LocalDateTime dataSharingConsentAt;
+
     public enum Gender {
         MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY
     }
