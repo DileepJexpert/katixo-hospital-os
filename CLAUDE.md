@@ -63,14 +63,16 @@ X-Source-Reference-Id: <prescription_id/indent_id/visit_id/admission_id>
 ## Tech Stack
 
 ### Backend
-- Java 17+ / Spring Boot 3.x
-- Spring Security + JWT (shared auth with ERP)
-- Spring Data JPA / Hibernate
-- PostgreSQL (hospital schema + audit schema)
-- Flyway for database migrations
-- Redis for caching (medicine master, bed availability, permissions, dashboard aggregates)
-- Elasticsearch/OpenSearch for patient and medicine search
-- Outbox table → Kafka/Redpanda (later)
+- **Java 21** (LTS)
+- **Spring Boot 3.4.x** (latest stable)
+- **Spring Security 6.4.x** (latest) + JWT (shared auth with ERP)
+- **Spring Data JPA 3.4.x** (latest) / **Hibernate 6.6.x** (latest)
+- **PostgreSQL 17** (latest driver)
+- **Flyway 10.x** (latest) for database migrations
+- **Redis 7.x** (latest) / **Jedis 5.x** (latest) for caching
+- **Elasticsearch 8.x** / **OpenSearch 2.x** (latest) for patient and medicine search
+- **Kafka 3.8.x** / **Redpanda** for event streaming (Outbox Pattern)
+- **Spring Cloud 2024.x** (latest) for service discovery, config, circuit breaker
 
 ### Frontend
 - Flutter Web (responsive — desktop, tablet, phone)
