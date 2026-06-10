@@ -279,11 +279,9 @@ public class BillingService {
         if (sourceType == HospitalCharge.SourceType.OPD_VISIT) {
             OPDVisit visit = visitRepository.findByIdAndTenantIdAndBranchId(sourceId, ctx.getTenantId(), branchId())
                     .orElseThrow(() -> new BusinessException("VISIT_NOT_FOUND", "Visit not found: " + sourceId));
-            String ref = "CONSULT-" + visit.getId();
-            if (visit.getConsultationFee().signum() > 0 && !chargeExists(sourceType, sourceId, ref)) {
-                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, ref,
-                        "CONSULT", "Doctor Consultation (" + visit.getFeeType() + ")",
-                        TariffMaster.ServiceCategory.CONSULTATION, 1, visit.getConsultationFee()));
+
+            if (visit.getConsultationFee().signum() > 0) {
+                createOPDConsultationCharges(visit, sourceType, sourceId);
             }
             autoChargeLabItems(sourceType, sourceId, visit.getPatientId());
             return visit.getPatientId();
@@ -312,6 +310,44 @@ public class BillingService {
         }
         autoChargeLabItems(HospitalCharge.SourceType.IPD_ADMISSION, sourceId, admission.getPatientId());
         return admission.getPatientId();
+    }
+
+    /**
+     * Create OPD consultation charges with optional referral fee splitting.
+     * If referral doctor exists, split fee: primary gets (100-referral%), referral gets referral%.
+     * Uses policy opd.referral.fee_percentage (default 25%).
+     */
+    private void createOPDConsultationCharges(OPDVisit visit, HospitalCharge.SourceType sourceType, Long sourceId) {
+        String primaryRef = "CONSULT-PRIMARY-" + visit.getId();
+        String referralRef = "CONSULT-REFERRAL-" + visit.getId();
+
+        if (visit.getReferralDoctorId() != null && visit.getReferralDoctorId() > 0) {
+            String refPctStr = policyService.getPolicyValue(HospitalPolicyCode.OPD_REFERRAL_FEE_PERCENTAGE);
+            BigDecimal refPct = new BigDecimal(refPctStr != null ? refPctStr : "25");
+            BigDecimal refPctDecimal = refPct.divide(BigDecimal.valueOf(100));
+
+            BigDecimal referralFee = visit.getConsultationFee().multiply(refPctDecimal);
+            BigDecimal primaryFee = visit.getConsultationFee().subtract(referralFee);
+
+            if (!chargeExists(sourceType, sourceId, primaryRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, primaryRef,
+                        "CONSULT-PRIMARY", "Doctor Consultation - Primary (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, primaryFee));
+            }
+            if (!chargeExists(sourceType, sourceId, referralRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, referralRef,
+                        "CONSULT-REFERRAL", "Doctor Consultation - Referral (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, referralFee));
+            }
+            log.info("Split OPD consultation fee for visit {}: Primary={}, Referral={}",
+                    visit.getId(), primaryFee, referralFee);
+        } else {
+            if (!chargeExists(sourceType, sourceId, primaryRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, primaryRef,
+                        "CONSULT", "Doctor Consultation (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, visit.getConsultationFee()));
+            }
+        }
     }
 
     /** Lab order items become LAB charges (rate snapshot from the order item, dedupe via LAB-ITEM ref). */

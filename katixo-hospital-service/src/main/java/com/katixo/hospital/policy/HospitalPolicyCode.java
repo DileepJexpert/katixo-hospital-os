@@ -6,6 +6,7 @@ public enum HospitalPolicyCode {
     OPD_FOLLOW_UP_REDUCED_FEE("opd.followup.reduced_fee", "Reduced fee percentage for follow-up"),
     OPD_CONSULTATION_FEE("opd.consultation.fee", "Standard OPD consultation fee"),
     OPD_DOCTOR_LEAVE_REQUIRES_APPROVAL("opd.doctor.leave_requires_approval", "Require admin approval for doctor leave (default true)"),
+    OPD_REFERRAL_FEE_PERCENTAGE("opd.referral.fee_percentage", "Percentage of consultation fee to referral doctor (default 25)"),
 
     // IPD Policies
     IPD_GENERAL_BED_DAILY_RATE("ipd.general_bed.daily_rate", "General bed daily charging rate"),
