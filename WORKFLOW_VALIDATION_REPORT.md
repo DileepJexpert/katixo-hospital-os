@@ -8,7 +8,7 @@
 
 ## Implementation Status (Update — 2026-06-10)
 
-Phase 0 clinical-safety blockers implemented and verified end-to-end:
+**Phase 0**: All clinical-safety blockers complete ✅
 
 | Item | Module | Status |
 |------|--------|--------|
@@ -20,7 +20,18 @@ Phase 0 clinical-safety blockers implemented and verified end-to-end:
 | Patient identifier types (Aadhar, Passport, PAN, etc.) with verification | Patient | ✅ **ALREADY IMPLEMENTED** |
 | Appointment slot conflict prevention | OPD | ✅ **ALREADY IMPLEMENTED** |
 
-Remaining blockers (medicine-master validation, drug contraindications, bed isolation) 
+**Phase 1**: Revenue & workflow control features (in progress)
+
+| Item | Module | Status |
+|------|--------|--------|
+| Patient credit account & balance tracking with limits | Billing | ✅ **DONE** |
+| Doctor availability checking (blocks queue tokens when on leave) | OPD | ✅ **DONE** |
+| Bill finalization locking (prevent finalize while discount pending) | Billing | 🔄 **NEXT** |
+| Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | Pending |
+| Multi-visit bill prevention (safety check) | Billing | Pending |
+| Bed isolation tracking (infectious patients) | IPD | Pending |
+
+Remaining blockers (medicine-master validation, contraindications, bed isolation) 
 require ERP integration and are tracked below.
 
 ---
