@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: katixo-hospital-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/katixo_hospital
+    username: katixo
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: hospital
+  flyway:
+    enabled: true
+    schemas: hospital,audit
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  elasticsearch:
+    uris: http://localhost:9200
+
+server:
+  port: 8081
+
+katixo:
+  erp:
+    base-url: http://localhost:8080
+    service-token: ${ERP_SERVICE_TOKEN}
+  security:
+    jwt-secret: ${JWT_SECRET}
+  tenant:
+    default-branch-id: ${DEFAULT_BRANCH_ID:1}
