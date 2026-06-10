@@ -12,6 +12,9 @@ public enum HospitalPolicyCode {
     IPD_INDENT_APPROVAL_REQUIRED("ipd.indent.approval_required", "Require approval for indent items"),
     IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS("ipd.discharge.checklist_blocking_items", "Items that block discharge"),
 
+    // Prescription Policies
+    RX_ALLERGY_CHECK_ENABLED("rx.allergy.check_enabled", "Block prescribing medicines that match patient allergies"),
+
     // Pharmacy Policies
     PHARMACY_SUBSTITUTION_ALLOWED("pharmacy.substitution.allowed", "Allow medicine substitution"),
     PHARMACY_GENERIC_SUBSTITUTION("pharmacy.generic.substitution", "Auto-suggest generic medicines"),

@@ -150,13 +150,16 @@ public class IPDController {
     public static class DischargeRequest {
         @NotNull
         private IPDAdmission.DischargeType dischargeType;
+        /** Checklist item codes the discharging staff confirms (e.g. FINAL_BILL_CLEARED). */
+        private List<String> acknowledgedChecklistItems;
     }
 
     @PostMapping("/admissions/{id}/discharge")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AdmissionView>> discharge(@PathVariable Long id,
                                                                 @Valid @RequestBody DischargeRequest req) {
-        return respond(AdmissionView.from(ipdService.discharge(id, req.getDischargeType())),
+        return respond(AdmissionView.from(
+                        ipdService.discharge(id, req.getDischargeType(), req.getAcknowledgedChecklistItems())),
                 "Patient discharged", HttpStatus.OK);
     }
 

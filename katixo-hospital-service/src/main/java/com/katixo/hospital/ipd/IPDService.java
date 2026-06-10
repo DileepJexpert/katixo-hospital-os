@@ -7,6 +7,8 @@ import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.patient.PatientVisitSummaryRepository;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,7 @@ public class IPDService {
     private final BedAllocationRepository allocationRepository;
     private final PatientRepository patientRepository;
     private final PatientVisitSummaryRepository visitSummaryRepository;
+    private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
 
@@ -165,14 +168,20 @@ public class IPDService {
 
     /**
      * Discharge: NORMAL / LAMA / DEATH. Closes the allocation, totals bed charges, frees the bed.
+     * For a NORMAL discharge the blocking checklist (policy {@code ipd.discharge.checklist_blocking_items})
+     * must be fully acknowledged. LAMA / DEATH bypass blocking — you cannot trap a body or a patient
+     * leaving against advice behind an unpaid bill — but the acknowledged set is still audited.
      */
-    public IPDAdmission discharge(Long admissionId, IPDAdmission.DischargeType dischargeType) {
+    public IPDAdmission discharge(Long admissionId, IPDAdmission.DischargeType dischargeType,
+                                  List<String> acknowledgedChecklistItems) {
         var ctx = TenantContext.get();
         IPDAdmission admission = getActiveAdmission(admissionId);
 
         if (dischargeType == null) {
             throw new BusinessException("DISCHARGE_TYPE_REQUIRED", "Discharge type is required (NORMAL/LAMA/DEATH)");
         }
+
+        guardDischargeChecklist(dischargeType, acknowledgedChecklistItems);
 
         LocalDateTime now = LocalDateTime.now();
         BedAllocation closed = closeActiveAllocation(admission, now);
@@ -244,6 +253,41 @@ public class IPDService {
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
+
+    /**
+     * Blocking discharge checklist (policy-driven, CLAUDE.md). The policy value is a CSV of item
+     * codes that must be ticked before a NORMAL discharge — e.g.
+     * {@code FINAL_BILL_CLEARED,MEDICINES_RETURNED,REPORTS_HANDED_OVER}. Empty/missing policy means
+     * nothing blocks (backward compatible). Non-NORMAL discharges skip blocking entirely.
+     */
+    private void guardDischargeChecklist(IPDAdmission.DischargeType dischargeType,
+                                         List<String> acknowledgedChecklistItems) {
+        if (dischargeType != IPDAdmission.DischargeType.NORMAL) {
+            return;
+        }
+        String csv = policyService.getPolicyValue(
+                HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS, "");
+        if (csv == null || csv.isBlank()) {
+            return;
+        }
+        java.util.Set<String> acknowledged = acknowledgedChecklistItems == null ? java.util.Set.of()
+                : acknowledgedChecklistItems.stream()
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(s -> s.trim().toUpperCase())
+                        .collect(java.util.stream.Collectors.toSet());
+
+        List<String> missing = java.util.Arrays.stream(csv.split(","))
+                .map(s -> s.trim().toUpperCase())
+                .filter(code -> !code.isBlank())
+                .filter(code -> !acknowledged.contains(code))
+                .toList();
+
+        if (!missing.isEmpty()) {
+            throw new BusinessException("DISCHARGE_CHECKLIST_INCOMPLETE",
+                    "Cannot discharge — blocking checklist items not acknowledged: "
+                            + String.join(", ", missing));
+        }
+    }
 
     private IPDAdmission getActiveAdmission(Long admissionId) {
         IPDAdmission admission = getAdmission(admissionId);

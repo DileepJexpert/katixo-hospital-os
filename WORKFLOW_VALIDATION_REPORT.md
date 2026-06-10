@@ -6,6 +6,23 @@
 
 ---
 
+## Implementation Status (Update — 2026-06-10)
+
+A first batch of clinical-safety blockers has been implemented and verified end-to-end against
+live PostgreSQL 16 (12-check smoke suite, all green):
+
+| Item | Module | Status |
+|------|--------|--------|
+| Allergy guard on prescriptions (block + audited override) | Prescription | ✅ **DONE** |
+| Lab order/item cancellation + charge reversal | Lab | ✅ **DONE** |
+| Discharge checklist enforcement (policy-driven, blocking) | IPD | ✅ **DONE** |
+| Machine-readable `error` code on every API error response | Platform | ✅ **DONE** |
+
+Remaining blockers (medicine-master validation, drug contraindications, patient consent/identifiers,
+appointment-slot locking, bed isolation) require ERP integration or new schema and are tracked below.
+
+---
+
 ## 1. PATIENT MODULE — Registration & Master Data
 
 ### 1.1 Workflow Analysis
@@ -216,7 +233,7 @@ if (existing.getPrescriptionStatus() == DISPENSED) {
 | No medicine master validation | High | Doctor can prescribe non-existent medicines | Add MedicineRepository query; validate `medicineCode` exists in ERP before saving |
 | No dosage standardization | Medium | Doctor might enter "1 tablet" vs "1 cap" vs "1" inconsistently | Add dosage unit enum (TAB, CAP, ML, GM, MCG) + quantity format validation |
 | No contraindication checking | High | Doctor might prescribe conflicting drugs (e.g., two NSAIDs) | Optional: Integrate with ERP medicine master for contraindication rules |
-| No allergy checking | High | Doctor might prescribe drug patient is allergic to | Check patient.allergies against medicine.allergyTags before save |
+| ~~No allergy checking~~ ✅ **FIXED** | High | Doctor might prescribe drug patient is allergic to | Implemented: AllergyChecker blocks conflicts; audited override + reason required to proceed |
 | No quantity/duration validation | Medium | Doctor might prescribe 1000 tablets of antibiotic (overdose risk) | Define MIN/MAX quantity per medicine code in tariff; warn if exceeded |
 | No expiry date tracking | Low | Pharmacist might dispense expired medicine | ERP owns this (batch expiry); hospital doesn't need to check |
 | Prescription printable format missing | Medium | Doctor/patient has no formatted print | Add `/prescriptions/{id}/print` endpoint returning PDF/HTML |
@@ -637,7 +654,7 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 1. **Patient duplicate on mobile update**: No check if phone change creates new patient entry
 2. **Follow-up fee ignores referrals**: Referred patients should get reduced fee, not full
 3. **Doctor unavailability**: System doesn't check if doctor is on leave before issuing queue token
-4. **Discharge checklist enforcement missing**: Can't block discharge if required items unchecked
+4. ~~**Discharge checklist enforcement missing**~~ ✅ **FIXED**: Policy-driven blocking checklist enforced on NORMAL discharge (LAMA/DEATH bypass)
 5. **Patient credit account missing**: No tracking of outstanding balances across visits
 6. **Bill state transitions unclear**: No locking mechanism if discount approval pending but billing tries to finalize
 7. **Lab pending approval dashboard missing**: No manager view of awaiting-review tests
@@ -648,10 +665,10 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 
 1. **No medicine master validation**: Doctors can prescribe non-existent medicines
 2. **No contraindication checking**: Dangerous drug combinations not flagged
-3. **No allergy checking**: Allergic medicines might be dispensed
+3. ~~**No allergy checking**~~ ✅ **FIXED**: Prescription blocked on allergy conflict; audited override with reason to proceed
 4. **Patient consent/privacy not captured**: Regulatory compliance unclear
 5. **No patient identifier types** (Aadhaar, voter ID): Cross-reference impossible
-6. **Lab test cancellation missing**: If order placed by mistake, can't reverse
+6. ~~**Lab test cancellation missing**~~ ✅ **FIXED**: Item/order cancellation with charge reversal; billed tests protected
 7. **Appointment slot overlaps not prevented**: Concurrent bookings could double-book same slot
 8. **No bed isolation/contamination tracking**: Infectious patients' beds not quarantined
 
@@ -664,12 +681,12 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 | Task | Module | Effort | Owner |
 |------|--------|--------|-------|
 | Add medicine master validation + contraindication checks | Prescription | High | Pharmacy module developer |
-| Implement patient allergy checking before prescription | Prescription | Medium | Prescription service |
+| ~~Implement patient allergy checking before prescription~~ ✅ DONE | Prescription | Medium | Prescription service |
 | Add appointment slot conflict prevention | OPD | Low | OPD service |
-| Implement discharge checklist enforcement | IPD | Medium | IPD service |
+| ~~Implement discharge checklist enforcement~~ ✅ DONE | IPD | Medium | IPD service |
 | Add patient identifier types (Aadhaar, voter ID, insurance) | Patient | Medium | Patient service |
 | Add patient consent/privacy capture | Patient | Low | Patient service |
-| Add lab test cancellation + charge reversal | Lab | Medium | Lab service |
+| ~~Add lab test cancellation + charge reversal~~ ✅ DONE | Lab | Medium | Lab service |
 
 ### Phase 1 (Important — Fix in Next Sprint)
 

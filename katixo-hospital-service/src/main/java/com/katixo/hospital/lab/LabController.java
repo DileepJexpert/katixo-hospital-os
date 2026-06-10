@@ -152,6 +152,35 @@ public class LabController {
                 "releasedAt", r.getReleasedAt().toString()), "Report released", HttpStatus.OK);
     }
 
+    // ---------- cancellation ----------
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CancelRequest {
+        @NotBlank
+        private String reason;
+    }
+
+    @PostMapping("/order-items/{itemId}/cancel")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'LAB_TECH', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> cancelItem(@PathVariable Long itemId,
+                                                          @Valid @RequestBody CancelRequest req) {
+        LabOrderItem i = labService.cancelItem(itemId, req.getReason());
+        return respond(Map.of("itemId", i.getId(), "itemStatus", i.getItemStatus().name()),
+                "Lab item cancelled", HttpStatus.OK);
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> cancelOrder(@PathVariable Long orderId,
+                                                           @Valid @RequestBody CancelRequest req) {
+        LabOrder o = labService.cancelOrder(orderId, req.getReason());
+        return respond(Map.of("orderId", o.getId(), "orderNumber", o.getOrderNumber(),
+                        "orderStatus", o.getOrderStatus().name()),
+                "Lab order cancelled", HttpStatus.OK);
+    }
+
     private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
         return ResponseEntity.status(status).body(ApiResponse.<T>builder()
                 .success(true)

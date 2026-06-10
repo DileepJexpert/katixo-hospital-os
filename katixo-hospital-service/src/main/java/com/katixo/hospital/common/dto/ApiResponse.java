@@ -16,6 +16,8 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
     private T data;
+    /** Machine-readable error code (e.g. ALLERGY_CONFLICT) on failures; null on success. */
+    private String error;
     private String message;
     private UUID correlationId;
     private int status;

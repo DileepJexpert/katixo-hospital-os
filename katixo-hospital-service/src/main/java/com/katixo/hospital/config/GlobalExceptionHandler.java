@@ -27,6 +27,7 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.builder()
                 .success(false)
                 .status(HttpStatus.BAD_REQUEST.value())
+                .error(ex.getCode())
                 .message(ex.getMessage())
                 .correlationId(UUID.randomUUID())
                 .build();
@@ -41,6 +42,7 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.builder()
                 .success(false)
                 .status(HttpStatus.FORBIDDEN.value())
+                .error("ACCESS_DENIED")
                 .message("Access denied")
                 .correlationId(UUID.randomUUID())
                 .build();
@@ -65,6 +67,7 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.builder()
                 .success(false)
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                .error("VALIDATION_FAILED")
                 .message("Validation failed")
                 .correlationId(UUID.randomUUID())
                 .errors(errors)
@@ -79,6 +82,7 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.builder()
                 .success(false)
                 .status(HttpStatus.FORBIDDEN.value())
+                .error("ACCESS_DENIED")
                 .message("Access denied")
                 .correlationId(UUID.randomUUID())
                 .build();
@@ -92,6 +96,7 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.builder()
                 .success(false)
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .error("INTERNAL_ERROR")
                 .message("Internal server error")
                 .correlationId(UUID.randomUUID())
                 .build();

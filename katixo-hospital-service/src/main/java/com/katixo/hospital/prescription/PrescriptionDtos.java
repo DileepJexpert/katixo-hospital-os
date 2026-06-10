@@ -55,6 +55,9 @@ public final class PrescriptionDtos {
         @NotEmpty
         @Valid
         private List<ItemRequest> items;
+        /** Set true to proceed despite an allergy conflict; requires allergyOverrideReason. */
+        private boolean overrideAllergy;
+        private String allergyOverrideReason;
     }
 
     @Getter
@@ -65,6 +68,9 @@ public final class PrescriptionDtos {
         @NotEmpty
         @Valid
         private List<ItemRequest> items;
+        /** Set true to proceed despite an allergy conflict; requires allergyOverrideReason. */
+        private boolean overrideAllergy;
+        private String allergyOverrideReason;
     }
 
     @Getter

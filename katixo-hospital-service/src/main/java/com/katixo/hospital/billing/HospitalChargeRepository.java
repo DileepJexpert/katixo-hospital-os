@@ -20,5 +20,8 @@ public interface HospitalChargeRepository extends BaseRepository<HospitalCharge>
             String tenantId, HospitalCharge.SourceType sourceType, Long sourceId, String sourceRef,
             HospitalCharge.ChargeStatus excluded);
 
+    List<HospitalCharge> findByTenantIdAndSourceTypeAndSourceIdAndSourceRef(
+            String tenantId, HospitalCharge.SourceType sourceType, Long sourceId, String sourceRef);
+
     List<HospitalCharge> findByTenantIdAndBillIdOrderById(String tenantId, Long billId);
 }

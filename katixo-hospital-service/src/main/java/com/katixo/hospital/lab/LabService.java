@@ -3,6 +3,7 @@ package com.katixo.hospital.lab;
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.billing.HospitalCharge;
+import com.katixo.hospital.billing.HospitalChargeRepository;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.ipd.IPDAdmissionRepository;
@@ -35,6 +36,7 @@ public class LabService {
     private final LabOrderItemRepository itemRepository;
     private final LabSampleRepository sampleRepository;
     private final LabReportRepository reportRepository;
+    private final HospitalChargeRepository chargeRepository;
     private final PatientRepository patientRepository;
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
@@ -238,6 +240,83 @@ public class LabService {
         return saved;
     }
 
+    /**
+     * Cancel a single order item (e.g. test ordered by mistake, sample rejected, patient refused).
+     * A RELEASED item cannot be cancelled — its result is already in the patient record. Any UNBILLED
+     * charge raised for the item is reversed; if the charge was already BILLED, cancellation is
+     * blocked until the bill itself is corrected, so financial records never drift.
+     */
+    public LabOrderItem cancelItem(Long itemId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("CANCEL_REASON_REQUIRED", "Cancellation reason is required (audited)");
+        }
+        LabOrderItem item = getOwnedItem(itemId);
+
+        if (item.getItemStatus() == LabOrderItem.ItemStatus.RELEASED) {
+            throw new BusinessException("INVALID_STATE",
+                    "Cannot cancel a released test; its report is already in the patient record");
+        }
+        if (item.getItemStatus() == LabOrderItem.ItemStatus.CANCELLED) {
+            throw new BusinessException("ALREADY_CANCELLED", "Item is already cancelled");
+        }
+
+        LabOrder order = orderRepository.findByIdAndTenantIdAndBranchId(item.getLabOrderId(),
+                        TenantContext.get().getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND",
+                        "Lab order not found: " + item.getLabOrderId()));
+
+        reverseChargeForItem(order, item, reason);
+
+        item.setItemStatus(LabOrderItem.ItemStatus.CANCELLED);
+        itemRepository.save(item);
+        recomputeOrderStatus(order.getId());
+
+        outboxEventService.publish("LabOrderItem", String.valueOf(item.getId()), "LabItemCancelled",
+                Map.of("itemId", item.getId(), "orderId", order.getId(), "testCode", item.getTestCode(),
+                        "reason", reason));
+        auditService.audit("LabOrderItem", String.valueOf(item.getId()), AuditLog.AuditAction.UPDATE,
+                null, Map.of("itemStatus", "CANCELLED", "testCode", item.getTestCode(), "reason", reason),
+                UUID.randomUUID().toString());
+
+        log.info("Lab item {} ({}) cancelled — reason: {}", itemId, item.getTestCode(), reason);
+        return item;
+    }
+
+    /** Cancel an entire order — cancels every still-cancellable item (RELEASED ones are left intact). */
+    public LabOrder cancelOrder(Long orderId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("CANCEL_REASON_REQUIRED", "Cancellation reason is required (audited)");
+        }
+        var ctx = TenantContext.get();
+        LabOrder order = orderRepository.findByIdAndTenantIdAndBranchId(orderId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Lab order not found: " + orderId));
+        if (order.getOrderStatus() == LabOrder.OrderStatus.CANCELLED) {
+            throw new BusinessException("ALREADY_CANCELLED", "Order is already cancelled");
+        }
+
+        itemRepository.findByTenantIdAndLabOrderIdOrderById(ctx.getTenantId(), orderId).stream()
+                .filter(i -> i.getItemStatus() != LabOrderItem.ItemStatus.RELEASED
+                        && i.getItemStatus() != LabOrderItem.ItemStatus.CANCELLED)
+                .forEach(i -> {
+                    reverseChargeForItem(order, i, reason);
+                    i.setItemStatus(LabOrderItem.ItemStatus.CANCELLED);
+                    itemRepository.save(i);
+                });
+
+        recomputeOrderStatus(orderId);
+        LabOrder saved = orderRepository.findByIdAndTenantIdAndBranchId(orderId, ctx.getTenantId(), branchId())
+                .orElseThrow();
+
+        outboxEventService.publish("LabOrder", String.valueOf(orderId), "LabOrderCancelled",
+                Map.of("orderId", orderId, "orderNumber", saved.getOrderNumber(), "reason", reason));
+        auditService.audit("LabOrder", String.valueOf(orderId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("orderStatus", saved.getOrderStatus().name(), "reason", reason),
+                UUID.randomUUID().toString());
+
+        log.info("Lab order {} cancelled — reason: {}", saved.getOrderNumber(), reason);
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Object> getOrderView(Long orderId) {
         var ctx = TenantContext.get();
@@ -314,6 +393,53 @@ public class LabService {
                         o.setOrderStatus(LabOrder.OrderStatus.COMPLETED);
                         orderRepository.save(o);
                     });
+        }
+    }
+
+    /**
+     * Recompute order status after a cancellation: all items cancelled → CANCELLED;
+     * none still open (mix of released/cancelled) → COMPLETED; otherwise leave as-is.
+     */
+    private void recomputeOrderStatus(Long orderId) {
+        var ctx = TenantContext.get();
+        List<LabOrderItem> items = itemRepository.findByTenantIdAndLabOrderIdOrderById(ctx.getTenantId(), orderId);
+        boolean allCancelled = !items.isEmpty()
+                && items.stream().allMatch(i -> i.getItemStatus() == LabOrderItem.ItemStatus.CANCELLED);
+        if (allCancelled) {
+            orderRepository.findByIdAndTenantIdAndBranchId(orderId, ctx.getTenantId(), branchId())
+                    .ifPresent(o -> {
+                        o.setOrderStatus(LabOrder.OrderStatus.CANCELLED);
+                        orderRepository.save(o);
+                    });
+            return;
+        }
+        completeOrderIfDone(orderId);
+    }
+
+    /**
+     * Reverse the billing charge for a lab item being cancelled. An UNBILLED charge is voided
+     * (status CANCELLED); a charge already on a bill blocks the cancellation so finance stays correct.
+     */
+    private void reverseChargeForItem(LabOrder order, LabOrderItem item, String reason) {
+        var ctx = TenantContext.get();
+        String ref = "LAB-ITEM-" + item.getId();
+        List<HospitalCharge> charges = chargeRepository.findByTenantIdAndSourceTypeAndSourceIdAndSourceRef(
+                ctx.getTenantId(), order.getSourceType(), order.getSourceId(), ref);
+        for (HospitalCharge charge : charges) {
+            if (charge.getChargeStatus() == HospitalCharge.ChargeStatus.BILLED) {
+                throw new BusinessException("CHARGE_ALREADY_BILLED",
+                        "Lab test " + item.getTestCode() + " is already billed (bill " + charge.getBillId()
+                                + "); cancel or correct the bill before cancelling the test");
+            }
+            if (charge.getChargeStatus() == HospitalCharge.ChargeStatus.UNBILLED) {
+                charge.setChargeStatus(HospitalCharge.ChargeStatus.CANCELLED);
+                charge.setUpdatedBy(userId());
+                chargeRepository.save(charge);
+                auditService.audit("HospitalCharge", String.valueOf(charge.getId()),
+                        AuditLog.AuditAction.UPDATE, null,
+                        Map.of("chargeStatus", "CANCELLED", "reason", "Lab item cancelled: " + reason),
+                        UUID.randomUUID().toString());
+            }
         }
     }
 

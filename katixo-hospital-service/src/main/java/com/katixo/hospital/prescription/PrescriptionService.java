@@ -7,6 +7,10 @@ import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.opd.OPDVisit;
 import com.katixo.hospital.opd.OPDVisitRepository;
 import com.katixo.hospital.outbox.OutboxEventService;
+import com.katixo.hospital.patient.Patient;
+import com.katixo.hospital.patient.PatientRepository;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,13 +31,16 @@ public class PrescriptionService {
 
     private final PrescriptionRepository prescriptionRepository;
     private final OPDVisitRepository visitRepository;
+    private final PatientRepository patientRepository;
+    private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
 
     /**
      * Create prescription (version 1) for a visit that is in consultation or completed.
      */
-    public Prescription create(Long visitId, String notes, List<PrescriptionItem> items) {
+    public Prescription create(Long visitId, String notes, List<PrescriptionItem> items,
+                               boolean overrideAllergy, String overrideReason) {
         var context = TenantContext.get();
         Long branchId = Long.parseLong(context.getBranchId());
 
@@ -48,6 +55,8 @@ public class PrescriptionService {
         if (items == null || items.isEmpty()) {
             throw new BusinessException("EMPTY_PRESCRIPTION", "Prescription must contain at least one item");
         }
+
+        guardAllergies(visit.getPatientId(), items, overrideAllergy, overrideReason);
 
         Prescription rx = new Prescription();
         rx.setTenantId(context.getTenantId());
@@ -80,7 +89,8 @@ public class PrescriptionService {
      * Edit rule (CLAUDE.md): before dispense → in-place edit;
      * after dispense → NEW version, old one SUPERSEDED. Both audited.
      */
-    public Prescription update(Long prescriptionId, String notes, List<PrescriptionItem> items) {
+    public Prescription update(Long prescriptionId, String notes, List<PrescriptionItem> items,
+                               boolean overrideAllergy, String overrideReason) {
         var context = TenantContext.get();
         Prescription existing = getOwned(prescriptionId);
 
@@ -93,6 +103,8 @@ public class PrescriptionService {
         if (items == null || items.isEmpty()) {
             throw new BusinessException("EMPTY_PRESCRIPTION", "Prescription must contain at least one item");
         }
+
+        guardAllergies(existing.getPatientId(), items, overrideAllergy, overrideReason);
 
         if (existing.getPrescriptionStatus() == Prescription.PrescriptionStatus.ACTIVE) {
             // Not dispensed yet → edit in place
@@ -202,6 +214,53 @@ public class PrescriptionService {
     }
 
     // ------------------------------------------------------------
+
+    /**
+     * Allergy safety net (policy {@code rx.allergy.check_enabled}, default on). If any prescribed
+     * medicine matches a recorded patient allergy, the prescription is blocked with
+     * {@code ALLERGY_CONFLICT} — unless the doctor passes an explicit override + reason, which is
+     * recorded in the audit log so the clinical decision is traceable.
+     */
+    private void guardAllergies(Long patientId, List<PrescriptionItem> items,
+                                boolean overrideAllergy, String overrideReason) {
+        if (!policyService.getPolicyAsBoolean(HospitalPolicyCode.RX_ALLERGY_CHECK_ENABLED, true)) {
+            return;
+        }
+        var context = TenantContext.get();
+        Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(patientId,
+                        context.getTenantId(), Long.parseLong(context.getBranchId()))
+                .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND", "Patient not found: " + patientId));
+
+        List<AllergyChecker.Conflict> conflicts =
+                AllergyChecker.findConflicts(patient.getAllergies(), items);
+        if (conflicts.isEmpty()) {
+            return;
+        }
+
+        String detail = conflicts.stream().map(AllergyChecker.Conflict::toString)
+                .collect(java.util.stream.Collectors.joining("; "));
+
+        if (!overrideAllergy) {
+            throw new BusinessException("ALLERGY_CONFLICT",
+                    "Prescription conflicts with recorded patient allergies: " + detail
+                            + ". Confirm override with a reason to proceed.");
+        }
+        if (overrideReason == null || overrideReason.isBlank()) {
+            throw new BusinessException("ALLERGY_OVERRIDE_REASON_REQUIRED",
+                    "Allergy override requires a reason (audited)");
+        }
+
+        auditService.audit("Prescription", "patient:" + patientId, AuditLog.AuditAction.UPDATE,
+                null, new java.util.LinkedHashMap<String, Object>() {{
+                    put("event", "ALLERGY_OVERRIDE");
+                    put("patientId", patientId);
+                    put("conflicts", conflicts.stream().map(AllergyChecker.Conflict::toString).toList());
+                    put("reason", overrideReason);
+                    put("overriddenBy", context.getUserId());
+                }}, UUID.randomUUID().toString());
+        log.warn("Allergy override for patient {} by user {}: {} — reason: {}",
+                patientId, context.getUserId(), detail, overrideReason);
+    }
 
     private Prescription getOwned(Long prescriptionId) {
         var context = TenantContext.get();

@@ -24,7 +24,8 @@ public class PrescriptionController {
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<PrescriptionResponse>> create(@Valid @RequestBody CreateRequest request) {
         Prescription rx = prescriptionService.create(request.getVisitId(), request.getNotes(),
-                request.getItems().stream().map(ItemRequest::toEntity).toList());
+                request.getItems().stream().map(ItemRequest::toEntity).toList(),
+                request.isOverrideAllergy(), request.getAllergyOverrideReason());
         return respond(PrescriptionResponse.from(rx), "Prescription created", HttpStatus.CREATED);
     }
 
@@ -55,7 +56,8 @@ public class PrescriptionController {
     public ResponseEntity<ApiResponse<PrescriptionResponse>> update(@PathVariable Long id,
                                                                     @Valid @RequestBody UpdateRequest request) {
         Prescription rx = prescriptionService.update(id, request.getNotes(),
-                request.getItems().stream().map(ItemRequest::toEntity).toList());
+                request.getItems().stream().map(ItemRequest::toEntity).toList(),
+                request.isOverrideAllergy(), request.getAllergyOverrideReason());
         return respond(PrescriptionResponse.from(rx), "Prescription updated", HttpStatus.OK);
     }
 
