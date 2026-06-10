@@ -1,0 +1,13 @@
+package com.katixo.hospital.outbox;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> {
+    List<OutboxEvent> findByStatusInOrderByCreatedAtAsc(List<OutboxEvent.PublishStatus> statuses);
+
+    List<OutboxEvent> findByTenantIdAndStatusInOrderByCreatedAtAsc(String tenantId, List<OutboxEvent.PublishStatus> statuses);
+}

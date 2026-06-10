@@ -1,0 +1,76 @@
+package com.katixo.hospital.audit;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
+import static com.katixo.hospital.tenant.TenantContext.get;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class AuditService {
+
+    private final AuditLogRepository auditLogRepository;
+    private final ObjectMapper objectMapper;
+
+    public void audit(String entityType, String entityId, AuditLog.AuditAction action,
+                      Object beforeState, Object afterState, String correlationId) {
+        try {
+            var tenantContext = get();
+            String beforeHash = beforeState != null ? hash(objectMapper.writeValueAsString(beforeState)) : null;
+            String afterHash = afterState != null ? hash(objectMapper.writeValueAsString(afterState)) : null;
+            String ipAddress = extractIpAddress();
+
+            AuditLog log = AuditLog.builder()
+                    .tenantId(tenantContext.getTenantId())
+                    .hospitalGroupId(Long.parseLong(tenantContext.getHospitalGroupId()))
+                    .branchId(Long.parseLong(tenantContext.getBranchId()))
+                    .actorId(tenantContext.getUserId())
+                    .action(action)
+                    .entityType(entityType)
+                    .entityId(entityId)
+                    .beforeHash(beforeHash)
+                    .afterHash(afterHash)
+                    .correlationId(correlationId != null ? java.util.UUID.fromString(correlationId) : null)
+                    .ipAddress(ipAddress)
+                    .build();
+
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            log.error("Failed to write audit log for entity {} - {}", entityType, entityId, e);
+        }
+    }
+
+    private String hash(String data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(data.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private String extractIpAddress() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                String clientIp = attributes.getRequest().getHeader("X-Forwarded-For");
+                if (clientIp == null || clientIp.isEmpty()) {
+                    clientIp = attributes.getRequest().getRemoteAddr();
+                }
+                return clientIp;
+            }
+        } catch (Exception e) {
+            log.debug("Could not extract IP address", e);
+        }
+        return "unknown";
+    }
+}
