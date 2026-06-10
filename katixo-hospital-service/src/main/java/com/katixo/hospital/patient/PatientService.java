@@ -24,6 +24,7 @@ public class PatientService {
     private final PatientRepository patientRepository;
     private final PatientSearchIndexRepository patientSearchIndexRepository;
     private final PatientVisitSummaryRepository patientVisitSummaryRepository;
+    private final PatientCreditService creditService;
     private final AuditService auditService;
     private final PolicyService policyService;
 
@@ -61,6 +62,9 @@ public class PatientService {
 
         // Create visit summary
         createVisitSummary(saved);
+
+        // Initialize credit account
+        creditService.initializeCreditAccount(saved);
 
         // Audit
         auditService.audit("Patient", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,

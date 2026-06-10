@@ -21,6 +21,8 @@ public enum HospitalPolicyCode {
 
     // Billing Policies
     BILLING_PATIENT_CREDIT_LIMIT("billing.patient.credit_limit", "Maximum credit limit per patient"),
+    BILLING_PATIENT_CREDIT_AUTO_DEDUCT("billing.patient.credit.auto_deduct", "Auto-deduct from patient credit when bill is generated"),
+    BILLING_PATIENT_CREDIT_LIMIT_BLOCK_ACTION("billing.patient.credit.limit_block_action", "Action when credit limit exceeded: WARN, BLOCK, ALLOW"),
     BILLING_DISCOUNT_THRESHOLD_LEVEL_1("billing.discount.threshold_level_1", "Threshold for 1st level discount approval"),
     BILLING_DISCOUNT_LEVEL_1_PERCENTAGE("billing.discount.level_1_percentage", "Percentage discount for level 1"),
     BILLING_DISCOUNT_THRESHOLD_LEVEL_2("billing.discount.threshold_level_2", "Threshold for 2nd level discount approval"),
