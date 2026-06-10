@@ -1,0 +1,155 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: katixo
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: katixo_hospital_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+        ports:
+          - 9200:9200
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn clean install -DskipTests
+        env:
+          DB_PASSWORD: test_password
+          JWT_SECRET: test-secret-key-for-ci-cd-testing-only
+          ERP_SERVICE_TOKEN: test-token
+
+      - name: Run Unit Tests
+        run: mvn test
+        env:
+          DB_PASSWORD: test_password
+          JWT_SECRET: test-secret-key-for-ci-cd-testing-only
+          ERP_SERVICE_TOKEN: test-token
+
+      - name: Run Integration Tests
+        run: mvn verify
+        env:
+          DB_PASSWORD: test_password
+          JWT_SECRET: test-secret-key-for-ci-cd-testing-only
+          ERP_SERVICE_TOKEN: test-token
+
+      - name: Generate Test Report
+        if: always()
+        run: |
+          mvn surefire-report:report
+          find . -name "*.html" -path "*/target/site/surefire-report.html" -o -path "*/target/site/jacoco/index.html"
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/site/surefire-report.html
+
+      - name: SonarQube Analysis
+        if: github.event_name == 'push'
+        run: |
+          mvn clean verify sonar:sonar \
+            -Dsonar.projectKey=katixo-hospital-os \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+        env:
+          DB_PASSWORD: test_password
+
+      - name: Build Docker Image
+        if: success()
+        run: |
+          docker build -t katixo-hospital-service:latest .
+
+      - name: Push to Docker Registry
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker tag katixo-hospital-service:latest ${{ secrets.DOCKER_REGISTRY }}/katixo-hospital-service:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_REGISTRY }}/katixo-hospital-service:${{ github.sha }}
+
+  code-quality:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: CheckStyle Analysis
+        run: mvn checkstyle:check
+
+      - name: SpotBugs Analysis
+        run: mvn spotbugs:check
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [ build-and-test, code-quality ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your deployment script here
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests on staging..."
+          # Add smoke test script here

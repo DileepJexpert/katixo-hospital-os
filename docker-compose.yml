@@ -1,36 +1,105 @@
 version: '3.8'
+
 services:
+  # PostgreSQL 17
   postgres:
-    image: postgres:16
+    image: postgres:17-alpine
+    container_name: katixo-postgres
     environment:
       POSTGRES_USER: katixo
-      POSTGRES_PASSWORD: katixo_dev
+      POSTGRES_PASSWORD: katixo_dev_password
       POSTGRES_DB: katixo_hospital
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U katixo" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - katixo-network
 
+  # Redis 7
   redis:
     image: redis:7-alpine
+    container_name: katixo-redis
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - katixo-network
 
+  # Elasticsearch 8
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: katixo-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - katixo-network
 
-  # Kafka (enable when ready for eventing)
-  # redpanda:
-  #   image: redpandadata/redpanda:v24.1.1
-  #   command: redpanda start --smp 1 --memory 512M
-  #   ports:
-  #     - "9092:9092"
+  # Redpanda (Kafka-compatible, for event streaming)
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: katixo-redpanda
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    healthcheck:
+      test: [ "CMD", "rpk", "cluster", "info" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - katixo-network
+
+  # Pgadmin (optional, for DB management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: katixo-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@katixo.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - katixo-network
 
 volumes:
-  pgdata:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+
+networks:
+  katixo-network:
+    driver: bridge
