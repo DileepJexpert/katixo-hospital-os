@@ -26,6 +26,10 @@ public enum HospitalPolicyCode {
     TPA_PREAUTH_AUTO_APPROVE_AMOUNT("tpa.preauth.auto_approve_amount", "Auto-approve preauth below this amount"),
     TPA_DOCUMENT_REMINDER_DAYS("tpa.document.reminder_days", "Days to remind about overdue documents"),
 
+    // Patient Policies
+    PATIENT_UHID_FORMAT("patient.uhid_format", "UHID format pattern (e.g., HOS-{branch}-{seq})"),
+    PATIENT_UHID_SEQ_START("patient.uhid_seq_start", "Starting sequence number for UHID generation"),
+
     // General Policies
     ENABLE_PATIENT_PORTAL("general.enable_patient_portal", "Enable patient self-service portal"),
     ENABLE_SMS_NOTIFICATION("general.enable_sms_notification", "Enable SMS notifications"),

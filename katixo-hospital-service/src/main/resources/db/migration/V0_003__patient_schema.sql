@@ -104,21 +104,21 @@ CREATE INDEX idx_identifier_value ON patient_identifier(identifier_value);
 CREATE TABLE patient_search_index (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
     patient_id          BIGINT       NOT NULL UNIQUE REFERENCES patient(id) ON DELETE CASCADE,
 
     -- Denormalized for full-text search
-    full_name           VARCHAR(300) NOT NULL,  -- first_name + middle_name + last_name
+    full_name           VARCHAR(300) NOT NULL,
     mobile              VARCHAR(15),
     email               VARCHAR(100),
     uhid                VARCHAR(20),
-    identifiers_text    TEXT,  -- concatenated identifiers
+    identifiers_text    TEXT,
 
-    indexed_at          TIMESTAMP    NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_patient_search_tenant FOREIGN KEY (tenant_id) REFERENCES hospital_group(tenant_id)
+    indexed_at          TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_patient_search_tenant ON patient_search_index(tenant_id);
+CREATE INDEX idx_patient_search_tenant ON patient_search_index(tenant_id, branch_id);
 CREATE INDEX idx_patient_search_full_text ON patient_search_index USING GIN(to_tsvector('english', full_name));
 
 -- ============================================================
@@ -128,20 +128,20 @@ CREATE INDEX idx_patient_search_full_text ON patient_search_index USING GIN(to_t
 CREATE TABLE patient_visit_summary (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
     patient_id          BIGINT       NOT NULL UNIQUE REFERENCES patient(id) ON DELETE CASCADE,
 
     total_visits        INTEGER      NOT NULL DEFAULT 0,
     last_visit_at       TIMESTAMP,
-    last_visit_type     VARCHAR(20),  -- OPD, IPD, LAB, RADIOLOGY, EMERGENCY
+    last_visit_type     VARCHAR(20),
     active_admission    BOOLEAN      NOT NULL DEFAULT FALSE,
     active_admission_id BIGINT,
 
-    updated_at          TIMESTAMP    NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_visit_summary_tenant FOREIGN KEY (tenant_id) REFERENCES hospital_group(tenant_id)
+    updated_at          TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_visit_summary_patient ON patient_visit_summary(tenant_id, patient_id);
+CREATE INDEX idx_visit_summary_patient ON patient_visit_summary(tenant_id, branch_id, patient_id);
 CREATE INDEX idx_visit_summary_last_visit ON patient_visit_summary(last_visit_at DESC);
 
 -- ============================================================

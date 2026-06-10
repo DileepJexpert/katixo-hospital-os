@@ -1,0 +1,201 @@
+package com.katixo.hospital.patient;
+
+import com.katixo.hospital.audit.AuditLog;
+import com.katixo.hospital.audit.AuditService;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
+import com.katixo.hospital.tenant.TenantContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+@Transactional
+public class PatientService {
+
+    private final PatientRepository patientRepository;
+    private final PatientSearchIndexRepository patientSearchIndexRepository;
+    private final PatientVisitSummaryRepository patientVisitSummaryRepository;
+    private final AuditService auditService;
+    private final PolicyService policyService;
+
+    // In-memory counter for demo; in production use a separate sequence table
+    private final AtomicLong uhidCounter = new AtomicLong(1000);
+
+    /**
+     * Register a new patient with auto-generated UHID
+     */
+    public Patient registerPatient(Patient patient) {
+        var context = TenantContext.get();
+
+        // Validate uniqueness
+        if (patientRepository.findByTenantIdAndBranchIdAndMobile(context.getTenantId(), Long.parseLong(context.getBranchId()), patient.getMobile()).isPresent()) {
+            throw new BusinessException("PATIENT_MOBILE_EXISTS", "Patient with this mobile already exists");
+        }
+
+        // Generate UHID
+        patient.setUhid(generateUhid());
+        patient.setTenantId(context.getTenantId());
+        patient.setHospitalGroupId(Long.parseLong(context.getHospitalGroupId()));
+        patient.setBranchId(Long.parseLong(context.getBranchId()));
+        patient.setStatus(com.katixo.hospital.common.entity.BaseEntity.EntityStatus.ACTIVE);
+        patient.setCreatedBy(Long.parseLong(context.getUserId()));
+        patient.setUpdatedBy(Long.parseLong(context.getUserId()));
+
+        Patient saved = patientRepository.save(patient);
+
+        // Create search index
+        createSearchIndex(saved);
+
+        // Create visit summary
+        createVisitSummary(saved);
+
+        // Audit
+        auditService.audit("Patient", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
+                null, saved, UUID.randomUUID().toString());
+
+        log.info("Patient registered: UHID={}, mobile={}", saved.getUhid(), saved.getMobile());
+        return saved;
+    }
+
+    /**
+     * Fetch patient by UHID
+     */
+    public Optional<Patient> getPatientByUhid(String uhid) {
+        var context = TenantContext.get();
+        return patientRepository.findByTenantIdAndUhid(context.getTenantId(), uhid);
+    }
+
+    /**
+     * Fetch patient by ID with tenant isolation
+     */
+    public Optional<Patient> getPatientById(Long patientId) {
+        var context = TenantContext.get();
+        return patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), Long.parseLong(context.getBranchId()));
+    }
+
+    /**
+     * Update patient details
+     */
+    public Patient updatePatient(Long patientId, Patient updates) {
+        var context = TenantContext.get();
+
+        Patient existing = patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), Long.parseLong(context.getBranchId()))
+                .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND", "Patient not found"));
+
+        // Store before state for audit
+        Patient before = clonePatient(existing);
+
+        // Update fields
+        if (updates.getFirstName() != null) existing.setFirstName(updates.getFirstName());
+        if (updates.getLastName() != null) existing.setLastName(updates.getLastName());
+        if (updates.getEmail() != null) existing.setEmail(updates.getEmail());
+        if (updates.getMobile() != null) existing.setMobile(updates.getMobile());
+        if (updates.getBloodGroup() != null) existing.setBloodGroup(updates.getBloodGroup());
+        if (updates.getAllergies() != null) existing.setAllergies(updates.getAllergies());
+        if (updates.getChronicConditions() != null) existing.setChronicConditions(updates.getChronicConditions());
+
+        existing.setUpdatedBy(Long.parseLong(context.getUserId()));
+
+        Patient saved = patientRepository.save(existing);
+
+        // Update search index
+        updateSearchIndex(saved);
+
+        // Audit
+        auditService.audit("Patient", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
+                before, saved, UUID.randomUUID().toString());
+
+        log.info("Patient updated: UHID={}", saved.getUhid());
+        return saved;
+    }
+
+    /**
+     * Generate UHID based on policy
+     */
+    private String generateUhid() {
+        var context = TenantContext.get();
+
+        try {
+            // Get UHID format from policy (e.g., "HOS-{branch}-{seq}")
+            String format = policyService.getPolicyValue(HospitalPolicyCode.PATIENT_UHID_FORMAT, "HOS-{branch}-{seq}");
+
+            // Simple implementation: format can be overridden per hospital
+            long sequence = uhidCounter.incrementAndGet();
+            return format
+                    .replace("{branch}", context.getBranchId())
+                    .replace("{seq}", String.format("%06d", sequence));
+        } catch (Exception e) {
+            log.warn("Failed to generate UHID from policy, using default", e);
+            return "UHID-" + System.currentTimeMillis();
+        }
+    }
+
+    private void createSearchIndex(Patient patient) {
+        PatientSearchIndex index = PatientSearchIndex.builder()
+                .tenantId(patient.getTenantId())
+                .hospitalGroupId(patient.getHospitalGroupId())
+                .branchId(patient.getBranchId())
+                .patientId(patient.getId())
+                .fullName(patient.getFullName())
+                .mobile(patient.getMobile())
+                .email(patient.getEmail())
+                .uhid(patient.getUhid())
+                .identifiersText("") // Will be updated when identifiers are added
+                .build();
+
+        patientSearchIndexRepository.save(index);
+    }
+
+    private void updateSearchIndex(Patient patient) {
+        patientSearchIndexRepository.findByTenantIdAndPatientId(patient.getTenantId(), patient.getId())
+                .ifPresent(index -> {
+                    index = PatientSearchIndex.builder()
+                            .id(index.getId())
+                            .tenantId(index.getTenantId())
+                            .hospitalGroupId(index.getHospitalGroupId())
+                            .branchId(index.getBranchId())
+                            .patientId(index.getPatientId())
+                            .fullName(patient.getFullName())
+                            .mobile(patient.getMobile())
+                            .email(patient.getEmail())
+                            .uhid(patient.getUhid())
+                            .identifiersText(index.getIdentifiersText())
+                            .build();
+                    patientSearchIndexRepository.save(index);
+                });
+    }
+
+    private void createVisitSummary(Patient patient) {
+        PatientVisitSummary summary = PatientVisitSummary.builder()
+                .tenantId(patient.getTenantId())
+                .hospitalGroupId(patient.getHospitalGroupId())
+                .branchId(patient.getBranchId())
+                .patientId(patient.getId())
+                .totalVisits(0)
+                .activeAdmission(false)
+                .build();
+
+        patientVisitSummaryRepository.save(summary);
+    }
+
+    private Patient clonePatient(Patient patient) {
+        Patient clone = new Patient();
+        clone.setId(patient.getId());
+        clone.setTenantId(patient.getTenantId());
+        clone.setUhid(patient.getUhid());
+        clone.setFirstName(patient.getFirstName());
+        clone.setLastName(patient.getLastName());
+        clone.setMobile(patient.getMobile());
+        clone.setEmail(patient.getEmail());
+        return clone;
+    }
+}

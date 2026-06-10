@@ -5,19 +5,20 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "patient_search_index", indexes = {
-        @Index(name = "idx_patient_search_tenant", columnList = "tenant_id,branch_id")
+@Table(name = "patient_visit_summary", indexes = {
+        @Index(name = "idx_visit_summary_patient", columnList = "tenant_id,branch_id,patient_id"),
+        @Index(name = "idx_visit_summary_last_visit", columnList = "last_visit_at DESC")
 })
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PatientSearchIndex {
+public class PatientVisitSummary {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,22 +36,26 @@ public class PatientSearchIndex {
     @Column(nullable = false, unique = true, updatable = false)
     private Long patientId;
 
-    @Column(nullable = false, length = 300)
-    private String fullName;
+    @Column(nullable = false)
+    private Integer totalVisits = 0;
 
-    @Column(length = 15)
-    private String mobile;
-
-    @Column(length = 100)
-    private String email;
+    @Column
+    private LocalDateTime lastVisitAt;
 
     @Column(length = 20)
-    private String uhid;
+    private String lastVisitType;
 
-    @Column(columnDefinition = "TEXT")
-    private String identifiersText;
-
-    @CreationTimestamp
     @Column(nullable = false)
-    private LocalDateTime indexedAt;
+    private Boolean activeAdmission = false;
+
+    @Column
+    private Long activeAdmissionId;
+
+    @UpdateTimestamp
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    public enum VisitType {
+        OPD, IPD, LAB, RADIOLOGY, EMERGENCY
+    }
 }

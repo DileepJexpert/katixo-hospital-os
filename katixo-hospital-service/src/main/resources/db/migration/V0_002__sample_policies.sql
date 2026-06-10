@@ -45,6 +45,13 @@ INSERT INTO hospital_policy (
 ('test-tenant-001', 1, 1, 'tpa.preauth.auto_approve_amount', '50000',
  'Auto-approve preauth below this amount', 1, NOW(), 1, 1),
 
+-- Patient Policies
+('test-tenant-001', 1, 1, 'patient.uhid_format', 'HOS-{branch}-{seq}',
+ 'UHID format pattern', 1, NOW(), 1, 1),
+
+('test-tenant-001', 1, 1, 'patient.uhid_seq_start', '1000',
+ 'Starting sequence number for UHID', 1, NOW(), 1, 1),
+
 -- General Policies
 ('test-tenant-001', 1, 1, 'general.enable_patient_portal', 'true',
  'Enable patient self-service portal', 1, NOW(), 1, 1),
