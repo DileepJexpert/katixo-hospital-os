@@ -358,6 +358,69 @@ public class LabService {
                         LabOrderItem.ItemStatus.RESULTED));
     }
 
+    /**
+     * Pending-approval dashboard: every RESULTED item whose report awaits doctor review,
+     * longest-waiting first, abnormal results flagged so reviewers can triage.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getPendingApprovals() {
+        var ctx = TenantContext.get();
+        LocalDateTime now = LocalDateTime.now();
+        return itemRepository.findWorklist(ctx.getTenantId(), branchId(),
+                        List.of(LabOrderItem.ItemStatus.RESULTED)).stream()
+                .map(item -> {
+                    var report = reportRepository.findByTenantIdAndLabOrderItemId(ctx.getTenantId(), item.getId());
+                    LocalDateTime enteredAt = report.map(LabReport::getCreatedAt).orElse(item.getUpdatedAt());
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("itemId", item.getId());
+                    row.put("orderId", item.getLabOrderId());
+                    row.put("testCode", item.getTestCode());
+                    row.put("testName", item.getTestName());
+                    row.put("result", report.map(LabReport::getResultValue).orElse(""));
+                    row.put("isAbnormal", report.map(LabReport::getIsAbnormal).orElse(false));
+                    row.put("enteredAt", enteredAt.toString());
+                    row.put("waitingMinutes", java.time.Duration.between(enteredAt, now).toMinutes());
+                    return row;
+                })
+                .sorted((a, b) -> Long.compare((long) b.get("waitingMinutes"), (long) a.get("waitingMinutes")))
+                .toList();
+    }
+
+    /**
+     * Turnaround-time breakdown for one item across the lab pipeline:
+     * ordered → sample collected → result entered → released, with per-stage and total minutes.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getItemTat(Long itemId) {
+        var ctx = TenantContext.get();
+        LabOrderItem item = getOwnedItem(itemId);
+        var sample = sampleRepository.findByTenantIdAndLabOrderItemId(ctx.getTenantId(), itemId);
+        var report = reportRepository.findByTenantIdAndLabOrderItemId(ctx.getTenantId(), itemId);
+
+        LocalDateTime orderedAt = item.getCreatedAt();
+        LocalDateTime collectedAt = sample.map(LabSample::getCollectedAt).orElse(null);
+        LocalDateTime resultEnteredAt = report.map(LabReport::getCreatedAt).orElse(null);
+        LocalDateTime releasedAt = report.map(LabReport::getReleasedAt).orElse(null);
+
+        Map<String, Object> tat = new java.util.LinkedHashMap<>();
+        tat.put("itemId", item.getId());
+        tat.put("testCode", item.getTestCode());
+        tat.put("itemStatus", item.getItemStatus().name());
+        tat.put("orderedAt", orderedAt.toString());
+        tat.put("collectedAt", collectedAt == null ? null : collectedAt.toString());
+        tat.put("resultEnteredAt", resultEnteredAt == null ? null : resultEnteredAt.toString());
+        tat.put("releasedAt", releasedAt == null ? null : releasedAt.toString());
+        tat.put("collectionMinutes", minutesBetween(orderedAt, collectedAt));
+        tat.put("processingMinutes", minutesBetween(collectedAt, resultEnteredAt));
+        tat.put("approvalMinutes", minutesBetween(resultEnteredAt, releasedAt));
+        tat.put("totalMinutes", minutesBetween(orderedAt, releasedAt));
+        return tat;
+    }
+
+    private Long minutesBetween(LocalDateTime from, LocalDateTime to) {
+        return (from == null || to == null) ? null : java.time.Duration.between(from, to).toMinutes();
+    }
+
     /** Lab items for billing auto-charge (non-cancelled items of all orders for a source). */
     @Transactional(readOnly = true)
     public List<LabOrderItem> getBillableItems(HospitalCharge.SourceType sourceType, Long sourceId) {

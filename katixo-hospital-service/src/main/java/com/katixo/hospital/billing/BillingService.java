@@ -41,6 +41,7 @@ public class BillingService {
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
+    private final com.katixo.hospital.patient.PatientRepository patientRepository;
     private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
@@ -273,6 +274,62 @@ public class BillingService {
         );
     }
 
+    /**
+     * Printable discharge/visit receipt for a FINAL bill: patient header, charges grouped by
+     * service category, discount, ERP pharmacy invoices, and the grand total the patient pays.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReceipt(Long billId) {
+        var ctx = TenantContext.get();
+        PatientBill bill = getOwnedBill(billId);
+
+        if (bill.getBillStatus() != PatientBill.BillStatus.FINAL) {
+            throw new BusinessException("BILL_NOT_FINAL",
+                    "Receipt is only available for a finalized bill; current status: " + bill.getBillStatus());
+        }
+
+        var patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                bill.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+
+        List<HospitalCharge> charges = chargeRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        Map<String, List<Map<String, Object>>> chargesByCategory = new java.util.LinkedHashMap<>();
+        Map<String, BigDecimal> categoryTotals = new java.util.LinkedHashMap<>();
+        for (HospitalCharge c : charges) {
+            String category = c.getCategory().name();
+            chargesByCategory.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(Map.of(
+                    "serviceName", c.getServiceName(),
+                    "quantity", c.getQuantity(),
+                    "rate", c.getRate(),
+                    "amount", c.getAmount()));
+            categoryTotals.merge(category, c.getAmount(), BigDecimal::add);
+        }
+
+        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        BigDecimal erpTotal = erpRefs.stream()
+                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, Object> receipt = new java.util.LinkedHashMap<>();
+        receipt.put("billNumber", bill.getBillNumber());
+        receipt.put("billDate", bill.getFinalizedAt().toString());
+        receipt.put("sourceType", bill.getSourceType().name());
+        receipt.put("patientId", bill.getPatientId());
+        receipt.put("patientName", patient == null ? "" : patient.getFullName());
+        receipt.put("uhid", patient == null ? "" : patient.getUhid());
+        receipt.put("chargesByCategory", chargesByCategory);
+        receipt.put("categoryTotals", categoryTotals);
+        receipt.put("chargesTotal", bill.getChargesTotal());
+        receipt.put("discountAmount", bill.getDiscountAmount());
+        receipt.put("hospitalNetAmount", bill.getNetAmount());
+        receipt.put("erpInvoices", erpRefs.stream().map(r -> Map.of(
+                "invoiceNumber", r.getErpInvoiceNumber(),
+                "amount", r.getErpInvoiceAmount(),
+                "type", r.getInvoiceType())).toList());
+        receipt.put("erpInvoicesTotal", erpTotal);
+        receipt.put("grandTotal", bill.getNetAmount().add(erpTotal));
+        return receipt;
+    }
+
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
@@ -437,9 +494,14 @@ public class BillingService {
         return Long.parseLong(TenantContext.get().getUserId());
     }
 
+    /**
+     * Month-scoped bill numbers (BILL-yyyyMM-NNNNNN). The sequence is global and never resets,
+     * so numbers stay unique; dropping the day part avoids the midnight-boundary confusion where
+     * a discharge at 23:59 billed at 00:01 looked like a different day's paperwork to auditors.
+     */
     private String generateBillNumber() {
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        return "BILL-" + datePart + "-" + String.format("%05d", billRepository.nextBillSequence());
+        String monthPart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        return "BILL-" + monthPart + "-" + String.format("%06d", billRepository.nextBillSequence());
     }
 
     private Map<String, Object> billSnapshot(PatientBill b) {

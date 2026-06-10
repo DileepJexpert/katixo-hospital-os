@@ -107,6 +107,18 @@ public class LabController {
         return respond(items, "Lab worklist", HttpStatus.OK);
     }
 
+    @GetMapping("/worklist/pending-approval")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> pendingApprovals() {
+        return respond(labService.getPendingApprovals(), "Reports awaiting review", HttpStatus.OK);
+    }
+
+    @GetMapping("/order-items/{itemId}/tat")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'LAB_TECH', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> itemTat(@PathVariable Long itemId) {
+        return respond(labService.getItemTat(itemId), "Lab turnaround time", HttpStatus.OK);
+    }
+
     // ---------- workflow ----------
 
     @Getter
