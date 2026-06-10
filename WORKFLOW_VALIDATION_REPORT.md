@@ -20,7 +20,7 @@
 | Patient identifier types (Aadhar, Passport, PAN, etc.) with verification | Patient | ✅ **ALREADY IMPLEMENTED** |
 | Appointment slot conflict prevention | OPD | ✅ **ALREADY IMPLEMENTED** |
 
-**Phase 1**: Revenue & workflow control features (in progress)
+**Phase 1**: Revenue & workflow control features — **COMPLETE** ✅
 
 | Item | Module | Status |
 |------|--------|--------|
@@ -29,10 +29,10 @@
 | Bill finalization locking (prevent finalize while discount pending) | Billing | ✅ **ALREADY IMPLEMENTED** |
 | Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | ✅ **DONE** |
 | Multi-visit bill prevention (safety check) | Billing | ✅ **DONE** |
-| Bed isolation tracking (infectious patients) | IPD | 🔄 **NEXT** |
+| Bed isolation tracking (infectious patients) | IPD | ✅ **DONE** |
 
-Remaining blockers (medicine-master validation, contraindications, bed isolation) 
-require ERP integration and are tracked below.
+Remaining blockers (medicine-master validation, drug contraindications) require
+ERP integration and are tracked below.
 
 ---
 
@@ -329,7 +329,7 @@ charge = BigDecimal.ZERO;
 | Bed transfer concurrency race | High | Two doctors might transfer same patient simultaneously | Add `@Version` optimistic lock to IPDAdmission; lock acquired during transfer |
 | Patient can be admitted to two beds | High | No check to prevent concurrent admissions | ✅ Already checked: `findActiveAdmissionForPatient()` prevents; correct |
 | Bed status not enforced atomically | Medium | Ward boy marks bed VACANT while doctor tries to admit | Add pessimistic lock in `lockVacantBed()`; fail if already occupied |
-| No bed isolation/contamination tracking | Medium | Bed not quarantined after infectious patient discharge | Add `bed_isolation_until` timestamp; reject new admission until cleared |
+| ~~No bed isolation/contamination tracking~~ ✅ **FIXED** | — | Bed isolation lifecycle implemented: discharge can flag infectious patient → bed goes to ISOLATION; cleared by infection control with audit | BedIsolation entity + ISOLATION bed status + clearance workflow |
 | Transfer timestamp not exact | Low | System clock skew might cause wrong charge calculation | Use `LocalDateTime.now()` at exact transfer moment; correct |
 | No discharge checklist enforcement | High | Doctor might discharge without verifying items (blood reports, medicine taken, etc.) | Add discharge_checklist_item table with mandatory items; block discharge if unchecked |
 | Package billing not pre-calculated | Medium | Doctor doesn't know upfront cost of PACKAGE bed stay | Add package_tariff table with duration-based rates (e.g., 7-day ICU package = 15000); calculate at admission |
@@ -676,14 +676,14 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 
 ### ❌ High-Severity Issues (Blocking Go-Live)
 
-1. **No medicine master validation**: Doctors can prescribe non-existent medicines
-2. **No contraindication checking**: Dangerous drug combinations not flagged
+1. **No medicine master validation**: Doctors can prescribe non-existent medicines (requires ERP integration)
+2. **No contraindication checking**: Dangerous drug combinations not flagged (requires ERP drug database)
 3. ~~**No allergy checking**~~ ✅ **FIXED**: Prescription blocked on allergy conflict; audited override with reason to proceed
-4. **Patient consent/privacy not captured**: Regulatory compliance unclear
-5. **No patient identifier types** (Aadhaar, voter ID): Cross-reference impossible
+4. ~~**Patient consent/privacy not captured**~~ ✅ **FIXED**: Privacy consent required at registration; consent timestamps tracked
+5. ~~**No patient identifier types**~~ ✅ **ALREADY IMPLEMENTED**: PatientIdentifier supports Aadhaar, PAN, passport, voter ID etc. with verification
 6. ~~**Lab test cancellation missing**~~ ✅ **FIXED**: Item/order cancellation with charge reversal; billed tests protected
-7. **Appointment slot overlaps not prevented**: Concurrent bookings could double-book same slot
-8. **No bed isolation/contamination tracking**: Infectious patients' beds not quarantined
+7. ~~**Appointment slot overlaps not prevented**~~ ✅ **ALREADY IMPLEMENTED**: countOverlapping() rejects double-booking (SLOT_TAKEN)
+8. ~~**No bed isolation/contamination tracking**~~ ✅ **FIXED**: Bed isolation lifecycle with ISOLATION bed status, discharge integration, and audited clearance
 
 ---
 
@@ -705,14 +705,14 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 
 | Task | Module | Effort | Owner |
 |------|--------|--------|-------|
-| Implement referral fee splitting logic | OPD/Billing | Medium | Billing service |
-| Add doctor availability checking (schedule/leave) | OPD | Medium | OPD service |
-| Add patient credit account + credit limit enforcement | Billing | Medium | Billing service |
+| ~~Implement referral fee splitting logic~~ ✅ DONE | OPD/Billing | Medium | Billing service |
+| ~~Add doctor availability checking (schedule/leave)~~ ✅ DONE | OPD | Medium | OPD service |
+| ~~Add patient credit account + credit limit enforcement~~ ✅ DONE | Billing | Medium | Billing service |
 | Add discharge date to bill number (or make date-less) | Billing | Low | Billing service |
-| Implement bill finalization locking (no discount pending) | Billing | Low | Billing service |
+| ~~Implement bill finalization locking (no discount pending)~~ ✅ DONE | Billing | Low | Billing service |
 | Add lab pending approval dashboard | Lab | Low | Lab controller |
-| Add multi-visit bill prevention | Billing | Low | Billing service |
-| Implement bed isolation tracking (post-discharge) | IPD | Medium | IPD service |
+| ~~Add multi-visit bill prevention~~ ✅ DONE | Billing | Low | Billing service |
+| ~~Implement bed isolation tracking (post-discharge)~~ ✅ DONE | IPD | Medium | IPD service |
 | Add lab TAT (turnaround time) tracking | Lab | Low | Lab service |
 | Implement discharge receipt generation | Billing | Low | Billing service |
 
