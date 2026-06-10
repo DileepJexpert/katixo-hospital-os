@@ -28,8 +28,8 @@
 | Doctor availability checking (blocks queue tokens when on leave) | OPD | ✅ **DONE** |
 | Bill finalization locking (prevent finalize while discount pending) | Billing | ✅ **ALREADY IMPLEMENTED** |
 | Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | ✅ **DONE** |
-| Multi-visit bill prevention (safety check) | Billing | 🔄 **NEXT** |
-| Bed isolation tracking (infectious patients) | IPD | Pending |
+| Multi-visit bill prevention (safety check) | Billing | ✅ **DONE** |
+| Bed isolation tracking (infectious patients) | IPD | 🔄 **NEXT** |
 
 Remaining blockers (medicine-master validation, contraindications, bed isolation) 
 require ERP integration and are tracked below.
@@ -672,7 +672,7 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 6. ~~**Bill state transitions unclear**~~ ✅ **FIXED**: Bill finalization blocks if discount approval pending (DISCOUNT_PENDING error)
 7. **Lab pending approval dashboard missing**: No manager view of awaiting-review tests
 8. **Pharmacy integration incomplete**: Prescription → Pharmacy → ERP invoice linkage not yet implemented
-9. **Multi-visit bills**: No prevention of generating multiple bills for same admission
+9. ~~**Multi-visit bills**~~ ✅ **FIXED**: Prevented via BILL_ALREADY_FINALIZED check; only one FINAL bill allowed per visit/admission
 
 ### ❌ High-Severity Issues (Blocking Go-Live)
 
