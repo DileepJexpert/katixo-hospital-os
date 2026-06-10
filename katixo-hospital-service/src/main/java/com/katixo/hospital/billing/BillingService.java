@@ -103,6 +103,11 @@ public class BillingService {
     public PatientBill generateBill(HospitalCharge.SourceType sourceType, Long sourceId) {
         var ctx = TenantContext.get();
 
+        if (billRepository.countFinalBillsForSource(ctx.getTenantId(), sourceType, sourceId) > 0) {
+            throw new BusinessException("BILL_ALREADY_FINALIZED",
+                    "A finalized bill already exists for this " + sourceType + ". Cannot generate duplicate bill.");
+        }
+
         Long patientId = autoCreateDomainCharges(sourceType, sourceId);
 
         List<HospitalCharge> unbilled = chargeRepository.findUnbilled(ctx.getTenantId(), sourceType, sourceId);
