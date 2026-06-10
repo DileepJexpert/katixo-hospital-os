@@ -74,6 +74,20 @@ public class PolicyService {
         }
     }
 
+    /**
+     * Dynamic policy lookup by raw code (e.g. per-test: "lab.report_approval.CBC").
+     * Falls back to the given default when no policy row exists.
+     */
+    public String getPolicyValueByCode(String code, String defaultValue) {
+        var context = get();
+        return policyRepository.findActivePolicy(
+                        context.getTenantId(),
+                        Long.parseLong(context.getBranchId()),
+                        code)
+                .map(HospitalPolicy::getPolicyValue)
+                .orElse(defaultValue);
+    }
+
     public String getTenantContextBranchKey() {
         var context = get();
         return context.getTenantId() + ":" + context.getBranchId();

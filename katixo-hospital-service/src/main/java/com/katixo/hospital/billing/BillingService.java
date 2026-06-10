@@ -8,6 +8,7 @@ import com.katixo.hospital.ipd.BedAllocation;
 import com.katixo.hospital.ipd.BedAllocationRepository;
 import com.katixo.hospital.ipd.IPDAdmission;
 import com.katixo.hospital.ipd.IPDAdmissionRepository;
+import com.katixo.hospital.lab.LabService;
 import com.katixo.hospital.opd.OPDVisit;
 import com.katixo.hospital.opd.OPDVisitRepository;
 import com.katixo.hospital.outbox.OutboxEventService;
@@ -40,6 +41,7 @@ public class BillingService {
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
+    private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
@@ -270,7 +272,7 @@ public class BillingService {
     // internals
     // ------------------------------------------------------------
 
-    /** Auto-charge domain amounts: OPD consultation fee, IPD bed allocation segments. Returns patientId. */
+    /** Auto-charge domain amounts: OPD consultation fee, IPD bed segments, lab order items. Returns patientId. */
     private Long autoCreateDomainCharges(HospitalCharge.SourceType sourceType, Long sourceId) {
         var ctx = TenantContext.get();
 
@@ -283,6 +285,7 @@ public class BillingService {
                         "CONSULT", "Doctor Consultation (" + visit.getFeeType() + ")",
                         TariffMaster.ServiceCategory.CONSULTATION, 1, visit.getConsultationFee()));
             }
+            autoChargeLabItems(sourceType, sourceId, visit.getPatientId());
             return visit.getPatientId();
         }
 
@@ -307,7 +310,20 @@ public class BillingService {
                         alloc.getUnitsCharged(), alloc.getTariffRate()));
             }
         }
+        autoChargeLabItems(HospitalCharge.SourceType.IPD_ADMISSION, sourceId, admission.getPatientId());
         return admission.getPatientId();
+    }
+
+    /** Lab order items become LAB charges (rate snapshot from the order item, dedupe via LAB-ITEM ref). */
+    private void autoChargeLabItems(HospitalCharge.SourceType sourceType, Long sourceId, Long patientId) {
+        labService.getBillableItems(sourceType, sourceId).forEach(item -> {
+            String ref = "LAB-ITEM-" + item.getId();
+            if (!chargeExists(sourceType, sourceId, ref)) {
+                chargeRepository.save(buildCharge(patientId, sourceType, sourceId, ref,
+                        item.getTestCode(), "Lab: " + item.getTestName(),
+                        TariffMaster.ServiceCategory.LAB, 1, item.getRate()));
+            }
+        });
     }
 
     private boolean chargeExists(HospitalCharge.SourceType sourceType, Long sourceId, String ref) {
