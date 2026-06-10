@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_visit_summary_last_visit", columnList = "last_visit_at DESC")
 })
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
