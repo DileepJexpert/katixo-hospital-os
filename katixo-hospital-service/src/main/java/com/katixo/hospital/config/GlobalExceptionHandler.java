@@ -73,6 +73,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex,
+                                                             WebRequest request) {
+        ApiResponse<?> response = ApiResponse.builder()
+                .success(false)
+                .status(HttpStatus.FORBIDDEN.value())
+                .message("Access denied")
+                .correlationId(UUID.randomUUID())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleGlobalException(Exception ex, WebRequest request) {
         log.error("Unexpected error", ex);
