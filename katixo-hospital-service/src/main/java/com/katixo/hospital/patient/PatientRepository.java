@@ -28,4 +28,7 @@ public interface PatientRepository extends BaseRepository<Patient> {
     List<Patient> findAdultPatients(@Param("tenantId") String tenantId,
                                     @Param("branchId") Long branchId,
                                     @Param("minDob") LocalDate minDob);
+
+    @Query(value = "SELECT nextval('hospital.uhid_seq')", nativeQuery = true)
+    Long nextUhidSequence();
 }

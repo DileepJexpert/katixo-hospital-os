@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
@@ -26,9 +25,6 @@ public class PatientService {
     private final PatientVisitSummaryRepository patientVisitSummaryRepository;
     private final AuditService auditService;
     private final PolicyService policyService;
-
-    // In-memory counter for demo; in production use a separate sequence table
-    private final AtomicLong uhidCounter = new AtomicLong(1000);
 
     /**
      * Register a new patient with auto-generated UHID
@@ -119,24 +115,15 @@ public class PatientService {
     }
 
     /**
-     * Generate UHID based on policy
+     * Generate UHID: format from policy engine, sequence from DB (survives restarts, no duplicates).
      */
     private String generateUhid() {
         var context = TenantContext.get();
-
-        try {
-            // Get UHID format from policy (e.g., "HOS-{branch}-{seq}")
-            String format = policyService.getPolicyValue(HospitalPolicyCode.PATIENT_UHID_FORMAT, "HOS-{branch}-{seq}");
-
-            // Simple implementation: format can be overridden per hospital
-            long sequence = uhidCounter.incrementAndGet();
-            return format
-                    .replace("{branch}", context.getBranchId())
-                    .replace("{seq}", String.format("%06d", sequence));
-        } catch (Exception e) {
-            log.warn("Failed to generate UHID from policy, using default", e);
-            return "UHID-" + System.currentTimeMillis();
-        }
+        String format = policyService.getPolicyValue(HospitalPolicyCode.PATIENT_UHID_FORMAT, "HOS-{branch}-{seq}");
+        long sequence = patientRepository.nextUhidSequence();
+        return format
+                .replace("{branch}", context.getBranchId())
+                .replace("{seq}", String.format("%06d", sequence));
     }
 
     private void createSearchIndex(Patient patient) {
