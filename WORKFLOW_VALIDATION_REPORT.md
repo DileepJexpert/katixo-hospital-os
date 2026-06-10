@@ -26,9 +26,9 @@
 |------|--------|--------|
 | Patient credit account & balance tracking with limits | Billing | ✅ **DONE** |
 | Doctor availability checking (blocks queue tokens when on leave) | OPD | ✅ **DONE** |
-| Bill finalization locking (prevent finalize while discount pending) | Billing | 🔄 **NEXT** |
-| Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | Pending |
-| Multi-visit bill prevention (safety check) | Billing | Pending |
+| Bill finalization locking (prevent finalize while discount pending) | Billing | ✅ **ALREADY IMPLEMENTED** |
+| Referral fee splitting logic (referred patients get reduced fee) | OPD/Billing | ✅ **DONE** |
+| Multi-visit bill prevention (safety check) | Billing | 🔄 **NEXT** |
 | Bed isolation tracking (infectious patients) | IPD | Pending |
 
 Remaining blockers (medicine-master validation, contraindications, bed isolation) 
@@ -665,11 +665,11 @@ Workflow: Discharge → Generate bill with all bed allocations + lab + miscellan
 ### ⚠️ Medium-Severity Issues (Fix Before Go-Live)
 
 1. **Patient duplicate on mobile update**: No check if phone change creates new patient entry
-2. **Follow-up fee ignores referrals**: Referred patients should get reduced fee, not full
-3. **Doctor unavailability**: System doesn't check if doctor is on leave before issuing queue token
+2. ~~**Follow-up fee ignores referrals**~~ ✅ **FIXED**: Consultation fee split between primary & referral doctors (policy-driven, default 25% to referral)
+3. ~~**Doctor unavailability**~~ ✅ **FIXED**: Queue tokens blocked when doctor is on approved leave; leave requires admin approval before activation
 4. ~~**Discharge checklist enforcement missing**~~ ✅ **FIXED**: Policy-driven blocking checklist enforced on NORMAL discharge (LAMA/DEATH bypass)
-5. **Patient credit account missing**: No tracking of outstanding balances across visits
-6. **Bill state transitions unclear**: No locking mechanism if discount approval pending but billing tries to finalize
+5. ~~**Patient credit account missing**~~ ✅ **FIXED**: Tracks balance, enforces credit limits, generates audit ledger of all transactions
+6. ~~**Bill state transitions unclear**~~ ✅ **FIXED**: Bill finalization blocks if discount approval pending (DISCOUNT_PENDING error)
 7. **Lab pending approval dashboard missing**: No manager view of awaiting-review tests
 8. **Pharmacy integration incomplete**: Prescription → Pharmacy → ERP invoice linkage not yet implemented
 9. **Multi-visit bills**: No prevention of generating multiple bills for same admission
