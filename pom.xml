@@ -25,6 +25,7 @@
         <springdoc.version>2.6.0</springdoc.version>
         <jedis.version>5.2.0</jedis.version>
         <resilience4j.version>2.1.0</resilience4j.version>
+        <lombok.version>1.18.34</lombok.version>
     </properties>
 
     <modules>
@@ -32,7 +33,7 @@
         <module>katixo-security-lib</module>
         <module>katixo-tenant-lib</module>
         <module>katixo-erp-client</module>
-        <module>katixo-erp-service</module>
+        <!-- katixo-erp-service: existing ERP, lives in separate repo — re-add when imported -->
         <module>katixo-hospital-service</module>
         <!-- katixo-integration-service: added later -->
     </modules>
@@ -127,6 +128,13 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.flywaydb</groupId>
@@ -140,11 +148,22 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
                             <path>
                                 <groupId>org.mapstruct</groupId>
                                 <artifactId>mapstruct-processor</artifactId>
                                 <version>${mapstruct.version}</version>
+                            </path>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok-mapstruct-binding</artifactId>
+                                <version>0.2.0</version>
                             </path>
                         </annotationProcessorPaths>
                     </configuration>

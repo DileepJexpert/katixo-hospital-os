@@ -5,14 +5,17 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class JwtClaims {
-    private String tenantId;      // VARCHAR(50)
-    private String hospitalGroupId; // Can be parsed to Long
-    private String branchId;       // Can be parsed to Long
-    private String userId;         // VARCHAR(100)
+    private String tenantId;        // VARCHAR(50)
+    private String hospitalGroupId; // parsed to Long where needed
+    private String branchId;        // parsed to Long where needed
+    private String userId;          // VARCHAR(100)
     private String username;
+    private List<String> roles;     // FRONT_DESK, DOCTOR, NURSE, ADMIN, ...
 }

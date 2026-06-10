@@ -1,0 +1,29 @@
+# Maven
+target/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Env (never commit secrets)
+.env
+
+# Flutter (frontend, later)
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies

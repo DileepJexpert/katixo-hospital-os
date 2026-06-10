@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -39,7 +41,8 @@ public class OutboxEvent {
     @Column(nullable = false, updatable = false, length = 100)
     private String eventType;
 
-    @Column(nullable = false, updatable = false, columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, updatable = false)
     private String payload;
 
     @Column(nullable = false, length = 20)

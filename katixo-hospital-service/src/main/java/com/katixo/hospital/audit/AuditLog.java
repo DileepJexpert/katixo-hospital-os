@@ -6,8 +6,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(schema = "audit", name = "audit_log", indexes = {
@@ -57,7 +60,8 @@ public class AuditLog {
     @Column(length = 64, updatable = false)
     private String afterHash;
 
-    @Column(columnDefinition = "JSONB", updatable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(updatable = false)
     private String changeSummary;
 
     @Column(length = 45, updatable = false)
@@ -66,8 +70,8 @@ public class AuditLog {
     @Column(length = 200, updatable = false)
     private String deviceInfo;
 
-    @Column(columnDefinition = "UUID", updatable = false)
-    private String correlationId;
+    @Column(updatable = false)
+    private UUID correlationId;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

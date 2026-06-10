@@ -158,18 +158,10 @@ public class PatientService {
     private void updateSearchIndex(Patient patient) {
         patientSearchIndexRepository.findByTenantIdAndPatientId(patient.getTenantId(), patient.getId())
                 .ifPresent(index -> {
-                    index = PatientSearchIndex.builder()
-                            .id(index.getId())
-                            .tenantId(index.getTenantId())
-                            .hospitalGroupId(index.getHospitalGroupId())
-                            .branchId(index.getBranchId())
-                            .patientId(index.getPatientId())
-                            .fullName(patient.getFullName())
-                            .mobile(patient.getMobile())
-                            .email(patient.getEmail())
-                            .uhid(patient.getUhid())
-                            .identifiersText(index.getIdentifiersText())
-                            .build();
+                    index.setFullName(patient.getFullName());
+                    index.setMobile(patient.getMobile());
+                    index.setEmail(patient.getEmail());
+                    index.setUhid(patient.getUhid());
                     patientSearchIndexRepository.save(index);
                 });
     }
@@ -194,8 +186,13 @@ public class PatientService {
         clone.setUhid(patient.getUhid());
         clone.setFirstName(patient.getFirstName());
         clone.setLastName(patient.getLastName());
+        clone.setDateOfBirth(patient.getDateOfBirth());
+        clone.setGender(patient.getGender());
         clone.setMobile(patient.getMobile());
         clone.setEmail(patient.getEmail());
+        clone.setBloodGroup(patient.getBloodGroup());
+        clone.setAllergies(patient.getAllergies());
+        clone.setChronicConditions(patient.getChronicConditions());
         return clone;
     }
 }

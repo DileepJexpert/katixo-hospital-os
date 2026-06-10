@@ -66,10 +66,10 @@ public class Patient extends BaseEntity {
     private String nationality;
 
     // Address
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "address_line_1", columnDefinition = "TEXT")
     private String addressLine1;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "address_line_2", columnDefinition = "TEXT")
     private String addressLine2;
 
     @Column(length = 100)
@@ -125,7 +125,7 @@ public class Patient extends BaseEntity {
         return firstName + " " + lastName;
     }
 
-    public int getAge() {
-        return LocalDate.now().getYear() - dateOfBirth.getYear();
+    public Integer getAge() {
+        return dateOfBirth == null ? null : java.time.Period.between(dateOfBirth, LocalDate.now()).getYears();
     }
 }

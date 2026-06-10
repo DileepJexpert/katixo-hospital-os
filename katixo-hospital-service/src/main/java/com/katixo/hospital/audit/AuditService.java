@@ -1,7 +1,6 @@
 package com.katixo.hospital.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.hash.Hashing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,6 +8,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 import static com.katixo.hospital.tenant.TenantContext.get;
 
@@ -38,7 +39,7 @@ public class AuditService {
                     .entityId(entityId)
                     .beforeHash(beforeHash)
                     .afterHash(afterHash)
-                    .correlationId(correlationId)
+                    .correlationId(correlationId != null ? java.util.UUID.fromString(correlationId) : null)
                     .ipAddress(ipAddress)
                     .build();
 
@@ -49,9 +50,12 @@ public class AuditService {
     }
 
     private String hash(String data) {
-        return Hashing.sha256()
-                .hashString(data, StandardCharsets.UTF_8)
-                .toString();
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(data.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
     private String extractIpAddress() {

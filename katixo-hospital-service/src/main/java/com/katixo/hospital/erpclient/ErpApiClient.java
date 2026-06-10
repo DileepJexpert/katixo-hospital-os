@@ -1,6 +1,7 @@
 package com.katixo.hospital.erpclient;
 
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,8 +14,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.UUID;
-
-import static com.katixo.hospital.tenant.TenantContext.get;
 
 @Component
 @Slf4j
@@ -44,7 +43,7 @@ public class ErpApiClient {
     private <T> T executeRequest(HttpMethod method, String path, Object request,
                                  Class<T> responseType, String sourceReference) {
         try {
-            var context = get();
+            var context = TenantContext.get();
             String correlationId = UUID.randomUUID().toString();
             String idempotencyKey = UUID.randomUUID().toString();
             String url = erpBaseUrl + path;
@@ -71,7 +70,7 @@ public class ErpApiClient {
 
     private HttpHeaders createHeaders(String correlationId, String idempotencyKey, String sourceReference) {
         HttpHeaders headers = new HttpHeaders();
-        var context = get();
+        var context = TenantContext.get();
 
         headers.set("Authorization", "Bearer " + serviceToken);
         headers.set("X-Correlation-Id", correlationId);

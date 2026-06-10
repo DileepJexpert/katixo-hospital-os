@@ -22,7 +22,7 @@ public class PolicyService {
         var context = get();
         return policyRepository.findActivePolicy(
                 context.getTenantId(),
-                context.getBranchId(),
+                Long.parseLong(context.getBranchId()),
                 code.getCode()
         ).map(HospitalPolicy::getPolicyValue)
                 .orElseThrow(() -> new BusinessException("POLICY_NOT_FOUND",

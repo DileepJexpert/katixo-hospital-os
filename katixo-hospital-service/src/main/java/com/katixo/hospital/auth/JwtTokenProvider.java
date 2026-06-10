@@ -1,11 +1,14 @@
 package com.katixo.hospital.auth;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
@@ -24,39 +27,35 @@ public class JwtTokenProvider {
     private static final String BRANCH_ID = "branchId";
     private static final String USER_ID = "userId";
     private static final String USERNAME = "username";
+    private static final String ROLES = "roles";
+
+    private SecretKey signingKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
 
     public boolean validateToken(String token) {
         try {
-            var secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), 0,
-                    jwtSecret.getBytes(StandardCharsets.UTF_8).length, "HmacSHA256");
-            Jwts.parserBuilder()
-                    .setSigningKey(secretKey)
+            Jwts.parser()
+                    .verifyWith(signingKey())
                     .build()
-                    .parseClaimsJws(token);
+                    .parseSignedClaims(token);
             return true;
-        } catch (SecurityException e) {
-            log.error("Invalid JWT signature: {}", e.getMessage());
-        } catch (MalformedJwtException e) {
-            log.error("Invalid JWT token: {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            log.error("Expired JWT token: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            log.error("Unsupported JWT token: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            log.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Invalid JWT token: {}", e.getMessage());
+            return false;
         }
-        return false;
     }
 
     public JwtClaims getClaimsFromToken(String token) {
         try {
-            var secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), 0,
-                    jwtSecret.getBytes(StandardCharsets.UTF_8).length, "HmacSHA256");
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(secretKey)
+            Claims claims = Jwts.parser()
+                    .verifyWith(signingKey())
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            @SuppressWarnings("unchecked")
+            java.util.List<String> roles = claims.get(ROLES, java.util.List.class);
 
             return JwtClaims.builder()
                     .tenantId(claims.get(TENANT_ID, String.class))
@@ -64,25 +63,24 @@ public class JwtTokenProvider {
                     .branchId(claims.get(BRANCH_ID, String.class))
                     .userId(claims.get(USER_ID, String.class))
                     .username(claims.get(USERNAME, String.class))
+                    .roles(roles)
                     .build();
         } catch (JwtException e) {
-            throw new RuntimeException("Failed to parse JWT: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to parse JWT: " + e.getMessage(), e);
         }
     }
 
     public String generateToken(JwtClaims claims) {
-        var secretKey = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), 0,
-                jwtSecret.getBytes(StandardCharsets.UTF_8).length, "HmacSHA256");
-
-        return Jwts.builderBuilder()
+        return Jwts.builder()
                 .claim(TENANT_ID, claims.getTenantId())
                 .claim(HOSPITAL_GROUP_ID, claims.getHospitalGroupId())
                 .claim(BRANCH_ID, claims.getBranchId())
                 .claim(USER_ID, claims.getUserId())
                 .claim(USERNAME, claims.getUsername())
+                .claim(ROLES, claims.getRoles())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .signWith(signingKey())
                 .compact();
     }
 }

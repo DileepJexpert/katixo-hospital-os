@@ -5,7 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.Setter;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_patient_search_tenant", columnList = "tenant_id,branch_id")
 })
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -50,7 +52,7 @@ public class PatientSearchIndex {
     @Column(columnDefinition = "TEXT")
     private String identifiersText;
 
-    @CreationTimestamp
+    @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime indexedAt;
 }
