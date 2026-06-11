@@ -1,5 +1,5 @@
-/// Typed DTOs for the Spring Boot backend API responses.
-/// Keep these in sync with the backend via contract tests.
+/// Typed DTOs for the Spring Boot backend API.
+/// Shapes mirror the backend controllers exactly — update together.
 
 class ApiResponse<T> {
   const ApiResponse({
@@ -18,7 +18,8 @@ class ApiResponse<T> {
   final String? correlationId;
   final String? error;
 
-  factory ApiResponse.fromJson(Map<String, dynamic> json, T Function(dynamic) fromJsonT) {
+  factory ApiResponse.fromJson(
+      Map<String, dynamic> json, T Function(dynamic) fromJsonT) {
     return ApiResponse(
       success: json['success'] as bool,
       status: json['status'] as int,
@@ -53,13 +54,14 @@ class ErrorResponse {
   }
 }
 
-/// JWT token payload (decoded on client).
+/// ============ Auth (matches AuthController) ============
+
 class CurrentUser {
   const CurrentUser({
     required this.userId,
     required this.username,
-    required this.email,
-    required this.roles,
+    required this.name,
+    required this.role,
     required this.tenantId,
     required this.hospitalGroupId,
     required this.branchId,
@@ -67,62 +69,65 @@ class CurrentUser {
 
   final String userId;
   final String username;
-  final String email;
-  final List<String> roles;
+  final String name;
+  final String role;
   final String tenantId;
   final String hospitalGroupId;
   final String branchId;
 
-  bool hasRole(String role) => roles.contains(role);
-  bool hasAnyRole(List<String> roles) => roles.any(hasRole);
+  bool hasRole(String r) => role == r;
+  bool hasAnyRole(List<String> rs) => rs.contains(role);
+
+  factory CurrentUser.fromJson(Map<String, dynamic> json) {
+    return CurrentUser(
+      userId: json['userId'] as String,
+      username: json['username'] as String,
+      name: json['name'] as String? ?? '',
+      role: json['role'] as String,
+      tenantId: json['tenantId'] as String,
+      hospitalGroupId: json['hospitalGroupId'] as String,
+      branchId: json['branchId'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'userId': userId,
+        'username': username,
+        'name': name,
+        'role': role,
+        'tenantId': tenantId,
+        'hospitalGroupId': hospitalGroupId,
+        'branchId': branchId,
+      };
 }
 
 class LoginRequest {
-  const LoginRequest({
-    required this.username,
-    required this.password,
-  });
+  const LoginRequest({required this.username, required this.password});
+
+  final String username;
+  final String password;
 
   Map<String, dynamic> toJson() => {
         'username': username,
         'password': password,
       };
-
-  final String username;
-  final String password;
 }
 
 class LoginResponse {
-  const LoginResponse({
-    required this.token,
-    required this.user,
-  });
+  const LoginResponse({required this.token, required this.user});
+
+  final String token;
+  final CurrentUser user;
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
     return LoginResponse(
       token: json['token'] as String,
-      user: _parseCurrentUser(json['user'] as Map<String, dynamic>),
+      user: CurrentUser.fromJson(json['user'] as Map<String, dynamic>),
     );
   }
-
-  final String token;
-  final CurrentUser user;
 }
 
-/// Helper to parse JWT claims into CurrentUser (on client, not decoded server-side).
-CurrentUser _parseCurrentUser(Map<String, dynamic> claims) {
-  return CurrentUser(
-    userId: claims['sub'] as String,
-    username: claims['username'] as String? ?? '',
-    email: claims['email'] as String? ?? '',
-    roles: List<String>.from(claims['roles'] as List? ?? []),
-    tenantId: claims['tenant_id'] as String? ?? '',
-    hospitalGroupId: claims['hospital_group_id'] as String? ?? '',
-    branchId: claims['branch_id'] as String? ?? '',
-  );
-}
-
-/// ============ Patient / Registration ============
+/// ============ Patient (matches PatientController / PatientDTO) ============
 
 class PatientRegistrationRequest {
   const PatientRegistrationRequest({
@@ -132,9 +137,28 @@ class PatientRegistrationRequest {
     required this.dateOfBirth,
     required this.gender,
     required this.privacyConsentGiven,
-    this.address,
-    this.identifiers = const [],
+    this.middleName,
+    this.email,
+    this.addressLine1,
+    this.city,
+    this.state,
+    this.pincode,
+    this.dataSharingConsent = false,
   });
+
+  final String firstName;
+  final String lastName;
+  final String mobile;
+  final String dateOfBirth; // "YYYY-MM-DD"
+  final String gender; // MALE | FEMALE | OTHER | PREFER_NOT_TO_SAY
+  final bool privacyConsentGiven;
+  final String? middleName;
+  final String? email;
+  final String? addressLine1;
+  final String? city;
+  final String? state;
+  final String? pincode;
+  final bool dataSharingConsent;
 
   Map<String, dynamic> toJson() => {
         'firstName': firstName,
@@ -143,62 +167,42 @@ class PatientRegistrationRequest {
         'dateOfBirth': dateOfBirth,
         'gender': gender,
         'privacyConsentGiven': privacyConsentGiven,
-        'address': address,
-        'identifiers': identifiers.map((i) => i.toJson()).toList(),
+        if (middleName != null) 'middleName': middleName,
+        if (email != null) 'email': email,
+        if (addressLine1 != null) 'addressLine1': addressLine1,
+        if (city != null) 'city': city,
+        if (state != null) 'state': state,
+        if (pincode != null) 'pincode': pincode,
+        'dataSharingConsent': dataSharingConsent,
       };
-
-  final String firstName;
-  final String lastName;
-  final String mobile;
-  final String dateOfBirth; // "YYYY-MM-DD"
-  final String gender;
-  final bool privacyConsentGiven;
-  final String? address;
-  final List<PatientIdentifierRequest> identifiers;
-}
-
-class PatientIdentifierRequest {
-  const PatientIdentifierRequest({
-    required this.type,
-    required this.value,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        'value': value,
-      };
-
-  final String type; // AADHAAR, PAN, VOTER_ID, PASSPORT, etc.
-  final String value;
 }
 
 class PatientResponse {
   const PatientResponse({
     required this.id,
     required this.uhid,
-    required this.firstName,
-    required this.lastName,
+    required this.fullName,
     required this.mobile,
-    required this.status,
+    this.age,
+    this.gender,
   });
 
   factory PatientResponse.fromJson(Map<String, dynamic> json) {
     return PatientResponse(
       id: json['id'] as int,
       uhid: json['uhid'] as String,
-      firstName: json['firstName'] as String,
-      lastName: json['lastName'] as String,
-      mobile: json['mobile'] as String,
-      status: json['status'] as String,
+      fullName: json['fullName'] as String? ??
+          '${json['firstName']} ${json['lastName']}',
+      mobile: json['mobile'] as String? ?? '',
+      age: json['age'] as int?,
+      gender: json['gender'] as String?,
     );
   }
 
   final int id;
   final String uhid;
-  final String firstName;
-  final String lastName;
+  final String fullName;
   final String mobile;
-  final String status;
-
-  String get fullName => '$firstName $lastName';
+  final int? age;
+  final String? gender;
 }

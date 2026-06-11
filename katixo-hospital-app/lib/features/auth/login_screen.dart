@@ -52,9 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await authState.login(_usernameCtrl.text, _passwordCtrl.text, apiClient);
 
-      if (mounted) {
-        // Navigation handled by router watching authState.
-      }
+      // Navigation handled by router redirect watching authState.
     } on UnauthorizedException {
       setState(() => _error = 'Invalid credentials');
     } on ApiException catch (e) {
@@ -215,9 +213,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}
-
-/// Semantic status color helper on login screen.
-const class StatusColors {
-  static const Color danger = Color(0xFFC62828);
 }

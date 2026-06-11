@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -5,9 +7,15 @@ import '../api/http_client.dart';
 import '../api/models.dart';
 
 /// Holds JWT token and current user throughout the app.
-/// Persists across sessions. Central auth state machine.
+/// Persists across sessions; router redirects watch this.
 class AuthState extends ChangeNotifier {
-  AuthState(this._prefs) : _token = _prefs.getString(_kToken);
+  AuthState(this._prefs) {
+    _token = _prefs.getString(_kToken);
+    final rawUser = _prefs.getString(_kUser);
+    if (rawUser != null) {
+      _user = CurrentUser.fromJson(jsonDecode(rawUser) as Map<String, dynamic>);
+    }
+  }
 
   static const _kToken = 'auth.token';
   static const _kUser = 'auth.user';
@@ -21,7 +29,8 @@ class AuthState extends ChangeNotifier {
   CurrentUser? get currentUser => _user;
   bool get isAuthenticated => _token != null && _user != null;
 
-  Future<void> login(String username, String password, ApiClient apiClient) async {
+  Future<void> login(
+      String username, String password, ApiClient apiClient) async {
     final response = await apiClient.post<LoginResponse>(
       '/api/v1/auth/login',
       LoginRequest(username: username, password: password),
@@ -32,7 +41,7 @@ class AuthState extends ChangeNotifier {
     _user = response.user;
 
     await _prefs.setString(_kToken, _token!);
-    await _prefs.setString(_kUser, _user.toString()); // Simplified; in prod, store user details.
+    await _prefs.setString(_kUser, jsonEncode(_user!.toJson()));
 
     notifyListeners();
   }
@@ -43,16 +52,5 @@ class AuthState extends ChangeNotifier {
     await _prefs.remove(_kToken);
     await _prefs.remove(_kUser);
     notifyListeners();
-  }
-
-  Future<void> restoreSession() async {
-    // In production, validate token with backend (refresh if expired).
-    // For now, just restore from prefs if exists.
-    _token = _prefs.getString(_kToken);
-    if (_token != null) {
-      // Decode JWT payload to populate _user.
-      // Simplified: in production, call /me or store full user details.
-      notifyListeners();
-    }
   }
 }
