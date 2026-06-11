@@ -64,7 +64,7 @@ class _LabOrdersPanelState extends State<LabOrdersPanel> {
       final api = context.read<ApiClient>();
       final request = CreateOrderRequest(
         sourceType: 'OPD_VISIT',
-        sourceId: visitId,
+        sourceId: widget.visitId,
         testCodes: _selectedTestCodes,
       );
 

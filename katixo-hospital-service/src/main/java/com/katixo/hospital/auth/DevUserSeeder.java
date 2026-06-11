@@ -34,7 +34,8 @@ public class DevUserSeeder implements CommandLineRunner {
                 new Seed("nurse1", "pass123", "Nurse Asha", "NURSE", "4"),
                 new Seed("pharmacist1", "pass123", "Pharmacist Ravi", "PHARMACIST", "5"),
                 new Seed("labtech1", "pass123", "Lab Tech Vinod", "LAB_TECH", "6"),
-                new Seed("billing1", "pass123", "Billing Clerk", "BILLING", "7")
+                new Seed("billing1", "pass123", "Billing Clerk", "BILLING", "7"),
+                new Seed("radiologist1", "pass123", "Dr. Mehta", "RADIOLOGIST", "8")
         );
 
         for (Seed seed : seeds) {

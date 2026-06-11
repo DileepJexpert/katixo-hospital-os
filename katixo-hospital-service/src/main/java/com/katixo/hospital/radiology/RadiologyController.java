@@ -105,6 +105,23 @@ public class RadiologyController {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class ImagingDoneRequest {
+        /** S3 link to the captured image/study (optional at this step). */
+        private String imageUrl;
+    }
+
+    @PostMapping("/order-items/{itemId}/imaging-done")
+    @PreAuthorize("hasAnyRole('RADIOLOGIST', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> markImagingDone(@PathVariable Long itemId,
+                                                               @RequestBody(required = false) ImagingDoneRequest req) {
+        RadiologyOrderItem i = radiologyService.markImagingDone(itemId, req == null ? null : req.getImageUrl());
+        return respond(Map.of("itemId", i.getId(), "itemStatus", i.getItemStatus().name()),
+                "Imaging marked done", HttpStatus.OK);
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class EnterReportRequest {
         @NotBlank
         private String reportText;

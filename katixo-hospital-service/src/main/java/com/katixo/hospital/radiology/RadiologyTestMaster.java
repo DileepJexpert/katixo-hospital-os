@@ -10,8 +10,8 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "radiology_test_master", indexes = {
-        @Index(name = "idx_radiology_test_code", columnList = "test_code", unique = true)
+@Table(name = "radiology_test_master", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"tenant_id", "branch_id", "test_code"})
 })
 @Getter
 @Setter
@@ -19,7 +19,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class RadiologyTestMaster extends BaseEntity {
 
-    @Column(nullable = false, length = 30, unique = true)
+    @Column(nullable = false, length = 30)
     private String testCode;
 
     @Column(nullable = false, length = 200)

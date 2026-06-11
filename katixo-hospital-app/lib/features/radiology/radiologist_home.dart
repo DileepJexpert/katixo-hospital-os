@@ -55,6 +55,48 @@ class _RadiologistHomeState extends State<RadiologistHome> {
     }
   }
 
+  Future<void> _markImagingDone(RadiologyOrderItem item) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark Imaging Done'),
+        content: Text('Confirm imaging completed for: ${item.testName}',
+            style: Theme.of(context).textTheme.bodyMedium),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      try {
+        final api = context.read<ApiClient>();
+        await api.post<dynamic>(
+          '/api/v1/radiology/order-items/${item.itemId}/imaging-done',
+          {},
+          fromJson: (json) => json,
+        );
+        await _loadWorklist();
+      } on ApiException catch (e) {
+        setState(() => _error = e.error.message);
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+    }
+  }
+
   Future<void> _enterReport(RadiologyOrderItem item) async {
     final reportCtrl = TextEditingController();
 
@@ -157,8 +199,13 @@ class _RadiologistHomeState extends State<RadiologistHome> {
                 Text('Radiology Worklist', style: theme.textTheme.titleLarge),
                 const Spacer(),
                 StatusChip(
-                  '${_worklist.where((i) => i.itemStatus == 'IMAGING_DONE').length} pending',
+                  '${_worklist.where((i) => i.itemStatus == 'PENDING').length} to scan',
                   kind: StatusKind.warning,
+                ),
+                const SizedBox(width: Space.sm),
+                StatusChip(
+                  '${_worklist.where((i) => i.itemStatus == 'IMAGING_DONE').length} to report',
+                  kind: StatusKind.info,
                 ),
                 const SizedBox(width: Space.sm),
                 IconButton(
@@ -194,6 +241,7 @@ class _RadiologistHomeState extends State<RadiologistHome> {
                     separatorBuilder: (_, __) => const Divider(),
                     itemBuilder: (context, i) {
                       final item = _worklist[i];
+                      final pendingScan = item.itemStatus == 'PENDING';
                       final pendingReport =
                           item.itemStatus == 'IMAGING_DONE';
 
@@ -209,7 +257,15 @@ class _RadiologistHomeState extends State<RadiologistHome> {
                           children: [
                             StatusChip.auto(item.itemStatus),
                             const SizedBox(width: Space.sm),
-                            if (pendingReport)
+                            if (pendingScan)
+                              OutlinedButton(
+                                onPressed: _loading
+                                    ? null
+                                    : () => _markImagingDone(item),
+                                child: const Text('Imaging Done',
+                                    style: TextStyle(fontSize: 12)),
+                              )
+                            else if (pendingReport)
                               FilledButton(
                                 onPressed: _loading
                                     ? null
