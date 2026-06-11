@@ -12,6 +12,7 @@ import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/kpi_tile.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import 'ot_room_management.dart';
+import 'tpa_management.dart';
 
 /// Owner/Admin dashboard: operational KPIs and metrics.
 class OwnerDashboard extends StatefulWidget {
@@ -85,6 +86,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           icon: Icons.meeting_room_outlined,
           selectedIcon: Icons.meeting_room,
         ),
+        ShellDestination(
+          label: 'TPA Insurance',
+          icon: Icons.health_and_safety_outlined,
+          selectedIcon: Icons.health_and_safety,
+        ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
@@ -105,7 +111,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       ],
       body: _navIndex == 1
           ? const OTRoomManagementScreen()
-          : PageContainer(
+          : _navIndex == 2
+              ? const TPAManagementScreen()
+              : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
