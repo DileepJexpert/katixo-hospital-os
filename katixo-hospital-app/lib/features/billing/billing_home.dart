@@ -1,0 +1,476 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/api/http_client.dart';
+import '../../core/auth/auth_state.dart';
+import '../../core/responsive/responsive_builder.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/app_shell.dart';
+import '../../core/widgets/status_chip.dart';
+import '../front_desk/registration_screen.dart' show MessageBanner;
+
+/// Billing role home: generate a bill for an OPD visit or IPD admission,
+/// view the consolidated bill, request discount, finalize, show receipt.
+class BillingHome extends StatefulWidget {
+  const BillingHome({super.key});
+
+  @override
+  State<BillingHome> createState() => _BillingHomeState();
+}
+
+class _BillingHomeState extends State<BillingHome> {
+  final _sourceIdCtrl = TextEditingController();
+  String _sourceType = 'OPD_VISIT';
+
+  Map<String, dynamic>? _consolidated;
+  bool _loading = false;
+  String? _error;
+  String? _info;
+
+  int? get _billId =>
+      (_consolidated?['bill'] as Map<String, dynamic>?)?['id'] as int?;
+
+  @override
+  void dispose() {
+    _sourceIdCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generateBill() async {
+    final sourceId = int.tryParse(_sourceIdCtrl.text.trim());
+    if (sourceId == null) {
+      setState(() => _error = 'Enter a valid visit/admission ID');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _info = null;
+    });
+
+    try {
+      final api = context.read<ApiClient>();
+      final bill = await api.post<Map<String, dynamic>>(
+        '/api/v1/billing/bills',
+        {'sourceType': _sourceType, 'sourceId': sourceId},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() => _info = 'Bill ${bill['billNumber']} generated');
+      await _loadConsolidated(bill['id'] as int);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } catch (e) {
+      setState(() => _error = 'Bill generation failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadConsolidated(int billId) async {
+    try {
+      final api = context.read<ApiClient>();
+      final view = await api.get<Map<String, dynamic>>(
+        '/api/v1/billing/bills/$billId',
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      if (mounted) setState(() => _consolidated = view);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    }
+  }
+
+  Future<void> _discountDialog() async {
+    final amountCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Discount'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: 'Amount (₹) *', prefixText: '₹ '),
+            ),
+            const SizedBox(height: Space.md),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(labelText: 'Reason *'),
+            ),
+            const SizedBox(height: Space.sm),
+            const Text(
+                'Above the policy threshold the discount needs admin approval.',
+                style: TextStyle(fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Request'),
+          ),
+        ],
+      ),
+    );
+
+    if (apply == true) {
+      final billId = _billId;
+      if (billId == null) return;
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      try {
+        final api = context.read<ApiClient>();
+        final bill = await api.post<Map<String, dynamic>>(
+          '/api/v1/billing/bills/$billId/discount',
+          {
+            'amount': double.tryParse(amountCtrl.text) ?? 0,
+            'reason': reasonCtrl.text.trim(),
+          },
+          fromJson: (json) => json as Map<String, dynamic>,
+        );
+        setState(() => _info = 'Discount ${bill['discountStatus']}');
+        await _loadConsolidated(billId);
+      } on ApiException catch (e) {
+        setState(() => _error = e.error.message);
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _finalize() async {
+    final billId = _billId;
+    if (billId == null) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<Map<String, dynamic>>(
+        '/api/v1/billing/bills/$billId/finalize',
+        const <String, dynamic>{},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() => _info = 'Bill finalized');
+      await _loadConsolidated(billId);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _showReceipt() async {
+    final billId = _billId;
+    if (billId == null) return;
+
+    try {
+      final api = context.read<ApiClient>();
+      final receipt = await api.get<Map<String, dynamic>>(
+        '/api/v1/billing/bills/$billId/receipt',
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _ReceiptDialog(receipt: receipt),
+      );
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = context.watch<AuthState>();
+    final theme = Theme.of(context);
+
+    return AppShell(
+      title: 'Billing',
+      destinations: const [
+        ShellDestination(
+          label: 'Bills',
+          icon: Icons.receipt_long_outlined,
+          selectedIcon: Icons.receipt_long,
+        ),
+      ],
+      selectedIndex: 0,
+      onDestinationSelected: (_) {},
+      actions: [
+        if (authState.currentUser != null)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: Space.sm),
+              child: Text(authState.currentUser!.name,
+                  style: theme.textTheme.labelLarge),
+            ),
+          ),
+        IconButton(
+          tooltip: 'Sign out',
+          icon: const Icon(Icons.logout_outlined),
+          onPressed: () => authState.logout(),
+        ),
+      ],
+      body: PageContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Generate Bill', style: theme.textTheme.titleLarge),
+            const SizedBox(height: Space.md),
+
+            if (_error != null) ...[
+              MessageBanner.error(_error!),
+              const SizedBox(height: Space.md),
+            ],
+            if (_info != null) ...[
+              MessageBanner.success(_info!),
+              const SizedBox(height: Space.md),
+            ],
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(Space.lg),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      child: DropdownButtonFormField<String>(
+                        value: _sourceType,
+                        decoration:
+                            const InputDecoration(labelText: 'Source'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'OPD_VISIT', child: Text('OPD Visit')),
+                          DropdownMenuItem(
+                              value: 'IPD_ADMISSION',
+                              child: Text('IPD Admission')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _sourceType = v ?? 'OPD_VISIT'),
+                      ),
+                    ),
+                    const SizedBox(width: Space.md),
+                    Expanded(
+                      child: TextField(
+                        controller: _sourceIdCtrl,
+                        enabled: !_loading,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Visit / Admission ID *'),
+                        onSubmitted: (_) => _generateBill(),
+                      ),
+                    ),
+                    const SizedBox(width: Space.md),
+                    FilledButton.icon(
+                      onPressed: _loading ? null : _generateBill,
+                      icon: const Icon(Icons.receipt_outlined, size: 18),
+                      label: const Text('Generate'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (_consolidated != null) ...[
+              const SizedBox(height: Space.lg),
+              _ConsolidatedBillCard(
+                consolidated: _consolidated!,
+                loading: _loading,
+                onDiscount: _discountDialog,
+                onFinalize: _finalize,
+                onReceipt: _showReceipt,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsolidatedBillCard extends StatelessWidget {
+  const _ConsolidatedBillCard({
+    required this.consolidated,
+    required this.loading,
+    required this.onDiscount,
+    required this.onFinalize,
+    required this.onReceipt,
+  });
+
+  final Map<String, dynamic> consolidated;
+  final bool loading;
+  final VoidCallback onDiscount;
+  final VoidCallback onFinalize;
+  final VoidCallback onReceipt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bill = consolidated['bill'] as Map<String, dynamic>;
+    final charges =
+        List<Map<String, dynamic>>.from(consolidated['charges'] as List? ?? []);
+    final billStatus = bill['billStatus'] as String;
+    final isDraft = billStatus == 'DRAFT';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(Space.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('${bill['billNumber']}',
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(width: Space.sm),
+                StatusChip.auto(billStatus),
+                const SizedBox(width: Space.sm),
+                StatusChip.auto('${bill['discountStatus']}'),
+                const Spacer(),
+                if (isDraft) ...[
+                  OutlinedButton(
+                    onPressed: loading ? null : onDiscount,
+                    child: const Text('Discount'),
+                  ),
+                  const SizedBox(width: Space.sm),
+                  FilledButton(
+                    onPressed: loading ? null : onFinalize,
+                    child: const Text('Finalize'),
+                  ),
+                ] else
+                  OutlinedButton.icon(
+                    onPressed: onReceipt,
+                    icon: const Icon(Icons.print_outlined, size: 18),
+                    label: const Text('Receipt'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: Space.md),
+            const Divider(),
+
+            // Charge lines
+            for (final c in charges)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: Space.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                          '${c['serviceName'] ?? c['serviceCode']} ×${c['quantity']}',
+                          style: theme.textTheme.bodyMedium),
+                    ),
+                    Text('₹${c['amount']}', style: theme.textTheme.bodyMedium),
+                  ],
+                ),
+              ),
+
+            const Divider(),
+            _totalRow(theme, 'Hospital Charges', bill['chargesTotal']),
+            if ((num.tryParse('${bill['discountAmount']}') ?? 0) > 0)
+              _totalRow(theme, 'Discount', '- ${bill['discountAmount']}'),
+            _totalRow(theme, 'Hospital Net', consolidated['hospitalNetAmount']),
+            _totalRow(
+                theme, 'Pharmacy (ERP)', consolidated['erpInvoicesTotal']),
+            const SizedBox(height: Space.xs),
+            Row(
+              children: [
+                Text('Grand Total', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                Text('₹${consolidated['grandTotal']}',
+                    style: theme.textTheme.titleLarge),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _totalRow(ThemeData theme, String label, Object? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Space.xxs),
+      child: Row(
+        children: [
+          Text(label,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const Spacer(),
+          Text('₹$value', style: theme.textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptDialog extends StatelessWidget {
+  const _ReceiptDialog({required this.receipt});
+
+  final Map<String, dynamic> receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Text('Receipt — ${receipt['billNumber'] ?? ''}'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
+        child: SingleChildScrollView(
+          child: Text(
+            const JsonViewFormatter().format(receipt),
+            style:
+                theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Plain-text receipt rendering until the PDF template lands.
+class JsonViewFormatter {
+  const JsonViewFormatter();
+
+  String format(Map<String, dynamic> map, [int indent = 0]) {
+    final buffer = StringBuffer();
+    final pad = '  ' * indent;
+    map.forEach((key, value) {
+      if (value is Map<String, dynamic>) {
+        buffer.writeln('$pad$key:');
+        buffer.write(format(value, indent + 1));
+      } else if (value is List) {
+        buffer.writeln('$pad$key:');
+        for (final e in value) {
+          if (e is Map<String, dynamic>) {
+            buffer.write(format(e, indent + 1));
+            buffer.writeln('$pad  —');
+          } else {
+            buffer.writeln('$pad  $e');
+          }
+        }
+      } else {
+        buffer.writeln('$pad$key: $value');
+      }
+    });
+    return buffer.toString();
+  }
+}

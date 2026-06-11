@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
+import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
+import '../../features/pharmacy/pharmacist_home.dart';
 import '../auth/auth_state.dart';
 
 /// Central routing. `refreshListenable` re-evaluates redirects whenever
@@ -38,6 +40,8 @@ GoRouter createRouter(AuthState authState) {
 Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
     'DOCTOR' => const DoctorHome(),
+    'PHARMACIST' => const PharmacistHome(),
+    'BILLING' => const BillingHome(),
     _ => const FrontDeskHome(),
   };
 }

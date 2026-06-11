@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import 'prescription_panel.dart';
 
 /// Doctor role home: live queue worklist with call-next / start / complete.
 class DoctorHome extends StatefulWidget {
@@ -256,6 +257,12 @@ class _DoctorHomeState extends State<DoctorHome> {
                         decoration:
                             const InputDecoration(labelText: 'Advice'),
                       ),
+                      const SizedBox(height: Space.lg),
+                      const Divider(),
+                      const SizedBox(height: Space.lg),
+                      PrescriptionPanel(visitId: _activeVisit!.id),
+                      const SizedBox(height: Space.lg),
+                      const Divider(),
                       const SizedBox(height: Space.lg),
                       FilledButton.icon(
                         onPressed: _loading ? null : _completeConsultation,
