@@ -21,16 +21,18 @@ class NurseHome extends StatefulWidget {
   State<NurseHome> createState() => _NurseHomeState();
 }
 
-class _NurseHomeState extends State<NurseHome> {
+class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
   List<BedView> _beds = [];
   List<IsolationView> _isolations = [];
   bool _loading = false;
   String? _error;
   Timer? _refreshTimer;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadBoardData();
     _refreshTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _loadBoardData());
@@ -39,6 +41,7 @@ class _NurseHomeState extends State<NurseHome> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -137,11 +140,60 @@ class _NurseHomeState extends State<NurseHome> {
     }
   }
 
+  Future<void> _transferBed(BedView bed, AdmissionView admission) async {
+    final selectedBed = await showDialog<BedView>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Transfer to Bed'),
+        content: SizedBox(
+          width: 300,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (var b in _beds.where((b) => b.bedStatus == 'VACANT' && b.id != bed.id))
+                ListTile(
+                  title: Text('Bed ${b.bedNumber}'),
+                  subtitle: Text('${b.chargeModel} • ₹${b.tariffRate}'),
+                  onTap: () => Navigator.pop(context, b),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedBed != null) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      try {
+        final api = context.read<ApiClient>();
+        await api.post<dynamic>(
+          '/api/v1/ipd/admissions/${admission.id}/transfer',
+          {'newBedId': selectedBed.id},
+          fromJson: (json) => json,
+        );
+        await _loadBoardData();
+      } on ApiException catch (e) {
+        setState(() => _error = e.error.message);
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthState>();
     final theme = Theme.of(context);
-    final isMobile = context.isMobile;
 
     return AppShell(
       title: 'Nursing',
@@ -170,114 +222,117 @@ class _NurseHomeState extends State<NurseHome> {
         ),
       ],
       body: PageContainer(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Bed Board', style: theme.textTheme.titleLarge),
-                  const Spacer(),
-                  StatusChip(
-                    '${_beds.where((b) => b.bedStatus == 'OCCUPIED').length} occupied',
-                    kind: StatusKind.info,
+        scrollable: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Bed Board', style: theme.textTheme.titleLarge),
+                const Spacer(),
+                StatusChip(
+                  '${_beds.where((b) => b.bedStatus == 'OCCUPIED').length} occupied',
+                  kind: StatusKind.info,
+                ),
+                const SizedBox(width: Space.sm),
+                StatusChip(
+                  '${_beds.where((b) => b.bedStatus == 'VACANT').length} vacant',
+                  kind: StatusKind.success,
+                ),
+                const SizedBox(width: Space.sm),
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _loading ? null : _loadBoardData,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: Space.md),
+
+            if (_error != null) ...[
+              MessageBanner.error(_error!),
+              const SizedBox(height: Space.md),
+            ],
+
+            // Isolation alerts
+            if (_isolations.isNotEmpty) ...[
+              Card(
+                color: theme.colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(Space.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Active Bed Isolations',
+                          style: theme.textTheme.labelLarge
+                              ?.copyWith(
+                                  color: theme.colorScheme.onErrorContainer)
+                              .copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: Space.sm),
+                      for (var iso in _isolations) ...[
+                        Row(
+                          children: [
+                            Icon(Icons.warning_amber,
+                                size: 18,
+                                color: theme.colorScheme.onErrorContainer),
+                            const SizedBox(width: Space.sm),
+                            Expanded(
+                              child: Text(
+                                'Bed ${_beds.firstWhere((b) => b.id == iso.bedId).bedNumber}: ${iso.isolationType}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color:
+                                        theme.colorScheme.onErrorContainer),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: Space.xs),
+                      ],
+                    ],
                   ),
-                  const SizedBox(width: Space.sm),
-                  StatusChip(
-                    '${_beds.where((b) => b.bedStatus == 'VACANT').length} vacant',
-                    kind: StatusKind.success,
-                  ),
-                  const SizedBox(width: Space.sm),
-                  IconButton(
-                    tooltip: 'Refresh',
-                    onPressed: _loading ? null : _loadBoardData,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
+                ),
               ),
               const SizedBox(height: Space.md),
-
-              if (_error != null) ...[
-                MessageBanner.error(_error!),
-                const SizedBox(height: Space.md),
-              ],
-
-              // Isolation alerts
-              if (_isolations.isNotEmpty)
-                Card(
-                  color: theme.colorScheme.errorContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(Space.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Active Bed Isolations',
-                            style: theme.textTheme.labelLarge
-                                ?.copyWith(
-                                    color: theme.colorScheme.onErrorContainer)
-                                .copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: Space.sm),
-                        for (var iso in _isolations) ...[
-                          Row(
-                            children: [
-                              Icon(Icons.warning_amber,
-                                  size: 18,
-                                  color: theme.colorScheme.onErrorContainer),
-                              const SizedBox(width: Space.sm),
-                              Expanded(
-                                child: Text(
-                                  'Bed ${_beds.firstWhere((b) => b.id == iso.bedId).bedNumber}: ${iso.isolationType} (${iso.reason})',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onErrorContainer),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: Space.xs),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: Space.md),
-
-              // Bed grid layout responsive
-              if (isMobile)
-                Column(
-                  children: [
-                    for (var bed in _beds) ...[
-                      _BedCard(
-                        bed: bed,
-                        isIsolated: _isolations
-                            .any((i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
-                        loading: _loading,
-                        onIsolate: () => _isolateBed(bed),
-                      ),
-                      const SizedBox(height: Space.sm),
-                    ],
-                  ],
-                )
-              else
-                Wrap(
-                  spacing: Space.md,
-                  runSpacing: Space.md,
-                  children: [
-                    for (var bed in _beds)
-                      SizedBox(
-                        width: 180,
-                        child: _BedCard(
-                          bed: bed,
-                          isIsolated: _isolations.any(
-                              (i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
-                          loading: _loading,
-                          onIsolate: () => _isolateBed(bed),
-                        ),
-                      ),
-                  ],
-                ),
             ],
-          ),
+
+            // Bed grid layout responsive
+            Expanded(
+              child: SingleChildScrollView(
+                child: context.isMobile
+                    ? Column(
+                        children: [
+                          for (var bed in _beds) ...[
+                            _BedCard(
+                              bed: bed,
+                              isIsolated: _isolations
+                                  .any((i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
+                              loading: _loading,
+                              onIsolate: () => _isolateBed(bed),
+                            ),
+                            const SizedBox(height: Space.sm),
+                          ],
+                        ],
+                      )
+                    : Wrap(
+                        spacing: Space.md,
+                        runSpacing: Space.md,
+                        children: [
+                          for (var bed in _beds)
+                            SizedBox(
+                              width: 180,
+                              child: _BedCard(
+                                bed: bed,
+                                isIsolated: _isolations.any(
+                                    (i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
+                                loading: _loading,
+                                onIsolate: () => _isolateBed(bed),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );
