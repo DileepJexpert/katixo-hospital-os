@@ -24,4 +24,10 @@ public interface PatientBillRepository extends BaseRepository<PatientBill> {
     Optional<PatientBill> findFinalBillForSource(@Param("tenantId") String tenantId,
                                                   @Param("sourceType") HospitalCharge.SourceType sourceType,
                                                   @Param("sourceId") Long sourceId);
+
+    long countByTenantIdAndBranchId(@Param("tenantId") String tenantId, @Param("branchId") Long branchId);
+
+    long countByTenantIdAndBranchIdAndBillStatus(@Param("tenantId") String tenantId,
+                                                 @Param("branchId") Long branchId,
+                                                 @Param("billStatus") PatientBill.BillStatus billStatus);
 }

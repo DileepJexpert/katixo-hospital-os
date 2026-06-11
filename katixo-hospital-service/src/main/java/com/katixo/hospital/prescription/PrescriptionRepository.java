@@ -22,4 +22,8 @@ public interface PrescriptionRepository extends BaseRepository<Prescription> {
 
     @Query(value = "SELECT nextval('hospital.prescription_seq')", nativeQuery = true)
     Long nextPrescriptionSequence();
+
+    List<Prescription> findByTenantIdAndBranchIdAndPrescriptionStatus(@Param("tenantId") String tenantId,
+                                                                     @Param("branchId") Long branchId,
+                                                                     @Param("prescriptionStatus") Prescription.PrescriptionStatus prescriptionStatus);
 }

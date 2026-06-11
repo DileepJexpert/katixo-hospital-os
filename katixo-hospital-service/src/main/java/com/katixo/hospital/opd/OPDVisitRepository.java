@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -25,4 +26,14 @@ public interface OPDVisitRepository extends BaseRepository<OPDVisit> {
 
     @Query(value = "SELECT nextval('hospital.opd_visit_seq')", nativeQuery = true)
     Long nextVisitSequence();
+
+    long countByTenantIdAndBranchIdAndCreatedAtBetween(@Param("tenantId") String tenantId,
+                                                       @Param("branchId") Long branchId,
+                                                       @Param("startDate") LocalDateTime startDate,
+                                                       @Param("endDate") LocalDateTime endDate);
+
+    List<OPDVisit> findByTenantIdAndBranchIdAndCreatedAtBetween(@Param("tenantId") String tenantId,
+                                                                @Param("branchId") Long branchId,
+                                                                @Param("startDate") LocalDateTime startDate,
+                                                                @Param("endDate") LocalDateTime endDate);
 }
