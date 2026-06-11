@@ -32,6 +32,7 @@ public class OPDService {
     private final QueueTokenRepository tokenRepository;
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
+    private final DoctorAvailabilityService doctorAvailabilityService;
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
@@ -96,6 +97,10 @@ public class OPDService {
         }
         if (appointmentRepository.countOverlapping(context.getTenantId(), branchId, doctorId, date, slotStart, slotEnd) > 0) {
             throw new BusinessException("SLOT_TAKEN", "Doctor already has an appointment in this slot");
+        }
+        if (!doctorAvailabilityService.isAvailable(doctorId, date)) {
+            throw new BusinessException("DOCTOR_ON_LEAVE",
+                    "Doctor is on leave on the requested date and cannot accept appointments");
         }
 
         Appointment appointment = new Appointment();
@@ -303,6 +308,11 @@ public class OPDService {
     private QueueToken issueToken(OPDVisit visit, Long doctorId, Integer priority, String priorityReason) {
         var context = TenantContext.get();
         Long branchId = Long.parseLong(context.getBranchId());
+
+        if (!doctorAvailabilityService.isAvailable(doctorId, LocalDate.now())) {
+            throw new BusinessException("DOCTOR_ON_LEAVE",
+                    "Doctor is on leave and cannot accept queue tokens today");
+        }
 
         int effectivePriority = priority == null ? 0 : priority;
         if (effectivePriority > 0 && (priorityReason == null || priorityReason.isBlank())) {

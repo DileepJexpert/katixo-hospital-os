@@ -163,6 +163,12 @@ public class BillingController {
         return respond(view(billingService.finalizeBill(id)), "Bill finalized", HttpStatus.OK);
     }
 
+    @GetMapping("/bills/{id}/receipt")
+    @PreAuthorize("hasAnyRole('BILLING', 'FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> receipt(@PathVariable Long id) {
+        return respond(billingService.getReceipt(id), "Bill receipt", HttpStatus.OK);
+    }
+
     // ---------- helpers ----------
 
     private Map<String, Object> view(PatientBill b) {

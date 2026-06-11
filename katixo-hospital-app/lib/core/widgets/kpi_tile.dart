@@ -2,107 +2,111 @@ import 'package:flutter/material.dart';
 
 import '../theme/design_tokens.dart';
 
-/// Compact KPI card showing a metric with label, value, and optional trend.
+/// Compact KPI tile for dashboards (OPD count, occupancy, revenue…).
+///
+/// Supports two trend styles:
+///  - `trendUp` (bool) for a simple up/down arrow, or
+///  - `trendDirection` (enum) for up/down/neutral.
+/// `trendDirection` takes precedence when both are supplied.
 class KpiTile extends StatelessWidget {
   const KpiTile({
     super.key,
     required this.label,
     required this.value,
-    required this.icon,
+    this.icon,
     this.unit,
     this.trend,
+    this.trendUp,
     this.trendDirection,
   });
 
   final String label;
   final String value;
-  final IconData icon;
+  final IconData? icon;
   final String? unit;
   final String? trend;
+  final bool? trendUp;
   final TrendDirection? trendDirection;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final trendColor = switch (trendDirection) {
+    final scheme = theme.colorScheme;
+
+    final direction = trendDirection ??
+        (trendUp == null
+            ? null
+            : (trendUp! ? TrendDirection.up : TrendDirection.down));
+    final trendColor = switch (direction) {
       TrendDirection.up => StatusColors.success,
       TrendDirection.down => StatusColors.danger,
       TrendDirection.neutral => StatusColors.neutral,
-      _ => null,
+      null => null,
     };
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Space.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: theme.colorScheme.primary, size: 28),
-                if (trend != null && trendColor != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Space.sm,
-                      vertical: Space.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: trendColor.withOpacity(0.1),
-                      borderRadius: Corners.smRadius,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          trendDirection == TrendDirection.up
-                              ? Icons.trending_up
-                              : Icons.trending_down,
-                          size: 16,
-                          color: trendColor,
-                        ),
-                        const SizedBox(width: Space.xs),
-                        Text(
-                          trend!,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: trendColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Space.md),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Space.xs),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            if (icon != null) ...[
+              Container(
+                padding: const EdgeInsets.all(Space.sm),
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: Corners.smRadius,
                 ),
-                if (unit != null) ...[
-                  const SizedBox(width: Space.xs),
-                  Text(
-                    unit!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                child: Icon(icon, size: 22, color: scheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: Space.md),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label,
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: Space.xxs),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(value,
+                            style: theme.textTheme.headlineMedium,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      if (unit != null) ...[
+                        const SizedBox(width: Space.xs),
+                        Text(unit!,
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                      ],
+                    ],
                   ),
                 ],
-              ],
+              ),
             ),
+            if (trend != null && trendColor != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    direction == TrendDirection.down
+                        ? Icons.trending_down
+                        : Icons.trending_up,
+                    size: 16,
+                    color: trendColor,
+                  ),
+                  const SizedBox(width: Space.xxs),
+                  Text(
+                    trend!,
+                    style: theme.textTheme.labelSmall?.copyWith(color: trendColor),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

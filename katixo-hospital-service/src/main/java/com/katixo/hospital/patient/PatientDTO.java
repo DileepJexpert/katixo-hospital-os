@@ -49,6 +49,11 @@ public class PatientDTO {
     private String medications;
     private String notes;
 
+    private Boolean privacyConsentGiven;
+    private LocalDateTime privacyConsentAt;
+    private Boolean dataSharingConsent;
+    private LocalDateTime dataSharingConsentAt;
+
     private BaseEntity.EntityStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

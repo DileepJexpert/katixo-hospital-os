@@ -1,6 +1,7 @@
 package com.katixo.hospital.patient;
 
 import com.katixo.hospital.common.dto.ApiResponse;
+import com.katixo.hospital.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,12 +20,17 @@ public class PatientController {
     private final PatientService patientService;
 
     /**
-     * Register a new patient
+     * Register a new patient (requires privacy consent acknowledgment)
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'ADMIN')")
     public ResponseEntity<ApiResponse<PatientDTO>> registerPatient(@RequestBody PatientDTO request) {
         UUID correlationId = UUID.randomUUID();
+
+        if (!Boolean.TRUE.equals(request.getPrivacyConsentGiven())) {
+            throw new BusinessException("PRIVACY_CONSENT_REQUIRED",
+                    "Patient must acknowledge privacy policy before registration");
+        }
 
         Patient patient = new Patient();
         patient.setFirstName(request.getFirstName());
@@ -43,6 +49,8 @@ public class PatientController {
         patient.setPincode(request.getPincode());
         patient.setEmergencyContactName(request.getEmergencyContactName());
         patient.setEmergencyContactPhone(request.getEmergencyContactPhone());
+        patient.setPrivacyConsentGiven(true);
+        patient.setDataSharingConsent(Boolean.TRUE.equals(request.getDataSharingConsent()));
 
         Patient saved = patientService.registerPatient(patient);
 
@@ -157,6 +165,10 @@ public class PatientController {
                 .emergencyContactPhone(patient.getEmergencyContactPhone())
                 .allergies(patient.getAllergies())
                 .chronicConditions(patient.getChronicConditions())
+                .privacyConsentGiven(patient.getPrivacyConsentGiven())
+                .privacyConsentAt(patient.getPrivacyConsentAt())
+                .dataSharingConsent(patient.getDataSharingConsent())
+                .dataSharingConsentAt(patient.getDataSharingConsentAt())
                 .status(patient.getStatus())
                 .createdAt(patient.getCreatedAt())
                 .updatedAt(patient.getUpdatedAt())

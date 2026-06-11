@@ -41,6 +41,7 @@ public class BillingService {
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
+    private final com.katixo.hospital.patient.PatientRepository patientRepository;
     private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
@@ -102,6 +103,11 @@ public class BillingService {
 
     public PatientBill generateBill(HospitalCharge.SourceType sourceType, Long sourceId) {
         var ctx = TenantContext.get();
+
+        if (billRepository.countFinalBillsForSource(ctx.getTenantId(), sourceType, sourceId) > 0) {
+            throw new BusinessException("BILL_ALREADY_FINALIZED",
+                    "A finalized bill already exists for this " + sourceType + ". Cannot generate duplicate bill.");
+        }
 
         Long patientId = autoCreateDomainCharges(sourceType, sourceId);
 
@@ -268,6 +274,62 @@ public class BillingService {
         );
     }
 
+    /**
+     * Printable discharge/visit receipt for a FINAL bill: patient header, charges grouped by
+     * service category, discount, ERP pharmacy invoices, and the grand total the patient pays.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReceipt(Long billId) {
+        var ctx = TenantContext.get();
+        PatientBill bill = getOwnedBill(billId);
+
+        if (bill.getBillStatus() != PatientBill.BillStatus.FINAL) {
+            throw new BusinessException("BILL_NOT_FINAL",
+                    "Receipt is only available for a finalized bill; current status: " + bill.getBillStatus());
+        }
+
+        var patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                bill.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+
+        List<HospitalCharge> charges = chargeRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        Map<String, List<Map<String, Object>>> chargesByCategory = new java.util.LinkedHashMap<>();
+        Map<String, BigDecimal> categoryTotals = new java.util.LinkedHashMap<>();
+        for (HospitalCharge c : charges) {
+            String category = c.getCategory().name();
+            chargesByCategory.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(Map.of(
+                    "serviceName", c.getServiceName(),
+                    "quantity", c.getQuantity(),
+                    "rate", c.getRate(),
+                    "amount", c.getAmount()));
+            categoryTotals.merge(category, c.getAmount(), BigDecimal::add);
+        }
+
+        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        BigDecimal erpTotal = erpRefs.stream()
+                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, Object> receipt = new java.util.LinkedHashMap<>();
+        receipt.put("billNumber", bill.getBillNumber());
+        receipt.put("billDate", bill.getFinalizedAt().toString());
+        receipt.put("sourceType", bill.getSourceType().name());
+        receipt.put("patientId", bill.getPatientId());
+        receipt.put("patientName", patient == null ? "" : patient.getFullName());
+        receipt.put("uhid", patient == null ? "" : patient.getUhid());
+        receipt.put("chargesByCategory", chargesByCategory);
+        receipt.put("categoryTotals", categoryTotals);
+        receipt.put("chargesTotal", bill.getChargesTotal());
+        receipt.put("discountAmount", bill.getDiscountAmount());
+        receipt.put("hospitalNetAmount", bill.getNetAmount());
+        receipt.put("erpInvoices", erpRefs.stream().map(r -> Map.of(
+                "invoiceNumber", r.getErpInvoiceNumber(),
+                "amount", r.getErpInvoiceAmount(),
+                "type", r.getInvoiceType())).toList());
+        receipt.put("erpInvoicesTotal", erpTotal);
+        receipt.put("grandTotal", bill.getNetAmount().add(erpTotal));
+        return receipt;
+    }
+
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
@@ -279,11 +341,9 @@ public class BillingService {
         if (sourceType == HospitalCharge.SourceType.OPD_VISIT) {
             OPDVisit visit = visitRepository.findByIdAndTenantIdAndBranchId(sourceId, ctx.getTenantId(), branchId())
                     .orElseThrow(() -> new BusinessException("VISIT_NOT_FOUND", "Visit not found: " + sourceId));
-            String ref = "CONSULT-" + visit.getId();
-            if (visit.getConsultationFee().signum() > 0 && !chargeExists(sourceType, sourceId, ref)) {
-                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, ref,
-                        "CONSULT", "Doctor Consultation (" + visit.getFeeType() + ")",
-                        TariffMaster.ServiceCategory.CONSULTATION, 1, visit.getConsultationFee()));
+
+            if (visit.getConsultationFee().signum() > 0) {
+                createOPDConsultationCharges(visit, sourceType, sourceId);
             }
             autoChargeLabItems(sourceType, sourceId, visit.getPatientId());
             return visit.getPatientId();
@@ -312,6 +372,44 @@ public class BillingService {
         }
         autoChargeLabItems(HospitalCharge.SourceType.IPD_ADMISSION, sourceId, admission.getPatientId());
         return admission.getPatientId();
+    }
+
+    /**
+     * Create OPD consultation charges with optional referral fee splitting.
+     * If referral doctor exists, split fee: primary gets (100-referral%), referral gets referral%.
+     * Uses policy opd.referral.fee_percentage (default 25%).
+     */
+    private void createOPDConsultationCharges(OPDVisit visit, HospitalCharge.SourceType sourceType, Long sourceId) {
+        String primaryRef = "CONSULT-PRIMARY-" + visit.getId();
+        String referralRef = "CONSULT-REFERRAL-" + visit.getId();
+
+        if (visit.getReferralDoctorId() != null && visit.getReferralDoctorId() > 0) {
+            String refPctStr = policyService.getPolicyValue(HospitalPolicyCode.OPD_REFERRAL_FEE_PERCENTAGE);
+            BigDecimal refPct = new BigDecimal(refPctStr != null ? refPctStr : "25");
+            BigDecimal refPctDecimal = refPct.divide(BigDecimal.valueOf(100));
+
+            BigDecimal referralFee = visit.getConsultationFee().multiply(refPctDecimal);
+            BigDecimal primaryFee = visit.getConsultationFee().subtract(referralFee);
+
+            if (!chargeExists(sourceType, sourceId, primaryRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, primaryRef,
+                        "CONSULT-PRIMARY", "Doctor Consultation - Primary (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, primaryFee));
+            }
+            if (!chargeExists(sourceType, sourceId, referralRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, referralRef,
+                        "CONSULT-REFERRAL", "Doctor Consultation - Referral (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, referralFee));
+            }
+            log.info("Split OPD consultation fee for visit {}: Primary={}, Referral={}",
+                    visit.getId(), primaryFee, referralFee);
+        } else {
+            if (!chargeExists(sourceType, sourceId, primaryRef)) {
+                chargeRepository.save(buildCharge(visit.getPatientId(), sourceType, sourceId, primaryRef,
+                        "CONSULT", "Doctor Consultation (" + visit.getFeeType() + ")",
+                        TariffMaster.ServiceCategory.CONSULTATION, 1, visit.getConsultationFee()));
+            }
+        }
     }
 
     /** Lab order items become LAB charges (rate snapshot from the order item, dedupe via LAB-ITEM ref). */
@@ -396,9 +494,14 @@ public class BillingService {
         return Long.parseLong(TenantContext.get().getUserId());
     }
 
+    /**
+     * Month-scoped bill numbers (BILL-yyyyMM-NNNNNN). The sequence is global and never resets,
+     * so numbers stay unique; dropping the day part avoids the midnight-boundary confusion where
+     * a discharge at 23:59 billed at 00:01 looked like a different day's paperwork to auditors.
+     */
     private String generateBillNumber() {
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        return "BILL-" + datePart + "-" + String.format("%05d", billRepository.nextBillSequence());
+        String monthPart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        return "BILL-" + monthPart + "-" + String.format("%06d", billRepository.nextBillSequence());
     }
 
     private Map<String, Object> billSnapshot(PatientBill b) {

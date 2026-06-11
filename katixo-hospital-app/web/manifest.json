@@ -1,0 +1,12 @@
+{
+  "name": "Katixo Hospital OS",
+  "short_name": "Katixo",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#00796B",
+  "description": "Hospital management platform for Indian hospitals up to 150 beds.",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "icons": []
+}

@@ -72,7 +72,15 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
   }
 
   Future<void> _isolateBed(BedView bed) async {
-    String? selectedType = 'COVID';
+    // Must match backend BedIsolation.IsolationType enum.
+    const isolationTypes = [
+      'CONTACT',
+      'DROPLET',
+      'AIRBORNE',
+      'PROTECTIVE',
+      'TERMINAL_CLEANING',
+    ];
+    String selectedType = isolationTypes.first;
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -87,10 +95,11 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
               DropdownButton<String>(
                 isExpanded: true,
                 value: selectedType,
-                items: ['COVID', 'TUBERCULOSIS', 'OTHER']
+                items: isolationTypes
                     .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                     .toList(),
-                onChanged: (v) => setDialogState(() => selectedType = v),
+                onChanged: (v) =>
+                    setDialogState(() => selectedType = v ?? selectedType),
               ),
               const SizedBox(height: Space.md),
               TextField(
