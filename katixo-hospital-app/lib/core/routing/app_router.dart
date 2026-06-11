@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/admin/owner_dashboard.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
@@ -41,6 +42,7 @@ GoRouter createRouter(AuthState authState) {
 /// dedicated module yet land on the front-desk home.
 Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
+    'ADMIN' => const OwnerDashboard(),
     'DOCTOR' => const DoctorHome(),
     'NURSE' => const NurseHome(),
     'LAB_TECH' => const LabTechHome(),
