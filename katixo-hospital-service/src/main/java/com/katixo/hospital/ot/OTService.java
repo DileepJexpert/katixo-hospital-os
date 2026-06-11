@@ -38,6 +38,68 @@ public class OTService {
         return roomRepository.findByTenantIdAndBranchId(ctx.getTenantId(), Long.parseLong(ctx.getBranchId()));
     }
 
+    public OTRoom createRoom(CreateRoomRequest request) {
+        var ctx = tenantContext.current();
+        var room = new OTRoom();
+        room.setTenantId(ctx.getTenantId());
+        room.setHospitalGroupId(Long.parseLong(ctx.getHospitalGroupId()));
+        room.setBranchId(Long.parseLong(ctx.getBranchId()));
+        room.setRoomNumber(request.roomNumber);
+        room.setRoomName(request.roomName);
+        room.setRoomType(request.roomType);
+        room.setCapacity(request.capacity);
+        room.setEquipmentList(request.equipmentList);
+        room.setCreatedBy(ctx.getCurrentUserId());
+        room.setUpdatedBy(ctx.getCurrentUserId());
+        return roomRepository.save(room);
+    }
+
+    public OTRoom updateRoom(Long roomId, UpdateRoomRequest request) {
+        var ctx = tenantContext.current();
+        var room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException("ROOM_NOT_FOUND", "OT room not found"));
+
+        if (!room.getTenantId().equals(ctx.getTenantId())) {
+            throw new ApiException("FORBIDDEN", "Access denied");
+        }
+
+        if (request.roomName != null) room.setRoomName(request.roomName);
+        if (request.roomType != null) room.setRoomType(request.roomType);
+        if (request.capacity != null) room.setCapacity(request.capacity);
+        if (request.equipmentList != null) room.setEquipmentList(request.equipmentList);
+        room.setUpdatedBy(ctx.getCurrentUserId());
+        return roomRepository.save(room);
+    }
+
+    public void deleteRoom(Long roomId) {
+        var ctx = tenantContext.current();
+        var room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ApiException("ROOM_NOT_FOUND", "OT room not found"));
+
+        if (!room.getTenantId().equals(ctx.getTenantId())) {
+            throw new ApiException("FORBIDDEN", "Access denied");
+        }
+
+        room.setStatus(BaseEntity.EntityStatus.DELETED);
+        room.setUpdatedBy(ctx.getCurrentUserId());
+        roomRepository.save(room);
+    }
+
+    public static class CreateRoomRequest {
+        public String roomNumber;
+        public String roomName;
+        public String roomType;
+        public Integer capacity;
+        public String equipmentList;
+    }
+
+    public static class UpdateRoomRequest {
+        public String roomName;
+        public String roomType;
+        public Integer capacity;
+        public String equipmentList;
+    }
+
     public OTBookingResponse bookOT(BookOTRequest request) {
         var ctx = tenantContext.current();
         var bookingNumber = generateBookingNumber();

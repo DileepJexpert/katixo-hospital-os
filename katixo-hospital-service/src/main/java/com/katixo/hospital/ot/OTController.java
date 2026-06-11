@@ -28,6 +28,33 @@ public class OTController {
                 .collect(Collectors.toList()));
     }
 
+    @PostMapping("/rooms")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OTRoomResponse> createRoom(@RequestBody OTService.CreateRoomRequest request) {
+        log.info("Creating OT room {}", request.roomNumber);
+        var room = otService.createRoom(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new OTRoomResponse(room.getId(), room.getRoomNumber(), room.getRoomName(), room.getRoomType()));
+    }
+
+    @PutMapping("/rooms/{roomId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OTRoomResponse> updateRoom(
+            @PathVariable Long roomId,
+            @RequestBody OTService.UpdateRoomRequest request) {
+        log.info("Updating OT room {}", roomId);
+        var room = otService.updateRoom(roomId, request);
+        return ResponseEntity.ok(new OTRoomResponse(room.getId(), room.getRoomNumber(), room.getRoomName(), room.getRoomType()));
+    }
+
+    @DeleteMapping("/rooms/{roomId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteRoom(@PathVariable Long roomId) {
+        log.info("Deleting OT room {}", roomId);
+        otService.deleteRoom(roomId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/bookings")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<OTService.OTBookingResponse> bookOT(@RequestBody OTService.BookOTRequest request) {

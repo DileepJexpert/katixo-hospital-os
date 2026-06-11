@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/kpi_tile.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import 'ot_room_management.dart';
 
 /// Owner/Admin dashboard: operational KPIs and metrics.
 class OwnerDashboard extends StatefulWidget {
@@ -26,6 +27,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   bool _attempted = false;
   String? _error;
   Timer? _refreshTimer;
+  int _navIndex = 0;
 
   @override
   void initState() {
@@ -78,9 +80,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           icon: Icons.dashboard_outlined,
           selectedIcon: Icons.dashboard,
         ),
+        ShellDestination(
+          label: 'OT Rooms',
+          icon: Icons.meeting_room_outlined,
+          selectedIcon: Icons.meeting_room,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _navIndex,
+      onDestinationSelected: (i) => setState(() => _navIndex = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -96,7 +103,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _navIndex == 1
+          ? const OTRoomManagementScreen()
+          : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
