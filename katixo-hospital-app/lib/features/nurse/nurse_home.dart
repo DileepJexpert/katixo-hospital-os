@@ -21,18 +21,16 @@ class NurseHome extends StatefulWidget {
   State<NurseHome> createState() => _NurseHomeState();
 }
 
-class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
+class _NurseHomeState extends State<NurseHome> {
   List<BedView> _beds = [];
   List<IsolationView> _isolations = [];
   bool _loading = false;
   String? _error;
   Timer? _refreshTimer;
-  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadBoardData();
     _refreshTimer =
         Timer.periodic(const Duration(seconds: 10), (_) => _loadBoardData());
@@ -41,7 +39,6 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
   @override
   void dispose() {
     _refreshTimer?.cancel();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -149,35 +146,40 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _transferBed(BedView bed, AdmissionView admission) async {
-    final selectedBed = await showDialog<BedView>(
+  Future<void> _clearIsolation(BedView bed) async {
+    final notesCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Transfer to Bed'),
-        content: SizedBox(
-          width: 300,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (var b in _beds.where((b) => b.bedStatus == 'VACANT' && b.id != bed.id))
-                ListTile(
-                  title: Text('Bed ${b.bedNumber}'),
-                  subtitle: Text('${b.chargeModel} • ₹${b.tariffRate}'),
-                  onTap: () => Navigator.pop(context, b),
-                ),
-            ],
-          ),
+        title: const Text('Clear Isolation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Bed ${bed.bedNumber}',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: Space.md),
+            TextField(
+              controller: notesCtrl,
+              decoration:
+                  const InputDecoration(labelText: 'Clearance Notes *'),
+              maxLines: 2,
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear'),
           ),
         ],
       ),
     );
 
-    if (selectedBed != null) {
+    if (confirmed == true && notesCtrl.text.trim().isNotEmpty) {
       setState(() {
         _loading = true;
         _error = null;
@@ -186,8 +188,8 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
       try {
         final api = context.read<ApiClient>();
         await api.post<dynamic>(
-          '/api/v1/ipd/admissions/${admission.id}/transfer',
-          {'newBedId': selectedBed.id},
+          '/api/v1/ipd/beds/${bed.id}/clear-isolation',
+          {'clearanceNotes': notesCtrl.text.trim()},
           fromJson: (json) => json,
         );
         await _loadBoardData();
@@ -317,6 +319,7 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
                                   .any((i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
                               loading: _loading,
                               onIsolate: () => _isolateBed(bed),
+                              onClearIsolation: () => _clearIsolation(bed),
                             ),
                             const SizedBox(height: Space.sm),
                           ],
@@ -335,6 +338,7 @@ class _NurseHomeState extends State<NurseHome> with TickerProviderStateMixin {
                                     (i) => i.bedId == bed.id && i.isolationStatus == 'ACTIVE'),
                                 loading: _loading,
                                 onIsolate: () => _isolateBed(bed),
+                                onClearIsolation: () => _clearIsolation(bed),
                               ),
                             ),
                         ],
@@ -354,12 +358,14 @@ class _BedCard extends StatelessWidget {
     required this.isIsolated,
     required this.loading,
     required this.onIsolate,
+    required this.onClearIsolation,
   });
 
   final BedView bed;
   final bool isIsolated;
   final bool loading;
   final VoidCallback onIsolate;
+  final VoidCallback onClearIsolation;
 
   Color _statusColor(String status) {
     return switch (status) {
@@ -405,29 +411,20 @@ class _BedCard extends StatelessWidget {
             if (bed.bedStatus == 'OCCUPIED' && !isIsolated) ...[
               const Divider(),
               const SizedBox(height: Space.sm),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: loading ? null : () {},
-                      child: const Text('Transfer'),
-                    ),
-                  ),
-                  const SizedBox(width: Space.xs),
-                  IconButton(
-                    tooltip: 'Isolate',
-                    icon: const Icon(Icons.warning_amber, size: 20),
-                    onPressed: loading ? null : onIsolate,
-                  ),
-                ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: loading ? null : onIsolate,
+                  icon: const Icon(Icons.warning_amber, size: 16),
+                  label: const Text('Isolate'),
+                ),
               ),
             ],
             if (isIsolated) ...[
               const Divider(),
               const SizedBox(height: Space.sm),
               OutlinedButton.icon(
-                onPressed: loading ? null : () {},
+                onPressed: loading ? null : onClearIsolation,
                 icon: const Icon(Icons.check, size: 16),
                 label: const Text('Clear Isolation'),
               ),

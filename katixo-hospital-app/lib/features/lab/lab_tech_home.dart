@@ -230,12 +230,12 @@ class _LabTechHomeState extends State<LabTechHome> {
                 Text('Lab Worklist', style: theme.textTheme.titleLarge),
                 const Spacer(),
                 StatusChip(
-                  '${_worklist.where((i) => i.itemStatus == 'SAMPLE_PENDING').length} pending',
+                  '${_worklist.where((i) => i.itemStatus == 'PENDING').length} to collect',
                   kind: StatusKind.warning,
                 ),
                 const SizedBox(width: Space.sm),
                 StatusChip(
-                  '${_worklist.where((i) => i.itemStatus == 'IN_PROGRESS').length} in progress',
+                  '${_worklist.where((i) => i.itemStatus == 'SAMPLE_COLLECTED').length} to result',
                   kind: StatusKind.info,
                 ),
                 const SizedBox(width: Space.sm),
@@ -272,8 +272,8 @@ class _LabTechHomeState extends State<LabTechHome> {
                     separatorBuilder: (_, __) => const Divider(),
                     itemBuilder: (context, i) {
                       final item = _worklist[i];
-                      final pendingSample = item.itemStatus == 'SAMPLE_PENDING';
-                      final resultPending = item.itemStatus == 'IN_PROGRESS';
+                      final pendingSample = item.itemStatus == 'PENDING';
+                      final resultPending = item.itemStatus == 'SAMPLE_COLLECTED';
 
                       return ListTile(
                         leading: Icon(

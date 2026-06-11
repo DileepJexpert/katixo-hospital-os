@@ -23,6 +23,7 @@ class OwnerDashboard extends StatefulWidget {
 class _OwnerDashboardState extends State<OwnerDashboard> {
   DashboardMetrics? _metrics;
   bool _loading = false;
+  bool _attempted = false;
   String? _error;
   Timer? _refreshTimer;
 
@@ -58,6 +59,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       if (mounted) {
         setState(() => _error = 'Failed to load metrics: $e');
       }
+    } finally {
+      if (mounted && !_attempted) setState(() => _attempted = true);
     }
   }
 
@@ -110,16 +113,46 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             ),
             const SizedBox(height: Space.md),
 
-            if (_error != null) ...[
+            // Only surface a load error once we already have data (a refresh
+            // failure). The first-load "unavailable" case is covered by the
+            // empty-state card below, so we don't double up.
+            if (_error != null && _metrics != null) ...[
               MessageBanner.error(_error!),
               const SizedBox(height: Space.md),
             ],
 
-            if (_metrics == null)
-              Center(
+            if (_metrics == null && !_attempted)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(Space.xl),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_metrics == null)
+              Card(
                 child: Padding(
                   padding: const EdgeInsets.all(Space.xl),
-                  child: CircularProgressIndicator(),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.insights_outlined,
+                            size: 40,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        const SizedBox(height: Space.md),
+                        Text('Dashboard metrics are not available yet',
+                            style: theme.textTheme.titleMedium),
+                        const SizedBox(height: Space.xs),
+                        Text(
+                          'The analytics read model is still being built. '
+                          'Operational screens (OPD, IPD, Pharmacy, Lab, Billing) are live.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             else ...[

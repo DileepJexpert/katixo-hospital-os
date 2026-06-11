@@ -9,7 +9,6 @@ import '../../features/front_desk/front_desk_home.dart';
 import '../../features/lab/lab_tech_home.dart';
 import '../../features/nurse/nurse_home.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
-import '../../features/radiology/radiologist_home.dart';
 import '../auth/auth_state.dart';
 
 /// Central routing. `refreshListenable` re-evaluates redirects whenever
@@ -47,7 +46,8 @@ Widget _roleHome(AuthState authState) {
     'DOCTOR' => const DoctorHome(),
     'NURSE' => const NurseHome(),
     'LAB_TECH' => const LabTechHome(),
-    'RADIOLOGIST' => const RadiologistHome(),
+    // RADIOLOGIST → RadiologistHome is wired once the radiology backend
+    // (/api/v1/radiology/*) lands; the UI exists in features/radiology/.
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
     _ => const FrontDeskHome(),
