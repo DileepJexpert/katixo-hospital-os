@@ -13,6 +13,7 @@ import '../../core/widgets/kpi_tile.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import 'ot_room_management.dart';
 import 'tpa_management.dart';
+import 'staff_management.dart';
 
 /// Owner/Admin dashboard: operational KPIs and metrics.
 class OwnerDashboard extends StatefulWidget {
@@ -91,6 +92,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           icon: Icons.health_and_safety_outlined,
           selectedIcon: Icons.health_and_safety,
         ),
+        ShellDestination(
+          label: 'Staff',
+          icon: Icons.people_outlined,
+          selectedIcon: Icons.people,
+        ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
@@ -113,7 +119,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           ? const OTRoomManagementScreen()
           : _navIndex == 2
               ? const TPAManagementScreen()
-              : PageContainer(
+              : _navIndex == 3
+                  ? const StaffManagementScreen()
+                  : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

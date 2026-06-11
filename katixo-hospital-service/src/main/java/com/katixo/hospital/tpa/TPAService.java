@@ -10,11 +10,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -376,6 +379,53 @@ public class TPAService {
         return toDocumentResponse(document);
     }
 
+    public TPADocumentResponse uploadDocument(Long documentId, MultipartFile file, String notes) {
+        var ctx = tenantContext.current();
+        var document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ApiException("DOCUMENT_NOT_FOUND", "Document not found"));
+
+        if (file.isEmpty()) {
+            throw new ApiException("FILE_EMPTY", "File cannot be empty");
+        }
+
+        try {
+            String fileName = generateFileUrl(documentId, file.getOriginalFilename());
+
+            document.setSubmitted(true);
+            document.setSubmittedAt(LocalDateTime.now());
+            document.setSubmittedBy(ctx.getCurrentUserId());
+            document.setFileUrl(fileName);
+            if (notes != null && !notes.isBlank()) {
+                document.setNotes(notes);
+            }
+            document.setUpdatedBy(ctx.getCurrentUserId());
+
+            document = documentRepository.save(document);
+
+            auditService.log(AuditLog.builder()
+                    .actorId(ctx.getCurrentUserId())
+                    .action("UPLOAD_TPA_DOCUMENT")
+                    .entityType("TPADocument")
+                    .entityId(document.getId())
+                    .tenantId(ctx.getTenantId())
+                    .branchId(Long.parseLong(ctx.getBranchId()))
+                    .build());
+
+            outboxPublisher.publish(new OutboxEvent(
+                    "tpa.document.uploaded",
+                    "TPADocument",
+                    document.getId(),
+                    ctx.getTenantId(),
+                    Long.parseLong(ctx.getBranchId())
+            ));
+
+            return toDocumentResponse(document);
+        } catch (Exception e) {
+            log.error("Failed to upload document: {}", e.getMessage(), e);
+            throw new ApiException("UPLOAD_FAILED", "Failed to upload document: " + e.getMessage());
+        }
+    }
+
     private TPACaseResponse toResponse(TPACase tpaCase) {
         var documents = documentRepository.findByTpaCaseId(tpaCase.getId());
         var documentResponses = documents.stream()
@@ -430,5 +480,18 @@ public class TPAService {
         var sequence = 1;
         var prefix = String.format(CASE_NUMBER_FORMAT, Long.parseLong(month), sequence);
         return prefix;
+    }
+
+    private String generateFileUrl(Long documentId, String originalFilename) {
+        var uuid = UUID.randomUUID().toString();
+        var extension = getFileExtension(originalFilename);
+        return String.format("tpa/documents/%d/%s%s", documentId, uuid, extension);
+    }
+
+    private String getFileExtension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return "";
+        }
+        return filename.substring(filename.lastIndexOf("."));
     }
 }

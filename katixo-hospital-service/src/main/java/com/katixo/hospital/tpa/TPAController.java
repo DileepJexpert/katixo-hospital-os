@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -123,5 +124,15 @@ public class TPAController {
             @RequestBody SubmitDocumentRequest request) {
         var response = tpaService.submitDocument(documentId, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Document submitted"));
+    }
+
+    @PostMapping("/documents/{documentId}/upload")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FRONT_DESK', 'DOCTOR', 'NURSE')")
+    public ResponseEntity<ApiResponse<TPADocumentResponse>> uploadDocument(
+            @PathVariable Long documentId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "notes", required = false) String notes) {
+        var response = tpaService.uploadDocument(documentId, file, notes);
+        return ResponseEntity.ok(ApiResponse.success(response, "Document uploaded successfully"));
     }
 }
