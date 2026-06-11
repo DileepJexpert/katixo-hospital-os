@@ -13,6 +13,7 @@ import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../ipd/admissions_panel.dart';
 import 'lab_orders_panel.dart';
+import 'ot_booking_panel.dart';
 import 'prescription_panel.dart';
 import 'radiology_orders_panel.dart';
 
@@ -283,6 +284,10 @@ class _DoctorHomeState extends State<DoctorHome> {
                       const Divider(),
                       const SizedBox(height: Space.lg),
                       RadiologyOrdersPanel(visitId: _activeVisit!.id),
+                      const SizedBox(height: Space.lg),
+                      const Divider(),
+                      const SizedBox(height: Space.lg),
+                      OTBookingPanel(visitId: _activeVisit!.id),
                       const SizedBox(height: Space.lg),
                       const Divider(),
                       const SizedBox(height: Space.lg),
