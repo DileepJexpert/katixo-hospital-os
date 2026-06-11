@@ -14,6 +14,7 @@ import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../ipd/admissions_panel.dart';
 import '../../core/responsive/breakpoints.dart';
 import 'nursing_indent_screen.dart';
+import 'nursing_vitals_screen.dart';
 
 /// Nurse role home: bed board with admission workflows and transfers.
 class NurseHome extends StatefulWidget {
@@ -227,6 +228,11 @@ class _NurseHomeState extends State<NurseHome> {
           icon: Icons.assignment_outlined,
           selectedIcon: Icons.assignment,
         ),
+        ShellDestination(
+          label: 'Vitals',
+          icon: Icons.favorite_outline,
+          selectedIcon: Icons.favorite,
+        ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
@@ -252,7 +258,9 @@ class _NurseHomeState extends State<NurseHome> {
             )
           : _navIndex == 2
               ? const NursingIndentScreen()
-              : PageContainer(
+              : _navIndex == 3
+                  ? const NursingVitalsScreen()
+                  : PageContainer(
         scrollable: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

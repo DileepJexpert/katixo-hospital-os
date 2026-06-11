@@ -154,3 +154,121 @@ class CreateIndentItemRequest {
         if (reason != null) 'reason': reason,
       };
 }
+
+// ============ VITAL SIGNS ============
+
+class NursingVital {
+  const NursingVital({
+    required this.id,
+    required this.admissionId,
+    required this.patientId,
+    required this.recordedBy,
+    this.temperatureCelsius,
+    this.heartRateBpm,
+    this.respiratoryRate,
+    this.systolicBp,
+    this.diastolicBp,
+    this.spo2Percent,
+    this.bloodGlucose,
+    this.observations,
+    this.complaints,
+    this.painLevel,
+    this.nutritionStatus,
+    required this.isAbnormal,
+    this.abnormalityNotes,
+    required this.roundStatus,
+    required this.recordedAt,
+  });
+
+  final int id;
+  final int admissionId;
+  final int patientId;
+  final int recordedBy;
+  final num? temperatureCelsius;
+  final int? heartRateBpm;
+  final int? respiratoryRate;
+  final int? systolicBp;
+  final int? diastolicBp;
+  final num? spo2Percent;
+  final num? bloodGlucose;
+  final String? observations;
+  final String? complaints;
+  final int? painLevel;
+  final String? nutritionStatus;
+  final bool isAbnormal;
+  final String? abnormalityNotes;
+  final String roundStatus;
+  final String recordedAt;
+
+  factory NursingVital.fromJson(Map<String, dynamic> json) {
+    return NursingVital(
+      id: json['id'] as int,
+      admissionId: json['admissionId'] as int,
+      patientId: json['patientId'] as int,
+      recordedBy: json['recordedBy'] as int,
+      temperatureCelsius: json['temperatureCelsius'] as num?,
+      heartRateBpm: json['heartRateBpm'] as int?,
+      respiratoryRate: json['respiratoryRate'] as int?,
+      systolicBp: json['systolicBp'] as int?,
+      diastolicBp: json['diastolicBp'] as int?,
+      spo2Percent: json['spo2Percent'] as num?,
+      bloodGlucose: json['bloodGlucose'] as num?,
+      observations: json['observations'] as String?,
+      complaints: json['complaints'] as String?,
+      painLevel: json['painLevel'] as int?,
+      nutritionStatus: json['nutritionStatus'] as String?,
+      isAbnormal: json['isAbnormal'] as bool? ?? false,
+      abnormalityNotes: json['abnormalityNotes'] as String?,
+      roundStatus: json['roundStatus'] as String? ?? 'RECORDED',
+      recordedAt: json['recordedAt'] as String? ?? '',
+    );
+  }
+}
+
+class RecordVitalRequest {
+  const RecordVitalRequest({
+    required this.admissionId,
+    required this.patientId,
+    this.temperatureCelsius,
+    this.heartRateBpm,
+    this.respiratoryRate,
+    this.systolicBp,
+    this.diastolicBp,
+    this.spo2Percent,
+    this.bloodGlucose,
+    this.observations,
+    this.complaints,
+    this.painLevel,
+    this.nutritionStatus,
+  });
+
+  final int admissionId;
+  final int patientId;
+  final num? temperatureCelsius;
+  final int? heartRateBpm;
+  final int? respiratoryRate;
+  final int? systolicBp;
+  final int? diastolicBp;
+  final num? spo2Percent;
+  final num? bloodGlucose;
+  final String? observations;
+  final String? complaints;
+  final int? painLevel;
+  final String? nutritionStatus;
+
+  Map<String, dynamic> toJson() => {
+        'admissionId': admissionId,
+        'patientId': patientId,
+        if (temperatureCelsius != null) 'temperatureCelsius': temperatureCelsius,
+        if (heartRateBpm != null) 'heartRateBpm': heartRateBpm,
+        if (respiratoryRate != null) 'respiratoryRate': respiratoryRate,
+        if (systolicBp != null) 'systolicBp': systolicBp,
+        if (diastolicBp != null) 'diastolicBp': diastolicBp,
+        if (spo2Percent != null) 'spo2Percent': spo2Percent,
+        if (bloodGlucose != null) 'bloodGlucose': bloodGlucose,
+        if (observations != null) 'observations': observations,
+        if (complaints != null) 'complaints': complaints,
+        if (painLevel != null) 'painLevel': painLevel,
+        if (nutritionStatus != null) 'nutritionStatus': nutritionStatus,
+      };
+}
