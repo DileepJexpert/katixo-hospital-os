@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../ipd/admissions_panel.dart';
 import '../../core/responsive/breakpoints.dart';
 
 /// Nurse role home: bed board with admission workflows and transfers.
@@ -27,6 +28,7 @@ class _NurseHomeState extends State<NurseHome> {
   bool _loading = false;
   String? _error;
   Timer? _refreshTimer;
+  int _navIndex = 0;
 
   @override
   void initState() {
@@ -214,9 +216,14 @@ class _NurseHomeState extends State<NurseHome> {
           icon: Icons.bed_outlined,
           selectedIcon: Icons.bed,
         ),
+        ShellDestination(
+          label: 'Admissions',
+          icon: Icons.personal_injury_outlined,
+          selectedIcon: Icons.personal_injury,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _navIndex,
+      onDestinationSelected: (i) => setState(() => _navIndex = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -232,7 +239,12 @@ class _NurseHomeState extends State<NurseHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _navIndex == 1
+          ? const PageContainer(
+              scrollable: false,
+              child: AdmissionsPanel(),
+            )
+          : PageContainer(
         scrollable: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

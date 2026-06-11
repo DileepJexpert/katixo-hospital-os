@@ -5,6 +5,7 @@ import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.outbox.OutboxEventService;
+import com.katixo.hospital.patient.Patient;
 import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.patient.PatientVisitSummaryRepository;
 import com.katixo.hospital.policy.HospitalPolicyCode;
@@ -87,6 +88,26 @@ public class IPDService {
     public List<Bed> getBedBoard() {
         var ctx = TenantContext.get();
         return bedRepository.findBedBoard(ctx.getTenantId(), branchId());
+    }
+
+    /**
+     * Blocking discharge checklist item codes (policy-driven, CLAUDE.md). These are the items a
+     * NORMAL discharge must acknowledge. Returned to the UI so it can render the checklist without
+     * hardcoding business rules. Empty list = nothing blocks for this hospital.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getDischargeChecklist() {
+        String csv = policyService.getPolicyValue(
+                HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS, "");
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .map(s -> s.toUpperCase())
+                .distinct()
+                .toList();
     }
 
     // ------------------------------------------------------------
@@ -331,6 +352,44 @@ public class IPDService {
         var ctx = TenantContext.get();
         getAdmission(admissionId); // tenant ownership check
         return allocationRepository.findByTenantIdAndAdmissionIdOrderByAllocatedAtAsc(ctx.getTenantId(), admissionId);
+    }
+
+    /**
+     * Active (ADMITTED) admissions enriched with patient and bed details, for the ward worklist
+     * that drives transfer / discharge. Read model only — never mutates.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getActiveAdmissions() {
+        var ctx = TenantContext.get();
+        List<IPDAdmission> admissions = admissionRepository.findByTenantIdAndBranchIdAndAdmissionStatus(
+                ctx.getTenantId(), branchId(), IPDAdmission.AdmissionStatus.ADMITTED);
+
+        return admissions.stream().map(a -> {
+            String patientName = patientRepository
+                    .findByIdAndTenantIdAndBranchId(a.getPatientId(), ctx.getTenantId(), branchId())
+                    .map(p -> java.util.stream.Stream.of(p.getFirstName(), p.getLastName())
+                            .filter(s -> s != null && !s.isBlank())
+                            .collect(java.util.stream.Collectors.joining(" ")))
+                    .orElse("Unknown");
+            String uhid = patientRepository
+                    .findByIdAndTenantIdAndBranchId(a.getPatientId(), ctx.getTenantId(), branchId())
+                    .map(Patient::getUhid).orElse("");
+            String bedNumber = a.getCurrentBedId() == null ? "" : bedRepository
+                    .findByIdAndTenantIdAndBranchId(a.getCurrentBedId(), ctx.getTenantId(), branchId())
+                    .map(Bed::getBedNumber).orElse("");
+
+            java.util.Map<String, Object> m = new java.util.HashMap<>();
+            m.put("admissionId", a.getId());
+            m.put("admissionNumber", a.getAdmissionNumber());
+            m.put("patientId", a.getPatientId());
+            m.put("patientName", patientName);
+            m.put("uhid", uhid);
+            m.put("bedId", a.getCurrentBedId());
+            m.put("bedNumber", bedNumber);
+            m.put("admittedAt", a.getAdmittedAt() == null ? null : a.getAdmittedAt().toString());
+            m.put("diagnosis", a.getDiagnosis() == null ? "" : a.getDiagnosis());
+            return m;
+        }).toList();
     }
 
     // ------------------------------------------------------------

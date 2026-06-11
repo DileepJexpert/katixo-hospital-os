@@ -73,6 +73,46 @@ class AdmissionView {
   }
 }
 
+/// Row in the ward worklist — an active admission enriched with patient + bed,
+/// from GET /api/v1/ipd/admissions.
+class ActiveAdmission {
+  const ActiveAdmission({
+    required this.admissionId,
+    required this.admissionNumber,
+    required this.patientId,
+    required this.patientName,
+    required this.uhid,
+    this.bedId,
+    required this.bedNumber,
+    this.admittedAt,
+    required this.diagnosis,
+  });
+
+  final int admissionId;
+  final String admissionNumber;
+  final int patientId;
+  final String patientName;
+  final String uhid;
+  final int? bedId;
+  final String bedNumber;
+  final String? admittedAt;
+  final String diagnosis;
+
+  factory ActiveAdmission.fromJson(Map<String, dynamic> json) {
+    return ActiveAdmission(
+      admissionId: json['admissionId'] as int,
+      admissionNumber: json['admissionNumber'] as String,
+      patientId: json['patientId'] as int,
+      patientName: json['patientName'] as String? ?? 'Unknown',
+      uhid: json['uhid'] as String? ?? '',
+      bedId: json['bedId'] as int?,
+      bedNumber: json['bedNumber'] as String? ?? '',
+      admittedAt: json['admittedAt'] as String?,
+      diagnosis: json['diagnosis'] as String? ?? '',
+    );
+  }
+}
+
 class AdmitRequest {
   const AdmitRequest({
     required this.patientId,

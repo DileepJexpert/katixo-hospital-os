@@ -91,6 +91,12 @@ public class IPDController {
         return respond(ipdService.getBedBoard().stream().map(BedView::from).toList(), "Bed board", HttpStatus.OK);
     }
 
+    @GetMapping("/discharge-checklist")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<String>>> dischargeChecklist() {
+        return respond(ipdService.getDischargeChecklist(), "Discharge checklist", HttpStatus.OK);
+    }
+
     // ---------- admission lifecycle ----------
 
     @Getter
@@ -113,6 +119,12 @@ public class IPDController {
         IPDAdmission a = ipdService.admitPatient(req.getPatientId(), req.getDoctorId(), req.getBedId(),
                 req.getDiagnosis(), req.getNotes());
         return respond(AdmissionView.from(a), "Patient admitted", HttpStatus.CREATED);
+    }
+
+    @GetMapping("/admissions")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<java.util.Map<String, Object>>>> activeAdmissions() {
+        return respond(ipdService.getActiveAdmissions(), "Active admissions", HttpStatus.OK);
     }
 
     @GetMapping("/admissions/{id}")

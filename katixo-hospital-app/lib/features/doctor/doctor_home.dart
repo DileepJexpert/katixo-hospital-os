@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../ipd/admissions_panel.dart';
 import 'lab_orders_panel.dart';
 import 'prescription_panel.dart';
 import 'radiology_orders_panel.dart';
@@ -29,6 +30,7 @@ class _DoctorHomeState extends State<DoctorHome> {
   String? _error;
   String? _info;
   Timer? _refreshTimer;
+  int _navIndex = 0;
 
   /// Visit currently being consulted (start → complete flow).
   VisitResponse? _activeVisit;
@@ -173,9 +175,14 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.list_alt_outlined,
           selectedIcon: Icons.list_alt,
         ),
+        ShellDestination(
+          label: 'Ward',
+          icon: Icons.king_bed_outlined,
+          selectedIcon: Icons.king_bed,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _navIndex,
+      onDestinationSelected: (i) => setState(() => _navIndex = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -191,7 +198,12 @@ class _DoctorHomeState extends State<DoctorHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _navIndex == 1
+          ? const PageContainer(
+              scrollable: false,
+              child: AdmissionsPanel(),
+            )
+          : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
