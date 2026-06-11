@@ -22,7 +22,7 @@ class StatusChip extends StatelessWidget {
       'ABNORMAL' || 'BLOCKED' || 'ISOLATION' || 'REJECTED' || 'LAMA' ||
       'DEATH' || 'FAILED' =>
         StatusKind.danger,
-      'IN_QUEUE' || 'IN_PROGRESS' || 'QUEUED' || 'CALLED' ||
+      'IN_QUEUE' || 'WAITING' || 'IN_PROGRESS' || 'QUEUED' || 'CALLED' ||
       'IN_CONSULTATION' || 'OCCUPIED' || 'ORDERED' =>
         StatusKind.info,
       _ => StatusKind.neutral,

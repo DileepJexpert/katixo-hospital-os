@@ -90,6 +90,7 @@ public class AuthController {
     private Map<String, Object> userView(StaffUser user) {
         return Map.of(
                 "userId", user.getAuthUserId(),
+                "staffId", user.getId(),
                 "username", user.getUsername(),
                 "name", user.getName(),
                 "role", user.getRole(),

@@ -65,6 +65,7 @@ class CurrentUser {
     required this.tenantId,
     required this.hospitalGroupId,
     required this.branchId,
+    this.staffId,
   });
 
   final String userId;
@@ -74,6 +75,7 @@ class CurrentUser {
   final String tenantId;
   final String hospitalGroupId;
   final String branchId;
+  final int? staffId;
 
   bool hasRole(String r) => role == r;
   bool hasAnyRole(List<String> rs) => rs.contains(role);
@@ -87,6 +89,7 @@ class CurrentUser {
       tenantId: json['tenantId'] as String,
       hospitalGroupId: json['hospitalGroupId'] as String,
       branchId: json['branchId'] as String,
+      staffId: json['staffId'] as int?,
     );
   }
 
@@ -98,6 +101,7 @@ class CurrentUser {
         'tenantId': tenantId,
         'hospitalGroupId': hospitalGroupId,
         'branchId': branchId,
+        if (staffId != null) 'staffId': staffId,
       };
 }
 

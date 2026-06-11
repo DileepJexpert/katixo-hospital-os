@@ -1,11 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
-import '../../features/front_desk/registration_screen.dart';
+import '../../features/doctor/doctor_home.dart';
+import '../../features/front_desk/front_desk_home.dart';
 import '../auth/auth_state.dart';
 
 /// Central routing. `refreshListenable` re-evaluates redirects whenever
 /// auth state changes (login/logout) — no manual navigation needed.
+/// '/' resolves to the signed-in user's role home.
 GoRouter createRouter(AuthState authState) {
   return GoRouter(
     refreshListenable: authState,
@@ -24,11 +27,17 @@ GoRouter createRouter(AuthState authState) {
       ),
       GoRoute(
         path: '/',
-        builder: (context, state) => const RegistrationScreen(),
+        builder: (context, state) => _roleHome(authState),
       ),
-      // More routes as modules are built:
-      // GoRoute(path: '/opd/queue', ...),
-      // GoRoute(path: '/doctor/worklist', ...),
     ],
   );
+}
+
+/// Maps the signed-in role to its home screen. Roles without a
+/// dedicated module yet land on the front-desk home.
+Widget _roleHome(AuthState authState) {
+  return switch (authState.currentUser?.role) {
+    'DOCTOR' => const DoctorHome(),
+    _ => const FrontDeskHome(),
+  };
 }

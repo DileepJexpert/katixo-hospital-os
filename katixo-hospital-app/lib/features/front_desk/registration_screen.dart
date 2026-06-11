@@ -3,11 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
 import '../../core/api/models.dart';
-import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../core/widgets/app_shell.dart';
 
+/// Patient registration form (body only — lives inside FrontDeskHome shell).
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
@@ -117,210 +116,172 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = context.watch<AuthState>();
+    final theme = Theme.of(context);
 
-    return AppShell(
-      title: 'Front Desk',
-      destinations: const [
-        ShellDestination(
-          label: 'Registration',
-          icon: Icons.person_add_outlined,
-          selectedIcon: Icons.person_add,
-        ),
-        ShellDestination(
-          label: 'OPD',
-          icon: Icons.event_outlined,
-          selectedIcon: Icons.event,
-        ),
-      ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
-      actions: [
-        if (authState.currentUser != null)
-          Padding(
-            padding: const EdgeInsets.only(right: Space.sm),
-            child: Center(
-              child: Text(
-                authState.currentUser!.name,
-                style: Theme.of(context).textTheme.labelLarge,
+    return PageContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Register New Patient', style: theme.textTheme.titleLarge),
+          const SizedBox(height: Space.md),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(Space.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_error != null) ...[
+                    MessageBanner.error(_error!),
+                    const SizedBox(height: Space.lg),
+                  ],
+                  if (_successMessage != null) ...[
+                    MessageBanner.success(_successMessage!),
+                    const SizedBox(height: Space.lg),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _firstNameCtrl,
+                          enabled: !_isLoading,
+                          decoration: const InputDecoration(
+                              labelText: 'First Name *'),
+                        ),
+                      ),
+                      const SizedBox(width: Space.md),
+                      Expanded(
+                        child: TextField(
+                          controller: _lastNameCtrl,
+                          enabled: !_isLoading,
+                          decoration:
+                              const InputDecoration(labelText: 'Last Name *'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _mobileCtrl,
+                          enabled: !_isLoading,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Mobile Number *',
+                            prefixText: '+91 ',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: Space.md),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedGender,
+                          decoration:
+                              const InputDecoration(labelText: 'Gender *'),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'MALE', child: Text('Male')),
+                            DropdownMenuItem(
+                                value: 'FEMALE', child: Text('Female')),
+                            DropdownMenuItem(
+                                value: 'OTHER', child: Text('Other')),
+                            DropdownMenuItem(
+                                value: 'PREFER_NOT_TO_SAY',
+                                child: Text('Prefer not to say')),
+                          ],
+                          onChanged: _isLoading
+                              ? null
+                              : (value) =>
+                                  setState(() => _selectedGender = value),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.md),
+                  TextField(
+                    controller: _dateOfBirthCtrl,
+                    enabled: !_isLoading,
+                    readOnly: true,
+                    onTap: _isLoading ? null : _selectDate,
+                    decoration: const InputDecoration(
+                      labelText: 'Date of Birth *',
+                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                      hintText: 'YYYY-MM-DD',
+                    ),
+                  ),
+                  const SizedBox(height: Space.md),
+                  TextField(
+                    controller: _addressCtrl,
+                    enabled: !_isLoading,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Address'),
+                  ),
+                  const SizedBox(height: Space.lg),
+                  CheckboxListTile(
+                    enabled: !_isLoading,
+                    value: _privacyConsent,
+                    onChanged: (v) =>
+                        setState(() => _privacyConsent = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text('Patient consents to the privacy policy *',
+                        style: theme.textTheme.bodyMedium),
+                  ),
+                  CheckboxListTile(
+                    enabled: !_isLoading,
+                    value: _dataSharingConsent,
+                    onChanged: (v) =>
+                        setState(() => _dataSharingConsent = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                        'Patient consents to data sharing (optional)',
+                        style: theme.textTheme.bodyMedium),
+                  ),
+                  const SizedBox(height: Space.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    height: Metrics.buttonHeight,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _handleRegister,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Register Patient'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        IconButton(
-          tooltip: 'Sign out',
-          icon: const Icon(Icons.logout_outlined),
-          onPressed: () => authState.logout(),
-        ),
-      ],
-      body: PageContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Register New Patient',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: Space.md),
-            _buildForm(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildForm(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Space.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_error != null) ...[
-              _MessageBanner(message: _error!, kind: _BannerKind.error),
-              const SizedBox(height: Space.lg),
-            ],
-            if (_successMessage != null) ...[
-              _MessageBanner(
-                  message: _successMessage!, kind: _BannerKind.success),
-              const SizedBox(height: Space.lg),
-            ],
-
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _firstNameCtrl,
-                    enabled: !_isLoading,
-                    decoration:
-                        const InputDecoration(labelText: 'First Name *'),
-                  ),
-                ),
-                const SizedBox(width: Space.md),
-                Expanded(
-                  child: TextField(
-                    controller: _lastNameCtrl,
-                    enabled: !_isLoading,
-                    decoration:
-                        const InputDecoration(labelText: 'Last Name *'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Space.md),
-
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _mobileCtrl,
-                    enabled: !_isLoading,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Mobile Number *',
-                      prefixText: '+91 ',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: Space.md),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedGender,
-                    decoration: const InputDecoration(labelText: 'Gender *'),
-                    items: const [
-                      DropdownMenuItem(value: 'MALE', child: Text('Male')),
-                      DropdownMenuItem(value: 'FEMALE', child: Text('Female')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                      DropdownMenuItem(
-                          value: 'PREFER_NOT_TO_SAY',
-                          child: Text('Prefer not to say')),
-                    ],
-                    onChanged: _isLoading
-                        ? null
-                        : (value) => setState(() => _selectedGender = value),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Space.md),
-
-            TextField(
-              controller: _dateOfBirthCtrl,
-              enabled: !_isLoading,
-              readOnly: true,
-              onTap: _isLoading ? null : _selectDate,
-              decoration: const InputDecoration(
-                labelText: 'Date of Birth *',
-                prefixIcon: Icon(Icons.calendar_today_outlined),
-                hintText: 'YYYY-MM-DD',
-              ),
-            ),
-            const SizedBox(height: Space.md),
-
-            TextField(
-              controller: _addressCtrl,
-              enabled: !_isLoading,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Address'),
-            ),
-            const SizedBox(height: Space.lg),
-
-            CheckboxListTile(
-              enabled: !_isLoading,
-              value: _privacyConsent,
-              onChanged: (v) => setState(() => _privacyConsent = v ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text('Patient consents to the privacy policy *',
-                  style: theme.textTheme.bodyMedium),
-            ),
-            CheckboxListTile(
-              enabled: !_isLoading,
-              value: _dataSharingConsent,
-              onChanged: (v) =>
-                  setState(() => _dataSharingConsent = v ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text('Patient consents to data sharing (optional)',
-                  style: theme.textTheme.bodyMedium),
-            ),
-            const SizedBox(height: Space.lg),
-
-            SizedBox(
-              width: double.infinity,
-              height: Metrics.buttonHeight,
-              child: FilledButton(
-                onPressed: _isLoading ? null : _handleRegister,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Register Patient'),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-enum _BannerKind { error, success }
+/// Shared inline message banner (error / success).
+class MessageBanner extends StatelessWidget {
+  const MessageBanner._(this.message, this.color, this.icon, {super.key});
 
-class _MessageBanner extends StatelessWidget {
-  const _MessageBanner({required this.message, required this.kind});
+  factory MessageBanner.error(String message, {Key? key}) => MessageBanner._(
+      message, StatusColors.danger, Icons.error_outline,
+      key: key);
+
+  factory MessageBanner.success(String message, {Key? key}) =>
+      MessageBanner._(
+          message, StatusColors.success, Icons.check_circle_outline,
+          key: key);
 
   final String message;
-  final _BannerKind kind;
+  final Color color;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    final color = kind == _BannerKind.error
-        ? StatusColors.danger
-        : StatusColors.success;
-    final icon = kind == _BannerKind.error
-        ? Icons.error_outline
-        : Icons.check_circle_outline;
-
     return Container(
       padding: const EdgeInsets.all(Space.md),
       decoration: BoxDecoration(
@@ -333,11 +294,11 @@ class _MessageBanner extends StatelessWidget {
           Icon(icon, size: 20, color: color),
           const SizedBox(width: Space.sm),
           Expanded(
-            child: Text(
-              message,
-              style:
-                  Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
-            ),
+            child: Text(message,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: color)),
           ),
         ],
       ),
