@@ -5,6 +5,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
+import '../../features/lab/lab_tech_home.dart';
 import '../../features/nurse/nurse_home.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
 import '../auth/auth_state.dart';
@@ -42,6 +43,7 @@ Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
     'DOCTOR' => const DoctorHome(),
     'NURSE' => const NurseHome(),
+    'LAB_TECH' => const LabTechHome(),
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
     _ => const FrontDeskHome(),
