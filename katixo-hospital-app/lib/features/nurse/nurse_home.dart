@@ -13,6 +13,7 @@ import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../ipd/admissions_panel.dart';
 import '../../core/responsive/breakpoints.dart';
+import 'nursing_indent_screen.dart';
 
 /// Nurse role home: bed board with admission workflows and transfers.
 class NurseHome extends StatefulWidget {
@@ -221,6 +222,11 @@ class _NurseHomeState extends State<NurseHome> {
           icon: Icons.personal_injury_outlined,
           selectedIcon: Icons.personal_injury,
         ),
+        ShellDestination(
+          label: 'Indents',
+          icon: Icons.assignment_outlined,
+          selectedIcon: Icons.assignment,
+        ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
@@ -244,7 +250,9 @@ class _NurseHomeState extends State<NurseHome> {
               scrollable: false,
               child: AdmissionsPanel(),
             )
-          : PageContainer(
+          : _navIndex == 2
+              ? const NursingIndentScreen()
+              : PageContainer(
         scrollable: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
