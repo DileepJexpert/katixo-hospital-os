@@ -1,11 +1,11 @@
 package com.katixo.hospital.nursing;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.katixo.hospital.common.repository.BaseRepository;
 
 import java.util.List;
 
-public interface NursingIndentItemRepository extends JpaRepository<NursingIndentItem, Long> {
-    List<NursingIndentItem> findByNursingIndentId(Long indentId);
+public interface NursingIndentItemRepository extends BaseRepository<NursingIndentItem> {
+    List<NursingIndentItem> findByTenantIdAndBranchIdAndNursingIndentId(String tenantId, Long branchId, Long indentId);
     List<NursingIndentItem> findByTenantIdAndBranchIdAndItemStatus(
             String tenantId, Long branchId, NursingIndentItem.ItemStatus status);
 }

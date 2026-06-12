@@ -73,7 +73,7 @@ public class DischargeService {
 
     public DischargeSummaryResponse updateDischargeSummary(Long summaryId, UpdateDischargeSummaryRequest request) {
         var ctx = TenantContext.get();
-        var summary = dischargeSummaryRepository.findById(summaryId)
+        var summary = dischargeSummaryRepository.findByIdAndTenantIdAndBranchId(summaryId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
         if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
@@ -98,7 +98,7 @@ public class DischargeService {
 
     public DischargeSummaryResponse submitForApproval(Long summaryId) {
         var ctx = TenantContext.get();
-        var summary = dischargeSummaryRepository.findById(summaryId)
+        var summary = dischargeSummaryRepository.findByIdAndTenantIdAndBranchId(summaryId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
         if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
@@ -127,7 +127,7 @@ public class DischargeService {
     public DischargeSummaryResponse approveDischargeSummary(Long summaryId) {
         var ctx = TenantContext.get();
         Long userId = Long.parseLong(ctx.getUserId());
-        var summary = dischargeSummaryRepository.findById(summaryId)
+        var summary = dischargeSummaryRepository.findByIdAndTenantIdAndBranchId(summaryId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
         if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.PENDING_APPROVAL) {
@@ -158,7 +158,7 @@ public class DischargeService {
     public DischargeSummaryResponse finalizeDischargeSummary(Long summaryId) {
         var ctx = TenantContext.get();
         Long userId = Long.parseLong(ctx.getUserId());
-        var summary = dischargeSummaryRepository.findById(summaryId)
+        var summary = dischargeSummaryRepository.findByIdAndTenantIdAndBranchId(summaryId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
         if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.APPROVED) {
@@ -187,13 +187,16 @@ public class DischargeService {
     }
 
     public DischargeSummaryResponse getDischargeSummaryByAdmission(Long admissionId) {
-        var summary = dischargeSummaryRepository.findByAdmissionId(admissionId)
+        var ctx = TenantContext.get();
+        var summary = dischargeSummaryRepository.findByTenantIdAndBranchIdAndAdmissionId(
+                        ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), admissionId)
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "No discharge summary for this admission"));
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse getDischargeSummaryById(Long summaryId) {
-        var summary = dischargeSummaryRepository.findById(summaryId)
+        var ctx = TenantContext.get();
+        var summary = dischargeSummaryRepository.findByIdAndTenantIdAndBranchId(summaryId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
         return toResponse(summary);
     }

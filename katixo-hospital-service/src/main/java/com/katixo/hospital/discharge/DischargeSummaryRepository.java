@@ -1,12 +1,13 @@
 package com.katixo.hospital.discharge;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.katixo.hospital.common.repository.BaseRepository;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface DischargeSummaryRepository extends JpaRepository<DischargeSummary, Long> {
-    Optional<DischargeSummary> findByAdmissionId(Long admissionId);
+public interface DischargeSummaryRepository extends BaseRepository<DischargeSummary> {
+    Optional<DischargeSummary> findByTenantIdAndBranchIdAndAdmissionId(
+            String tenantId, Long branchId, Long admissionId);
     List<DischargeSummary> findByTenantIdAndBranchIdAndDischargeStatus(
             String tenantId, Long branchId, DischargeSummary.DischargeSummaryStatus dischargeStatus
     );

@@ -90,14 +90,15 @@ public class StaffService {
     }
 
     public StaffResponse getStaffById(Long staffId) {
-        var staff = staffRepository.findById(staffId)
+        var ctx = TenantContext.get();
+        var staff = staffRepository.findByIdAndTenantIdAndBranchId(staffId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
         return toResponse(staff);
     }
 
     public StaffResponse updateStaff(Long staffId, UpdateStaffRequest request) {
         var ctx = TenantContext.get();
-        var staff = staffRepository.findById(staffId)
+        var staff = staffRepository.findByIdAndTenantIdAndBranchId(staffId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
 
         if (request.firstName != null) staff.setFirstName(request.firstName);
@@ -125,7 +126,7 @@ public class StaffService {
 
     public void deactivateStaff(Long staffId) {
         var ctx = TenantContext.get();
-        var staff = staffRepository.findById(staffId)
+        var staff = staffRepository.findByIdAndTenantIdAndBranchId(staffId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
 
         staff.setIsActive(false);

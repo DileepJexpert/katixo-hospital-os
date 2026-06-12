@@ -84,7 +84,9 @@ public class NursingVitalService {
     }
 
     public List<NursingVitalResponse> getVitalHistory(Long admissionId) {
-        var vitals = vitalRepository.findByAdmissionIdOrderByCreatedAtDesc(admissionId);
+        var ctx = TenantContext.get();
+        var vitals = vitalRepository.findByTenantIdAndBranchIdAndAdmissionIdOrderByCreatedAtDesc(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), admissionId);
         return vitals.stream()
                 .map(this::toResponse)
                 .toList();
@@ -104,12 +106,9 @@ public class NursingVitalService {
     public NursingVitalResponse reviewVital(Long vitalId) {
         var ctx = TenantContext.get();
         var userId = Long.parseLong(ctx.getUserId());
-        var vital = vitalRepository.findById(vitalId)
+        var vital = vitalRepository.findByIdAndTenantIdAndBranchId(
+                        vitalId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("VITAL_NOT_FOUND", "Vital record not found"));
-
-        if (!vital.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         var beforeStatus = vital.getRoundStatus().name();
 

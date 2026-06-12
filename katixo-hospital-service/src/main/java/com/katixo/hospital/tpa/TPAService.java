@@ -108,19 +108,22 @@ public class TPAService {
     }
 
     public List<TPACaseResponse> getCasesByAdmission(Long admissionId) {
-        var cases = caseRepository.findByAdmissionId(admissionId);
+        var ctx = TenantContext.get();
+        var cases = caseRepository.findByTenantIdAndBranchIdAndAdmissionId(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), admissionId);
         return cases.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     public TPACaseResponse getCaseById(Long caseId) {
-        var tpaCase = caseRepository.findById(caseId)
+        var ctx = TenantContext.get();
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse submitPreauth(Long caseId, SubmitPreauthRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.REGISTERED) {
@@ -151,7 +154,7 @@ public class TPAService {
 
     public TPACaseResponse approvePreauth(Long caseId, ApprovePreauthRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_PENDING) {
@@ -183,7 +186,7 @@ public class TPAService {
 
     public TPACaseResponse rejectPreauth(Long caseId, RejectPreauthRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_PENDING) {
@@ -212,7 +215,7 @@ public class TPAService {
 
     public TPACaseResponse submitClaim(Long caseId, SubmitClaimRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_APPROVED) {
@@ -246,7 +249,7 @@ public class TPAService {
 
     public TPACaseResponse approveClaim(Long caseId, ApproveClaimRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.CLAIM_SUBMITTED) {
@@ -278,7 +281,7 @@ public class TPAService {
 
     public TPACaseResponse rejectClaim(Long caseId, RejectClaimRequest request) {
         var ctx = TenantContext.get();
-        var tpaCase = caseRepository.findById(caseId)
+        var tpaCase = caseRepository.findByIdAndTenantIdAndBranchId(caseId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.CLAIM_SUBMITTED) {
@@ -306,18 +309,20 @@ public class TPAService {
     }
 
     public List<TPADocumentResponse> getRequiredDocuments(Long caseId) {
-        var documents = documentRepository.findByTpaCaseIdAndRequiredTrue(caseId);
+        var ctx = TenantContext.get();
+        var documents = documentRepository.findByTenantIdAndTpaCaseIdAndRequiredTrue(ctx.getTenantId(), caseId);
         return documents.stream().map(this::toDocumentResponse).collect(Collectors.toList());
     }
 
     public List<TPADocumentResponse> getPendingDocuments(Long caseId) {
-        var documents = documentRepository.findByTpaCaseIdAndSubmittedFalse(caseId);
+        var ctx = TenantContext.get();
+        var documents = documentRepository.findByTenantIdAndTpaCaseIdAndSubmittedFalse(ctx.getTenantId(), caseId);
         return documents.stream().map(this::toDocumentResponse).collect(Collectors.toList());
     }
 
     public TPADocumentResponse submitDocument(Long documentId, SubmitDocumentRequest request) {
         var ctx = TenantContext.get();
-        var document = documentRepository.findById(documentId)
+        var document = documentRepository.findByIdAndTenantIdAndBranchId(documentId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DOCUMENT_NOT_FOUND", "Document not found"));
 
         var wasSubmitted = Boolean.TRUE.equals(document.getSubmitted());
@@ -347,7 +352,7 @@ public class TPAService {
 
     public TPADocumentResponse uploadDocument(Long documentId, MultipartFile file, String notes) {
         var ctx = TenantContext.get();
-        var document = documentRepository.findById(documentId)
+        var document = documentRepository.findByIdAndTenantIdAndBranchId(documentId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("DOCUMENT_NOT_FOUND", "Document not found"));
 
         if (file.isEmpty()) {
@@ -391,7 +396,7 @@ public class TPAService {
     }
 
     private TPACaseResponse toResponse(TPACase tpaCase) {
-        var documents = documentRepository.findByTpaCaseId(tpaCase.getId());
+        var documents = documentRepository.findByTenantIdAndTpaCaseId(tpaCase.getTenantId(), tpaCase.getId());
         var documentResponses = documents.stream()
                 .map(this::toDocumentResponse)
                 .collect(Collectors.toList());

@@ -63,14 +63,18 @@ public class NotificationService {
     }
 
     public List<NotificationResponse> getUnreadNotifications(Long recipientId) {
-        var notifications = notificationRepository.findByRecipientIdAndReadAtIsNull(recipientId);
+        var ctx = TenantContext.get();
+        var notifications = notificationRepository.findByTenantIdAndBranchIdAndRecipientIdAndReadAtIsNull(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), recipientId);
         return notifications.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     public List<NotificationResponse> getNotificationHistory(Long recipientId, int limit) {
-        var notifications = notificationRepository.findByRecipientIdOrderByCreatedAtDesc(recipientId);
+        var ctx = TenantContext.get();
+        var notifications = notificationRepository.findByTenantIdAndBranchIdAndRecipientIdOrderByCreatedAtDesc(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), recipientId);
         return notifications.stream()
                 .limit(limit)
                 .map(this::toResponse)
@@ -78,20 +82,26 @@ public class NotificationService {
     }
 
     public void markAsRead(Long notificationId) {
-        var notification = notificationRepository.findById(notificationId)
+        var ctx = TenantContext.get();
+        var notification = notificationRepository.findByIdAndTenantIdAndBranchId(
+                        notificationId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setReadAt(LocalDateTime.now());
         notificationRepository.save(notification);
     }
 
     public void markAllAsRead(Long recipientId) {
-        var unread = notificationRepository.findByRecipientIdAndReadAtIsNull(recipientId);
+        var ctx = TenantContext.get();
+        var unread = notificationRepository.findByTenantIdAndBranchIdAndRecipientIdAndReadAtIsNull(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), recipientId);
         unread.forEach(n -> n.setReadAt(LocalDateTime.now()));
         notificationRepository.saveAll(unread);
     }
 
     public void markAsSent(Long notificationId, String externalReference) {
-        var notification = notificationRepository.findById(notificationId)
+        var ctx = TenantContext.get();
+        var notification = notificationRepository.findByIdAndTenantIdAndBranchId(
+                        notificationId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setNotificationStatus(Notification.NotificationStatus.SENT);
         notification.setSentAt(LocalDateTime.now());
@@ -103,7 +113,9 @@ public class NotificationService {
     }
 
     public void markAsFailed(Long notificationId, String reason) {
-        var notification = notificationRepository.findById(notificationId)
+        var ctx = TenantContext.get();
+        var notification = notificationRepository.findByIdAndTenantIdAndBranchId(
+                        notificationId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setNotificationStatus(Notification.NotificationStatus.FAILED);
         notification.setFailureReason(reason);

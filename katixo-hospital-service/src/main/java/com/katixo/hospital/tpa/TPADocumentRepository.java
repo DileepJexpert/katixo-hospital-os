@@ -1,11 +1,11 @@
 package com.katixo.hospital.tpa;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.katixo.hospital.common.repository.BaseRepository;
 
 import java.util.List;
 
-public interface TPADocumentRepository extends JpaRepository<TPADocument, Long> {
-    List<TPADocument> findByTpaCaseId(Long tpaCaseId);
-    List<TPADocument> findByTpaCaseIdAndRequiredTrue(Long tpaCaseId);
-    List<TPADocument> findByTpaCaseIdAndSubmittedFalse(Long tpaCaseId);
+public interface TPADocumentRepository extends BaseRepository<TPADocument> {
+    List<TPADocument> findByTenantIdAndTpaCaseId(String tenantId, Long tpaCaseId);
+    List<TPADocument> findByTenantIdAndTpaCaseIdAndRequiredTrue(String tenantId, Long tpaCaseId);
+    List<TPADocument> findByTenantIdAndTpaCaseIdAndSubmittedFalse(String tenantId, Long tpaCaseId);
 }

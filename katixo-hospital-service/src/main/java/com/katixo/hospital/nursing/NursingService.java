@@ -102,7 +102,8 @@ public class NursingService {
         );
         return indents.stream()
                 .map(indent -> {
-                    var items = itemRepository.findByNursingIndentId(indent.getId());
+                    var items = itemRepository.findByTenantIdAndBranchIdAndNursingIndentId(
+                            ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), indent.getId());
                     return new NursingIndentWithItems(indent, items);
                 })
                 .collect(Collectors.toList());
@@ -111,12 +112,9 @@ public class NursingService {
     public NursingIndentWithItems approveIndent(Long indentId) {
         var ctx = TenantContext.get();
         var userId = Long.parseLong(ctx.getUserId());
-        var indent = indentRepository.findById(indentId)
+        var indent = indentRepository.findByIdAndTenantIdAndBranchId(
+                        indentId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
-
-        if (!indent.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (indent.getIndentStatus() != NursingIndent.IndentStatus.PENDING) {
             throw new BusinessException("INVALID_STATUS", "Indent is not in PENDING status");
@@ -130,7 +128,8 @@ public class NursingService {
         indent.setUpdatedBy(userId);
         indent = indentRepository.save(indent);
 
-        var items = itemRepository.findByNursingIndentId(indentId);
+        var items = itemRepository.findByTenantIdAndBranchIdAndNursingIndentId(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), indentId);
         items.forEach(item -> {
             item.setItemStatus(NursingIndentItem.ItemStatus.APPROVED);
             item.setUpdatedBy(userId);
@@ -155,12 +154,9 @@ public class NursingService {
     public NursingIndentWithItems rejectIndent(Long indentId, String reason) {
         var ctx = TenantContext.get();
         var userId = Long.parseLong(ctx.getUserId());
-        var indent = indentRepository.findById(indentId)
+        var indent = indentRepository.findByIdAndTenantIdAndBranchId(
+                        indentId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
-
-        if (!indent.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (indent.getIndentStatus() != NursingIndent.IndentStatus.PENDING) {
             throw new BusinessException("INVALID_STATUS", "Indent is not in PENDING status");
@@ -173,7 +169,8 @@ public class NursingService {
         indent.setUpdatedBy(userId);
         indent = indentRepository.save(indent);
 
-        var items = itemRepository.findByNursingIndentId(indentId);
+        var items = itemRepository.findByTenantIdAndBranchIdAndNursingIndentId(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), indentId);
         items.forEach(item -> {
             item.setItemStatus(NursingIndentItem.ItemStatus.REJECTED);
             item.setRejectionReason(reason);
@@ -199,12 +196,9 @@ public class NursingService {
     public NursingIndentWithItems markItemFulfilled(Long itemId) {
         var ctx = TenantContext.get();
         var userId = Long.parseLong(ctx.getUserId());
-        var item = itemRepository.findById(itemId)
+        var item = itemRepository.findByIdAndTenantIdAndBranchId(
+                        itemId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("ITEM_NOT_FOUND", "Item not found"));
-
-        if (!item.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (item.getItemStatus() != NursingIndentItem.ItemStatus.APPROVED) {
             throw new BusinessException("INVALID_STATUS", "Item is not in APPROVED status");
@@ -216,10 +210,12 @@ public class NursingService {
         item.setUpdatedBy(userId);
         itemRepository.save(item);
 
-        var indent = indentRepository.findById(item.getNursingIndentId())
+        var indent = indentRepository.findByIdAndTenantIdAndBranchId(
+                        item.getNursingIndentId(), ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
 
-        var allItems = itemRepository.findByNursingIndentId(indent.getId());
+        var allItems = itemRepository.findByTenantIdAndBranchIdAndNursingIndentId(
+                ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), indent.getId());
         boolean allFulfilled = allItems.stream()
                 .allMatch(i -> i.getItemStatus() == NursingIndentItem.ItemStatus.FULFILLED);
 

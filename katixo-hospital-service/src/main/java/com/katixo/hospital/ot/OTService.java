@@ -58,12 +58,9 @@ public class OTService {
 
     public OTRoom updateRoom(Long roomId, UpdateRoomRequest request) {
         var ctx = TenantContext.get();
-        var room = roomRepository.findById(roomId)
+        var room = roomRepository.findByIdAndTenantIdAndBranchId(
+                        roomId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "OT room not found"));
-
-        if (!room.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (request.roomName != null) room.setRoomName(request.roomName);
         if (request.roomType != null) room.setRoomType(request.roomType);
@@ -75,12 +72,9 @@ public class OTService {
 
     public void deleteRoom(Long roomId) {
         var ctx = TenantContext.get();
-        var room = roomRepository.findById(roomId)
+        var room = roomRepository.findByIdAndTenantIdAndBranchId(
+                        roomId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "OT room not found"));
-
-        if (!room.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         room.setStatus(BaseEntity.EntityStatus.DELETED);
         room.setUpdatedBy(Long.parseLong(ctx.getUserId()));
@@ -158,12 +152,9 @@ public class OTService {
 
     public OTBookingResponse startProcedure(Long bookingId) {
         var ctx = TenantContext.get();
-        var booking = bookingRepository.findById(bookingId)
+        var booking = bookingRepository.findByIdAndTenantIdAndBranchId(
+                        bookingId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("BOOKING_NOT_FOUND", "OT booking not found"));
-
-        if (!booking.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (booking.getBookingStatus() != OTBooking.BookingStatus.SCHEDULED) {
             throw new BusinessException("INVALID_STATUS", "Booking is not in SCHEDULED status");
@@ -188,12 +179,9 @@ public class OTService {
 
     public OTBookingResponse completeProcedure(Long bookingId, CompleteProcedureRequest request) {
         var ctx = TenantContext.get();
-        var booking = bookingRepository.findById(bookingId)
+        var booking = bookingRepository.findByIdAndTenantIdAndBranchId(
+                        bookingId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
                 .orElseThrow(() -> new BusinessException("BOOKING_NOT_FOUND", "OT booking not found"));
-
-        if (!booking.getTenantId().equals(ctx.getTenantId())) {
-            throw new BusinessException("FORBIDDEN", "Access denied");
-        }
 
         if (booking.getBookingStatus() != OTBooking.BookingStatus.IN_PROGRESS) {
             throw new BusinessException("INVALID_STATUS", "Booking is not in IN_PROGRESS status");
