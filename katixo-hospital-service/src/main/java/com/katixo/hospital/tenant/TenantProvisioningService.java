@@ -38,7 +38,7 @@ public class TenantProvisioningService {
         }
 
         // Creates the schema if missing and applies all tenant migrations.
-        migrationService.migrateTenantSchema(schemaName);
+        migrationService.migrateTenantSchema(schemaName, tenantId);
 
         registryDao.updateStatus(tenantId, TenantRecord.STATUS_ACTIVE);
         tenantDirectory.invalidate(tenantId);
@@ -51,7 +51,7 @@ public class TenantProvisioningService {
     public void migrateAllTenants() {
         for (TenantRecord tenant : registryDao.findAll()) {
             try {
-                migrationService.migrateTenantSchema(tenant.schemaName());
+                migrationService.migrateTenantSchema(tenant.schemaName(), tenant.tenantId());
             } catch (Exception e) {
                 // One broken tenant must not block the rest of the fleet.
                 log.error("Migration failed for tenant '{}' (schema '{}'): {}",
