@@ -49,7 +49,7 @@
       `POST .../consents/{id}/revoke`, `GET .../consents/patient/{id}` with RBAC.
 - [x] 2.5 Flyway `V2_002__abdm_care_context_consent.sql`.
 
-## Phase 3 — FHIR R4 export 🟡 PARTIAL (PrescriptionRecord done)
+## Phase 3 — FHIR R4 export ✅ COMPLETE (HAPI validation deferred to Phase 4)
 
 - [T] 3.1 `FhirBundleBuilder` (pure, unit-tested) — ABDM `PrescriptionRecord` DocumentBundle:
       Composition (SNOMED 440545006) first, Patient with ABHA + UHID identifiers,
@@ -58,8 +58,13 @@
 - [x] 3.2 `FhirExportService` — tenant-scoped lookups, ABHA/abdm.enabled gate, cancelled-Rx
       guard, audit action EXPORT. Consent gating deliberately left to the transfer path.
 - [x] 3.3 `GET /api/v1/abdm/fhir/prescription/{id}` returning `application/fhir+json`.
-- [ ] 3.4 `OPConsultRecord` + `DiagnosticReportRecord` profiles (lab/OPD export) — NEXT.
-- [ ] 3.5 Swap hand-built JSON for HAPI FHIR validation before Phase-4 certification.
+- [T] 3.4 `OPConsultRecord` (SNOMED 371530004) — chief complaint + diagnosis as Condition
+      resources in coded sections, advice as XHTML-escaped narrative; COMPLETED visits only.
+      `DiagnosticReportRecord` (SNOMED 721981007) — DiagnosticReport+Observation pair per
+      RELEASED result (value+unit, reference range, abnormal interpretation); unreleased
+      results never leave the hospital. Endpoints `/fhir/op-consult/{visitId}` and
+      `/fhir/diagnostic-report/{labOrderId}`, audited as EXPORT. Shape tests green.
+- [ ] 3.5 Swap hand-built JSON for HAPI FHIR validation before Phase-4 certification. (deferred)
 
 ## Phase 4 — Gateway integration (integration-service, LATER)
 
@@ -82,3 +87,6 @@
   SNOMED-typed Composition, ABHA-identified Patient, MedicationRequest per item) + audited
   export endpoint. 16 ABDM tests green. Remaining: OPConsult/DiagnosticReport profiles, HAPI
   validation pre-certification.
+- 2026-06-12: Phase 3 complete — OPConsultRecord + DiagnosticReportRecord exports added with
+  shared bundle scaffolding (refactored builder). 18 ABDM tests green. Phase 4 (gateway
+  integration in katixo-integration-service) is the remaining milestone.

@@ -118,6 +118,84 @@ class FhirBundleBuilderTest {
     }
 
     @Test
+    void opConsultBundleCarriesComplaintDiagnosisAndAdvice() {
+        com.katixo.hospital.opd.OPDVisit visit = new com.katixo.hospital.opd.OPDVisit();
+        visit.setVisitNumber("V-001");
+        visit.setPrimaryDoctorId(7L);
+        visit.setChiefComplaint("Fever and headache");
+        visit.setDiagnosis("Viral fever");
+        visit.setAdvice("Rest & fluids <3 days>");
+        visit.setCreatedAt(LocalDateTime.of(2026, 6, 12, 9, 0));
+
+        ObjectNode bundle = builder.buildOPConsultBundle(visit, patient, abhaLink, "Dr. Mehta");
+
+        JsonNode composition = bundle.get("entry").get(0).get("resource");
+        assertEquals("Composition", composition.get("resourceType").asText());
+        assertEquals("371530004", composition.get("type").get("coding").get(0).get("code").asText());
+
+        JsonNode sectionArray = composition.get("section");
+        assertEquals(3, sectionArray.size());
+        assertEquals("Chief complaints", sectionArray.get(0).get("title").asText());
+        assertEquals("Medical diagnosis", sectionArray.get(1).get("title").asText());
+        assertEquals("Advice", sectionArray.get(2).get("title").asText());
+        // Free-text advice must be XHTML-escaped in the narrative.
+        assertTrue(sectionArray.get(2).get("text").get("div").asText()
+                .contains("Rest &amp; fluids &lt;3 days&gt;"));
+
+        // Condition resources exist for complaint + diagnosis.
+        int conditions = 0;
+        for (JsonNode entry : bundle.get("entry")) {
+            if ("Condition".equals(entry.get("resource").get("resourceType").asText())) {
+                conditions++;
+            }
+        }
+        assertEquals(2, conditions);
+    }
+
+    @Test
+    void diagnosticReportBundlePairsReportsWithObservations() {
+        com.katixo.hospital.lab.LabOrder order = new com.katixo.hospital.lab.LabOrder();
+        order.setOrderNumber("LAB-001");
+        order.setOrderingDoctorId(7L);
+        order.setCreatedAt(LocalDateTime.of(2026, 6, 12, 8, 0));
+
+        com.katixo.hospital.lab.LabOrderItem item = new com.katixo.hospital.lab.LabOrderItem();
+        item.setTestCode("CBC");
+        item.setTestName("Complete Blood Count");
+
+        com.katixo.hospital.lab.LabReport report = new com.katixo.hospital.lab.LabReport();
+        report.setResultValue("11.2");
+        report.setUnit("g/dL");
+        report.setReferenceRange("13-17");
+        report.setIsAbnormal(true);
+        report.setReleasedAt(LocalDateTime.of(2026, 6, 12, 14, 0));
+
+        ObjectNode bundle = builder.buildDiagnosticReportBundle(order,
+                java.util.List.of(new FhirBundleBuilder.ReleasedResult(item, report)),
+                patient, abhaLink, "Dr. Mehta");
+
+        JsonNode composition = bundle.get("entry").get(0).get("resource");
+        assertEquals("721981007", composition.get("type").get("coding").get(0).get("code").asText());
+
+        JsonNode diagnosticReport = findResource(bundle, "DiagnosticReport");
+        assertEquals("final", diagnosticReport.get("status").asText());
+        assertEquals("CBC", diagnosticReport.get("code").get("coding").get(0).get("code").asText());
+
+        JsonNode observation = findResource(bundle, "Observation");
+        assertEquals("11.2 g/dL", observation.get("valueString").asText());
+        assertEquals("13-17", observation.get("referenceRange").get(0).get("text").asText());
+        assertEquals("A", observation.get("interpretation").get(0)
+                .get("coding").get(0).get("code").asText());
+
+        // DiagnosticReport.result must reference the Observation entry in-bundle.
+        String observationRef = diagnosticReport.get("result").get(0).get("reference").asText();
+        assertNotNull(findEntryByFullUrl(bundle, observationRef));
+        // Section entry must reference the DiagnosticReport.
+        String sectionRef = composition.get("section").get(0).get("entry").get(0).get("reference").asText();
+        assertNotNull(findEntryByFullUrl(bundle, sectionRef));
+    }
+
+    @Test
     void dosageTextComposition() {
         PrescriptionItem full = new PrescriptionItem();
         full.setDosage("1 tab");

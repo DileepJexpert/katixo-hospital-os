@@ -90,6 +90,22 @@ public class AbdmExchangeController {
         return ResponseEntity.ok(fhirExportService.exportPrescription(prescriptionId));
     }
 
+    /** Returns a completed OPD visit as an ABDM OPConsultRecord document bundle. */
+    @GetMapping(value = "/fhir/op-consult/{visitId}", produces = "application/fhir+json")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> exportOPConsult(
+            @PathVariable Long visitId) {
+        return ResponseEntity.ok(fhirExportService.exportOPConsult(visitId));
+    }
+
+    /** Returns a lab order's released results as an ABDM DiagnosticReportRecord document bundle. */
+    @GetMapping(value = "/fhir/diagnostic-report/{labOrderId}", produces = "application/fhir+json")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> exportDiagnosticReport(
+            @PathVariable Long labOrderId) {
+        return ResponseEntity.ok(fhirExportService.exportDiagnosticReport(labOrderId));
+    }
+
     private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
         return ResponseEntity.status(status).body(ApiResponse.<T>builder()
                 .success(true)
