@@ -17,4 +17,7 @@ public interface PrescriptionDispenseRepository extends JpaRepository<Prescripti
     @Query("SELECT pd FROM PrescriptionDispense pd WHERE pd.tenantId = ?1 AND pd.branchId = ?2 " +
            "AND pd.patientId = ?3 ORDER BY pd.createdAt DESC")
     List<PrescriptionDispense> findByPatientId(String tenantId, Long branchId, Long patientId);
+
+    List<PrescriptionDispense> findByTenantIdAndVisitIdAndErpSyncStatus(
+            String tenantId, Long visitId, PrescriptionDispense.ErpSyncStatus erpSyncStatus);
 }

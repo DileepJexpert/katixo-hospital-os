@@ -65,11 +65,43 @@ public class PatientBill extends BaseEntity {
     @Column
     private LocalDateTime finalizedAt;
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal amountPaid = BigDecimal.ZERO;
+
+    // --- ERP journal linkage (bill finalize posts DR AR / CR hospital revenue) ---
+
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private ErpSyncStatus erpSyncStatus = ErpSyncStatus.NOT_SYNCED;
+
+    @Column(length = 100)
+    private String erpIdempotencyKey;
+
+    @Column(length = 50)
+    private String erpJournalId;
+
+    @Column(length = 50)
+    private String erpJournalNumber;
+
+    @Column(columnDefinition = "TEXT")
+    private String erpSyncError;
+
+    @Column
+    private LocalDateTime erpSyncedAt;
+
+    public BigDecimal getBalanceDue() {
+        return netAmount.subtract(amountPaid);
+    }
+
     public enum DiscountStatus {
         NONE, PENDING_APPROVAL, APPROVED
     }
 
     public enum BillStatus {
         DRAFT, FINAL, CANCELLED
+    }
+
+    public enum ErpSyncStatus {
+        NOT_SYNCED, SYNCED, FAILED
     }
 }

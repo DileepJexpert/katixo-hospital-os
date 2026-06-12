@@ -37,15 +37,18 @@ public class BillingService {
     private final TariffMasterRepository tariffRepository;
     private final HospitalChargeRepository chargeRepository;
     private final PatientBillRepository billRepository;
+    private final PatientBillPaymentRepository paymentRepository;
     private final BillErpInvoiceRefRepository erpRefRepository;
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
     private final com.katixo.hospital.patient.PatientRepository patientRepository;
+    private final com.katixo.hospital.pharmacy.PrescriptionDispenseRepository dispenseRepository;
     private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final ErpBillingSyncService erpBillingSyncService;
 
     // ------------------------------------------------------------
     // Tariff master
@@ -136,6 +139,8 @@ public class BillingService {
             charge.setUpdatedBy(userId());
         });
         chargeRepository.saveAll(unbilled);
+
+        autoAttachPharmacyReceipts(saved);
 
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
@@ -247,7 +252,65 @@ public class BillingService {
         outboxEventService.publish("PatientBill", String.valueOf(saved.getId()), "BillFinalized", billSnapshot(saved));
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
+
+        // ERP journal (DR AR / CR hospital revenue) posts after this commits; an
+        // ERP failure marks the bill FAILED for retry, never blocks finalize.
+        Long billIdForSync = saved.getId();
+        afterCommit(() -> erpBillingSyncService.syncBillJournalQuietly(billIdForSync));
         return saved;
+    }
+
+    // ------------------------------------------------------------
+    // Payments: hospital records the payment, the ERP books the money
+    // (DR Cash|Bank / CR AR) so the patient ledger lives in one place.
+    // ------------------------------------------------------------
+
+    public PatientBillPayment recordPayment(Long billId, BigDecimal amount,
+                                            PatientBillPayment.PaymentMode paymentMode,
+                                            String reference, String notes) {
+        PatientBill bill = getOwnedBill(billId);
+
+        if (bill.getBillStatus() != PatientBill.BillStatus.FINAL) {
+            throw new BusinessException("BILL_NOT_FINAL", "Payments are recorded against finalized bills only");
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw new BusinessException("INVALID_AMOUNT", "Payment amount must be positive");
+        }
+        if (paymentMode == null) {
+            throw new BusinessException("PAYMENT_MODE_REQUIRED", "Payment mode is required");
+        }
+        if (amount.compareTo(bill.getBalanceDue()) > 0) {
+            throw new BusinessException("PAYMENT_EXCEEDS_BALANCE",
+                    "Payment " + amount + " exceeds balance due " + bill.getBalanceDue());
+        }
+
+        PatientBillPayment payment = new PatientBillPayment();
+        payment.setBillId(billId);
+        payment.setAmount(amount);
+        payment.setPaymentMode(paymentMode);
+        payment.setReference(reference);
+        payment.setNotes(notes);
+        stamp(payment);
+        PatientBillPayment saved = paymentRepository.save(payment);
+
+        bill.setAmountPaid(bill.getAmountPaid().add(amount));
+        bill.setUpdatedBy(userId());
+        billRepository.save(bill);
+
+        auditService.audit("PatientBillPayment", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
+                null, Map.of("billId", billId, "amount", amount, "mode", paymentMode.name()),
+                UUID.randomUUID().toString());
+
+        Long paymentIdForSync = saved.getId();
+        afterCommit(() -> erpBillingSyncService.syncPaymentJournalQuietly(paymentIdForSync));
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PatientBillPayment> listPayments(Long billId) {
+        var ctx = TenantContext.get();
+        getOwnedBill(billId);
+        return paymentRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
     }
 
     @Transactional(readOnly = true)
@@ -333,6 +396,51 @@ public class BillingService {
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
+
+    /**
+     * Pulls the ERP pharmacy receipts already created at dispense time onto the
+     * bill (OPD: dispense.visitId == bill.sourceId), so the consolidated bill
+     * shows hospital charges + pharmacy invoices without manual entry.
+     */
+    private void autoAttachPharmacyReceipts(PatientBill bill) {
+        if (bill.getSourceType() != HospitalCharge.SourceType.OPD_VISIT) {
+            return; // IPD pharmacy goes through nursing indents — separate flow.
+        }
+        var ctx = TenantContext.get();
+        var alreadyAttached = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
+                .stream().map(BillErpInvoiceRef::getErpInvoiceNumber).collect(java.util.stream.Collectors.toSet());
+
+        dispenseRepository.findByTenantIdAndVisitIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
+                        com.katixo.hospital.pharmacy.PrescriptionDispense.ErpSyncStatus.SYNCED).stream()
+                .filter(d -> d.getErpReceiptNumber() != null && !alreadyAttached.contains(d.getErpReceiptNumber()))
+                .forEach(d -> {
+                    BillErpInvoiceRef ref = new BillErpInvoiceRef();
+                    ref.setTenantId(bill.getTenantId());
+                    ref.setHospitalGroupId(bill.getHospitalGroupId());
+                    ref.setBranchId(bill.getBranchId());
+                    ref.setBillId(bill.getId());
+                    ref.setErpInvoiceNumber(d.getErpReceiptNumber());
+                    ref.setErpInvoiceAmount(d.getErpReceiptTotal() == null ? BigDecimal.ZERO : d.getErpReceiptTotal());
+                    ref.setInvoiceType("PHARMACY");
+                    ref.setCreatedBy(userId());
+                    erpRefRepository.save(ref);
+                });
+    }
+
+    /** Runs after the surrounding transaction commits (immediately if none, e.g. in unit tests). */
+    private void afterCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+        } else {
+            action.run();
+        }
+    }
 
     /** Auto-charge domain amounts: OPD consultation fee, IPD bed segments, lab order items. Returns patientId. */
     private Long autoCreateDomainCharges(HospitalCharge.SourceType sourceType, Long sourceId) {

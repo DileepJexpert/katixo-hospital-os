@@ -192,6 +192,15 @@ katixo-hospital-service/
 ### Billing
 - Hospital charges = quantity × tariff (no GST)
 - ERP charges = pharmacy invoice with GST
+- **ERP accounting sync (IMPLEMENTED — `ErpBillingSyncService`):** bill finalize posts
+  DR AR (1100) / CR Hospital Revenue (4010) journal in Katasticho (after commit); payments
+  (`POST /api/v1/billing/bills/{id}/payments`, modes CASH/CARD/UPI/CHEQUE/BANK_TRANSFER,
+  validated against balanceDue) post DR Cash (1010)|Bank (1020) / CR AR. Account codes
+  configurable via `katixo.erp.accounts.*`. Idempotency keys `HOSP-BILL-…`/`HOSP-PAY-…`
+  persisted (V1_012: patient_bill erp columns + amount_paid, patient_bill_payment table).
+  ERP failure → erp_sync_status=FAILED, retry via `POST /bills/{id}/sync-erp` and
+  `POST /payments/{paymentId}/sync-erp`. `generateBill` auto-attaches SYNCED pharmacy
+  dispense receipts as BillErpInvoiceRef (OPD: dispense.visitId == bill.sourceId).
 - Patient credit account: balance, configurable limit, warn/block action
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)

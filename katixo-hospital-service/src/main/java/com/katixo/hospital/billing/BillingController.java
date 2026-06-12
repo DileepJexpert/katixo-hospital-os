@@ -24,6 +24,7 @@ import java.util.UUID;
 public class BillingController {
 
     private final BillingService billingService;
+    private final ErpBillingSyncService erpBillingSyncService;
 
     // ---------- tariff master ----------
 
@@ -169,21 +170,84 @@ public class BillingController {
         return respond(billingService.getReceipt(id), "Bill receipt", HttpStatus.OK);
     }
 
+    // ---------- payments ----------
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PaymentRequest {
+        @NotNull
+        private BigDecimal amount;
+        @NotNull
+        private PatientBillPayment.PaymentMode paymentMode;
+        private String reference;
+        private String notes;
+    }
+
+    @PostMapping("/bills/{id}/payments")
+    @PreAuthorize("hasAnyRole('BILLING', 'FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> recordPayment(@PathVariable Long id,
+                                                             @Valid @RequestBody PaymentRequest req) {
+        PatientBillPayment payment = billingService.recordPayment(id, req.getAmount(),
+                req.getPaymentMode(), req.getReference(), req.getNotes());
+        return respond(paymentView(payment), "Payment recorded", HttpStatus.CREATED);
+    }
+
+    @GetMapping("/bills/{id}/payments")
+    @PreAuthorize("hasAnyRole('BILLING', 'FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> listPayments(@PathVariable Long id) {
+        return respond(billingService.listPayments(id).stream().map(this::paymentView).toList(),
+                "Bill payments", HttpStatus.OK);
+    }
+
+    /** Retry the ERP journal for a finalized bill whose automatic sync failed. */
+    @PostMapping("/bills/{id}/sync-erp")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> syncBillToErp(@PathVariable Long id) {
+        return respond(view(erpBillingSyncService.syncBillJournal(id)), "ERP journal posted", HttpStatus.OK);
+    }
+
+    /** Retry the ERP journal for a payment whose automatic sync failed. */
+    @PostMapping("/payments/{paymentId}/sync-erp")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> syncPaymentToErp(@PathVariable Long paymentId) {
+        return respond(paymentView(erpBillingSyncService.syncPaymentJournal(paymentId)),
+                "ERP journal posted", HttpStatus.OK);
+    }
+
     // ---------- helpers ----------
 
     private Map<String, Object> view(PatientBill b) {
-        return Map.of(
-                "id", b.getId(),
-                "billNumber", b.getBillNumber(),
-                "patientId", b.getPatientId(),
-                "sourceType", b.getSourceType().name(),
-                "sourceId", b.getSourceId(),
-                "chargesTotal", b.getChargesTotal(),
-                "discountAmount", b.getDiscountAmount(),
-                "discountStatus", b.getDiscountStatus().name(),
-                "netAmount", b.getNetAmount(),
-                "billStatus", b.getBillStatus().name()
-        );
+        Map<String, Object> view = new java.util.LinkedHashMap<>();
+        view.put("id", b.getId());
+        view.put("billNumber", b.getBillNumber());
+        view.put("patientId", b.getPatientId());
+        view.put("sourceType", b.getSourceType().name());
+        view.put("sourceId", b.getSourceId());
+        view.put("chargesTotal", b.getChargesTotal());
+        view.put("discountAmount", b.getDiscountAmount());
+        view.put("discountStatus", b.getDiscountStatus().name());
+        view.put("netAmount", b.getNetAmount());
+        view.put("amountPaid", b.getAmountPaid());
+        view.put("balanceDue", b.getBalanceDue());
+        view.put("billStatus", b.getBillStatus().name());
+        view.put("erpSyncStatus", b.getErpSyncStatus().name());
+        view.put("erpJournalNumber", b.getErpJournalNumber());
+        return view;
+    }
+
+    private Map<String, Object> paymentView(PatientBillPayment p) {
+        Map<String, Object> view = new java.util.LinkedHashMap<>();
+        view.put("id", p.getId());
+        view.put("billId", p.getBillId());
+        view.put("amount", p.getAmount());
+        view.put("paymentMode", p.getPaymentMode().name());
+        view.put("reference", p.getReference());
+        view.put("erpSyncStatus", p.getErpSyncStatus().name());
+        view.put("erpJournalNumber", p.getErpJournalNumber());
+        view.put("erpSyncError", p.getErpSyncError());
+        view.put("createdAt", p.getCreatedAt() == null ? null : p.getCreatedAt().toString());
+        return view;
     }
 
     private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
