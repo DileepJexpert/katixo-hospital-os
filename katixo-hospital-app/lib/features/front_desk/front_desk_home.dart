@@ -4,10 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import 'abha_screen.dart';
 import 'registration_screen.dart';
 import 'walk_in_screen.dart';
 
-/// Front-desk role home: registration + walk-in OPD visit.
+/// Front-desk role home: registration + walk-in OPD visit + ABHA/ABDM.
 class FrontDeskHome extends StatefulWidget {
   const FrontDeskHome({super.key});
 
@@ -35,6 +36,11 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
           icon: Icons.directions_walk_outlined,
           selectedIcon: Icons.directions_walk,
         ),
+        ShellDestination(
+          label: 'ABHA / ABDM',
+          icon: Icons.health_and_safety_outlined,
+          selectedIcon: Icons.health_and_safety,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -57,7 +63,8 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
       ],
       body: switch (_index) {
         0 => const RegistrationScreen(),
-        _ => const WalkInScreen(),
+        1 => const WalkInScreen(),
+        _ => const AbhaScreen(),
       },
     );
   }

@@ -66,6 +66,19 @@
       `/fhir/diagnostic-report/{labOrderId}`, audited as EXPORT. Shape tests green.
 - [ ] 3.5 Swap hand-built JSON for HAPI FHIR validation before Phase-4 certification. (deferred)
 
+## Phase 3.5 — Flutter UI ✅ COMPLETE
+
+- [x] `core/api/abdm_models.dart` — LinkAbhaRequest/Response, RecordConsentRequest,
+      ConsentResponse, CareContextResponse mirroring the backend DTOs.
+- [x] `features/front_desk/abha_screen.dart` — UHID lookup → ABHA link/unlink card
+      (number + address + verification method), consent list with record dialog
+      (HI-type chips, data period, expiry) and revoke, care-context list with
+      gateway link-status chips. Handles ABHA_NOT_LINKED as an expected state and
+      surfaces ABDM_DISABLED policy errors.
+- [x] Wired as third "ABHA / ABDM" destination in FrontDeskHome.
+- [ ] UI verification: `flutter analyze` / manual run — Flutter SDK not available in this
+      environment; run locally before release.
+
 ## Phase 4 — Gateway integration (integration-service, LATER)
 
 - [ ] 4.1 HFR/HPR registry calls, ABHA creation via Aadhaar/mobile OTP.
