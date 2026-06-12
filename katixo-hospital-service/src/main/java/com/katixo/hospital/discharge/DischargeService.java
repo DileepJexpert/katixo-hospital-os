@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class DischargeService {
 
     private final DischargeSummaryRepository dischargeSummaryRepository;
+    private final DischargeChecklistService checklistService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
 
@@ -163,6 +164,14 @@ public class DischargeService {
 
         if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.APPROVED) {
             throw new BusinessException("INVALID_STATUS", "Only approved summaries can be finalized");
+        }
+
+        // Policy-driven gate: blocking checklist items must be complete; the
+        // remaining open items are warn-only and logged for the audit trail.
+        var openWarnItems = checklistService.assertDischargeAllowed(summary.getAdmissionId());
+        if (!openWarnItems.isEmpty()) {
+            log.warn("Finalizing discharge for admission {} with open warn-only checklist items: {}",
+                    summary.getAdmissionId(), openWarnItems);
         }
 
         var beforeStatus = summary.getDischargeStatus().name();

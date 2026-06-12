@@ -100,12 +100,10 @@ class _LabTechHomeState extends State<LabTechHome> {
 
       try {
         final api = context.read<ApiClient>();
+        final notes = notesCtrl.text.trim();
         await api.post<dynamic>(
           '/api/v1/lab/order-items/${item.itemId}/collect-sample',
-          if (notesCtrl.text.trim().isNotEmpty)
-            {'notes': notesCtrl.text.trim()}
-          else
-            {},
+          notes.isNotEmpty ? {'notes': notes} : <String, dynamic>{},
           fromJson: (json) => json,
         );
         await _loadWorklist();

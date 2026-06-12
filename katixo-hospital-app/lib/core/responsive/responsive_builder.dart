@@ -3,6 +3,8 @@ import 'package:flutter/widgets.dart';
 import '../theme/design_tokens.dart';
 import 'breakpoints.dart';
 
+export 'breakpoints.dart';
+
 /// Renders a different widget per form factor.
 /// Missing slots fall back to the next smaller one.
 class ResponsiveBuilder extends StatelessWidget {

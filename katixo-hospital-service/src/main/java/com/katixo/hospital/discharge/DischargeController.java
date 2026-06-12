@@ -18,6 +18,7 @@ import java.util.UUID;
 public class DischargeController {
 
     private final DischargeService dischargeService;
+    private final DischargeChecklistService checklistService;
 
     @PostMapping("/summaries")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
@@ -77,6 +78,35 @@ public class DischargeController {
     public ResponseEntity<ApiResponse<List<DischargeSummaryResponse>>> getPendingApprovalSummaries() {
         var response = dischargeService.getPendingApprovalSummaries();
         return respond(response, "Pending approval summaries retrieved", HttpStatus.OK);
+    }
+
+    @GetMapping("/checklist/admission/{admissionId}")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<DischargeChecklistService.ChecklistResponse>> getChecklist(
+            @PathVariable Long admissionId) {
+        var response = checklistService.getChecklist(admissionId);
+        return respond(response, "Discharge checklist", HttpStatus.OK);
+    }
+
+    @PostMapping("/checklist/items/{itemId}/complete")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<DischargeChecklistService.ChecklistResponse>> completeChecklistItem(
+            @PathVariable Long itemId,
+            @RequestBody(required = false) ChecklistNoteRequest request) {
+        var response = checklistService.completeItem(itemId, request == null ? null : request.notes);
+        return respond(response, "Checklist item completed", HttpStatus.OK);
+    }
+
+    @PostMapping("/checklist/items/{itemId}/reopen")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<DischargeChecklistService.ChecklistResponse>> reopenChecklistItem(
+            @PathVariable Long itemId) {
+        var response = checklistService.reopenItem(itemId);
+        return respond(response, "Checklist item reopened", HttpStatus.OK);
+    }
+
+    public static class ChecklistNoteRequest {
+        public String notes;
     }
 
     private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/api/patient_portal_models.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/kpi_tile.dart';

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/discharge_models.dart';
 import '../../core/api/http_client.dart';
+import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
@@ -26,6 +27,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen> {
   final _followUpCtrl = TextEditingController();
 
   DischargeSummaryResponse? _summary;
+  int? _loadedAdmissionId;
   String _dischargeType = 'NORMAL';
   bool _loading = false;
   bool _notFound = false;
@@ -67,6 +69,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen> {
       _success = null;
       _summary = null;
       _notFound = false;
+      _loadedAdmissionId = admissionId;
     });
     try {
       final api = context.read<ApiClient>();
@@ -291,6 +294,11 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: Space.md),
+            DischargeChecklistPanel(
+              key: ValueKey(_loadedAdmissionId),
+              admissionId: _loadedAdmissionId!,
+            ),
           ],
         ],
       ),
@@ -347,6 +355,153 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen> {
       maxLines: lines,
       readOnly: !editable,
       decoration: InputDecoration(labelText: label),
+    );
+  }
+}
+
+
+/// Discharge readiness checklist for one admission. Items the policy engine
+/// marks as blocking show a "BLOCKS" tag; finalize is refused server-side
+/// while any of those are open. Warn-only items can stay open.
+class DischargeChecklistPanel extends StatefulWidget {
+  const DischargeChecklistPanel({required this.admissionId, super.key});
+
+  final int admissionId;
+
+  @override
+  State<DischargeChecklistPanel> createState() =>
+      _DischargeChecklistPanelState();
+}
+
+class _DischargeChecklistPanelState extends State<DischargeChecklistPanel> {
+  Map<String, dynamic>? _checklist;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  List<Map<String, dynamic>> get _items =>
+      ((_checklist?['items'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
+
+  Future<void> _load() async {
+    try {
+      final api = context.read<ApiClient>();
+      final checklist = await api.get<Map<String, dynamic>>(
+        '/api/v1/discharge/checklist/admission/${widget.admissionId}',
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      if (mounted) {
+        setState(() {
+          _checklist = checklist;
+          _error = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Checklist load failed: $e');
+    }
+  }
+
+  Future<void> _toggle(Map<String, dynamic> item) async {
+    final completed = item['completed'] == true;
+    setState(() => _busy = true);
+    try {
+      final api = context.read<ApiClient>();
+      final checklist = await api.post<Map<String, dynamic>>(
+        '/api/v1/discharge/checklist/items/${item['id']}/${completed ? 'reopen' : 'complete'}',
+        const {},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      if (mounted) {
+        setState(() {
+          _checklist = checklist;
+          _error = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final blocked = _checklist?['dischargeBlocked'] == true;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(Space.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Discharge Checklist', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                if (_checklist != null)
+                  StatusChip(
+                    blocked ? 'DISCHARGE BLOCKED' : 'READY',
+                    kind: blocked ? StatusKind.danger : StatusKind.success,
+                  ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: Space.sm),
+              MessageBanner.error(_error!),
+            ],
+            const SizedBox(height: Space.sm),
+            if (_checklist == null && _error == null)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(Space.md),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else
+              for (final item in _items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Space.xxs),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        height: 28,
+                        width: 28,
+                        child: Checkbox(
+                          value: item['completed'] == true,
+                          visualDensity: VisualDensity.compact,
+                          onChanged: _busy ? null : (_) => _toggle(item),
+                        ),
+                      ),
+                      const SizedBox(width: Space.sm),
+                      Expanded(
+                        child: Text(
+                          item['itemName'] as String? ?? '',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            decoration: item['completed'] == true
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: item['completed'] == true
+                                ? theme.colorScheme.onSurfaceVariant
+                                : null,
+                          ),
+                        ),
+                      ),
+                      if (item['blocking'] == true)
+                        const StatusChip('BLOCKS', kind: StatusKind.warning),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
     );
   }
 }
