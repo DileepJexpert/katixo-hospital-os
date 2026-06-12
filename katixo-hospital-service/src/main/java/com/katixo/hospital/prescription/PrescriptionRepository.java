@@ -20,6 +20,6 @@ public interface PrescriptionRepository extends BaseRepository<Prescription> {
 
     Optional<Prescription> findByTenantIdAndPrescriptionNumberAndIsLatestTrue(String tenantId, String prescriptionNumber);
 
-    @Query(value = "SELECT nextval('hospital.prescription_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('prescription_seq')", nativeQuery = true)
     Long nextPrescriptionSequence();
 }

@@ -29,6 +29,6 @@ public interface PatientRepository extends BaseRepository<Patient> {
                                     @Param("branchId") Long branchId,
                                     @Param("minDob") LocalDate minDob);
 
-    @Query(value = "SELECT nextval('hospital.uhid_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
     Long nextUhidSequence();
 }

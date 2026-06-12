@@ -23,6 +23,7 @@ class _BillingHomeState extends State<BillingHome> {
   String _sourceType = 'OPD_VISIT';
 
   Map<String, dynamic>? _consolidated;
+  List<Map<String, dynamic>> _payments = const [];
   bool _loading = false;
   String? _error;
   String? _info;
@@ -74,9 +75,136 @@ class _BillingHomeState extends State<BillingHome> {
         '/api/v1/billing/bills/$billId',
         fromJson: (json) => json as Map<String, dynamic>,
       );
-      if (mounted) setState(() => _consolidated = view);
+      final payments = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/billing/bills/$billId/payments',
+        fromJson: (json) =>
+            List<Map<String, dynamic>>.from(json as List? ?? const []),
+      );
+      if (mounted) {
+        setState(() {
+          _consolidated = view;
+          _payments = payments;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
+    }
+  }
+
+  /// Collect a payment against the finalized bill. The backend books the
+  /// money in the ERP ledger (DR Cash|Bank / CR AR) after this succeeds.
+  Future<void> _paymentDialog() async {
+    final bill = _consolidated?['bill'] as Map<String, dynamic>?;
+    final billId = _billId;
+    if (bill == null || billId == null) return;
+
+    final balanceDue = '${bill['balanceDue'] ?? bill['netAmount']}';
+    final amountCtrl = TextEditingController(text: balanceDue);
+    final referenceCtrl = TextEditingController();
+    var mode = 'CASH';
+
+    final collect = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record Payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount (₹) *',
+                  prefixText: '₹ ',
+                  helperText: 'Balance due: ₹$balanceDue',
+                ),
+              ),
+              const SizedBox(height: Space.md),
+              DropdownButtonFormField<String>(
+                value: mode,
+                decoration: const InputDecoration(labelText: 'Payment mode *'),
+                items: const [
+                  DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                  DropdownMenuItem(value: 'CARD', child: Text('Card')),
+                  DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                  DropdownMenuItem(value: 'CHEQUE', child: Text('Cheque')),
+                  DropdownMenuItem(
+                      value: 'BANK_TRANSFER', child: Text('Bank transfer')),
+                ],
+                onChanged: (v) => setDialogState(() => mode = v ?? 'CASH'),
+              ),
+              const SizedBox(height: Space.md),
+              TextField(
+                controller: referenceCtrl,
+                decoration: const InputDecoration(
+                    labelText: 'Reference (UPI/cheque no.)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Collect'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (collect != true) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      final payment = await api.post<Map<String, dynamic>>(
+        '/api/v1/billing/bills/$billId/payments',
+        {
+          'amount': double.tryParse(amountCtrl.text) ?? 0,
+          'paymentMode': mode,
+          if (referenceCtrl.text.trim().isNotEmpty)
+            'reference': referenceCtrl.text.trim(),
+        },
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() =>
+          _info = 'Payment of ₹${payment['amount']} recorded ($mode)');
+      await _loadConsolidated(billId);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Retry the ERP ledger posting for a bill or payment whose sync failed.
+  Future<void> _retryErpSync(String path) async {
+    final billId = _billId;
+    if (billId == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<Map<String, dynamic>>(
+        path,
+        const <String, dynamic>{},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() => _info = 'Posted to ERP ledger');
+      await _loadConsolidated(billId);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -288,10 +416,16 @@ class _BillingHomeState extends State<BillingHome> {
               const SizedBox(height: Space.lg),
               _ConsolidatedBillCard(
                 consolidated: _consolidated!,
+                payments: _payments,
                 loading: _loading,
                 onDiscount: _discountDialog,
                 onFinalize: _finalize,
                 onReceipt: _showReceipt,
+                onPayment: _paymentDialog,
+                onRetryBillSync: () =>
+                    _retryErpSync('/api/v1/billing/bills/$_billId/sync-erp'),
+                onRetryPaymentSync: (paymentId) => _retryErpSync(
+                    '/api/v1/billing/payments/$paymentId/sync-erp'),
               ),
             ],
           ],
@@ -304,17 +438,25 @@ class _BillingHomeState extends State<BillingHome> {
 class _ConsolidatedBillCard extends StatelessWidget {
   const _ConsolidatedBillCard({
     required this.consolidated,
+    required this.payments,
     required this.loading,
     required this.onDiscount,
     required this.onFinalize,
     required this.onReceipt,
+    required this.onPayment,
+    required this.onRetryBillSync,
+    required this.onRetryPaymentSync,
   });
 
   final Map<String, dynamic> consolidated;
+  final List<Map<String, dynamic>> payments;
   final bool loading;
   final VoidCallback onDiscount;
   final VoidCallback onFinalize;
   final VoidCallback onReceipt;
+  final VoidCallback onPayment;
+  final VoidCallback onRetryBillSync;
+  final void Function(int paymentId) onRetryPaymentSync;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +466,10 @@ class _ConsolidatedBillCard extends StatelessWidget {
         List<Map<String, dynamic>>.from(consolidated['charges'] as List? ?? []);
     final billStatus = bill['billStatus'] as String;
     final isDraft = billStatus == 'DRAFT';
+    final isFinal = billStatus == 'FINAL';
+    final balanceDue =
+        num.tryParse('${bill['balanceDue'] ?? bill['netAmount']}') ?? 0;
+    final erpSyncStatus = '${bill['erpSyncStatus'] ?? 'NOT_SYNCED'}';
 
     return Card(
       child: Padding(
@@ -350,14 +496,45 @@ class _ConsolidatedBillCard extends StatelessWidget {
                     onPressed: loading ? null : onFinalize,
                     child: const Text('Finalize'),
                   ),
-                ] else
+                ] else ...[
+                  if (isFinal && balanceDue > 0) ...[
+                    FilledButton.icon(
+                      onPressed: loading ? null : onPayment,
+                      icon: const Icon(Icons.payments_outlined, size: 18),
+                      label: const Text('Record Payment'),
+                    ),
+                    const SizedBox(width: Space.sm),
+                  ],
                   OutlinedButton.icon(
                     onPressed: onReceipt,
                     icon: const Icon(Icons.print_outlined, size: 18),
                     label: const Text('Receipt'),
                   ),
+                ],
               ],
             ),
+
+            // ERP ledger sync state for the finalized bill
+            if (isFinal) ...[
+              const SizedBox(height: Space.sm),
+              Row(
+                children: [
+                  _ErpSyncBadge(
+                    status: erpSyncStatus,
+                    journalNumber: bill['erpJournalNumber'] as String?,
+                    label: 'Bill journal',
+                  ),
+                  if (erpSyncStatus == 'FAILED') ...[
+                    const SizedBox(width: Space.sm),
+                    TextButton.icon(
+                      onPressed: loading ? null : onRetryBillSync,
+                      icon: const Icon(Icons.sync_outlined, size: 16),
+                      label: const Text('Retry ERP post'),
+                    ),
+                  ],
+                ],
+              ),
+            ],
             const SizedBox(height: Space.md),
             const Divider(),
 
@@ -393,6 +570,56 @@ class _ConsolidatedBillCard extends StatelessWidget {
                     style: theme.textTheme.titleLarge),
               ],
             ),
+
+            if (isFinal) ...[
+              _totalRow(theme, 'Paid', bill['amountPaid']),
+              Row(
+                children: [
+                  Text('Balance Due', style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  Text(
+                    '₹$balanceDue',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: balanceDue > 0
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (payments.isNotEmpty) ...[
+              const SizedBox(height: Space.md),
+              Text('Payments', style: theme.textTheme.titleSmall),
+              const SizedBox(height: Space.xs),
+              for (final p in payments)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.xxs),
+                  child: Row(
+                    children: [
+                      Text('₹${p['amount']} · ${p['paymentMode']}'
+                          '${p['reference'] != null ? ' · ${p['reference']}' : ''}'),
+                      const SizedBox(width: Space.sm),
+                      _ErpSyncBadge(
+                        status: '${p['erpSyncStatus'] ?? 'NOT_SYNCED'}',
+                        journalNumber: p['erpJournalNumber'] as String?,
+                        label: 'Ledger',
+                      ),
+                      if ('${p['erpSyncStatus']}' == 'FAILED')
+                        TextButton(
+                          onPressed: loading
+                              ? null
+                              : () => onRetryPaymentSync(p['id'] as int),
+                          child: const Text('Retry'),
+                        ),
+                      const Spacer(),
+                      Text('${p['createdAt'] ?? ''}'.split('T').first,
+                          style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -411,6 +638,52 @@ class _ConsolidatedBillCard extends StatelessWidget {
           Text('₹$value', style: theme.textTheme.bodyMedium),
         ],
       ),
+    );
+  }
+}
+
+/// Shows whether a bill/payment has been posted to the Katasticho ERP ledger.
+class _ErpSyncBadge extends StatelessWidget {
+  const _ErpSyncBadge({
+    required this.status,
+    required this.label,
+    this.journalNumber,
+  });
+
+  final String status;
+  final String label;
+  final String? journalNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (color, icon, text) = switch (status) {
+      'SYNCED' => (
+          theme.colorScheme.primary,
+          Icons.check_circle_outline,
+          journalNumber == null || journalNumber == 'null'
+              ? '$label posted'
+              : '$label $journalNumber',
+        ),
+      'FAILED' => (
+          theme.colorScheme.error,
+          Icons.error_outline,
+          '$label not posted',
+        ),
+      _ => (
+          theme.colorScheme.onSurfaceVariant,
+          Icons.schedule_outlined,
+          '$label pending',
+        ),
+    };
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(text, style: theme.textTheme.bodySmall?.copyWith(color: color)),
+      ],
     );
   }
 }

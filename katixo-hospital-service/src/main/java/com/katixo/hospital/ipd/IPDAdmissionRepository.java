@@ -17,6 +17,6 @@ public interface IPDAdmissionRepository extends BaseRepository<IPDAdmission> {
     Optional<IPDAdmission> findActiveAdmissionForPatient(@Param("tenantId") String tenantId,
                                                          @Param("patientId") Long patientId);
 
-    @Query(value = "SELECT nextval('hospital.ipd_admission_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('ipd_admission_seq')", nativeQuery = true)
     Long nextAdmissionSequence();
 }

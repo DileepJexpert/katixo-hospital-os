@@ -613,18 +613,22 @@ public class BillingService {
     }
 
     private Map<String, Object> billSnapshot(PatientBill b) {
-        return Map.of(
-                "id", b.getId(),
-                "billNumber", b.getBillNumber(),
-                "patientId", b.getPatientId(),
-                "sourceType", b.getSourceType().name(),
-                "sourceId", b.getSourceId(),
-                "chargesTotal", b.getChargesTotal(),
-                "discountAmount", b.getDiscountAmount(),
-                "discountStatus", b.getDiscountStatus().name(),
-                "netAmount", b.getNetAmount(),
-                "billStatus", b.getBillStatus().name()
-        );
+        Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
+        snapshot.put("id", b.getId());
+        snapshot.put("billNumber", b.getBillNumber());
+        snapshot.put("patientId", b.getPatientId());
+        snapshot.put("sourceType", b.getSourceType().name());
+        snapshot.put("sourceId", b.getSourceId());
+        snapshot.put("chargesTotal", b.getChargesTotal());
+        snapshot.put("discountAmount", b.getDiscountAmount());
+        snapshot.put("discountStatus", b.getDiscountStatus().name());
+        snapshot.put("netAmount", b.getNetAmount());
+        snapshot.put("amountPaid", b.getAmountPaid());
+        snapshot.put("balanceDue", b.getBalanceDue());
+        snapshot.put("billStatus", b.getBillStatus().name());
+        snapshot.put("erpSyncStatus", b.getErpSyncStatus().name());
+        snapshot.put("erpJournalNumber", b.getErpJournalNumber());
+        return snapshot;
     }
 
     private Map<String, Object> chargeSnapshot(HospitalCharge c) {
