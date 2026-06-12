@@ -38,6 +38,21 @@ public class PatientBillPayment extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    /** Portion of {@link #amount} that settles HOSPITAL charges (journaled DR Cash|Bank / CR AR). */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal hospitalAmount;
+
+    /** Portion allocated to the IPD pharmacy ERP invoices (settled via ERP payment API). */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal pharmacyAmount;
+
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private PharmacyAllocStatus pharmacyAllocStatus = PharmacyAllocStatus.NOT_REQUIRED;
+
+    @Column(columnDefinition = "TEXT")
+    private String pharmacyAllocError;
+
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private PaymentMode paymentMode;
@@ -70,5 +85,9 @@ public class PatientBillPayment extends BaseEntity {
 
     public enum PaymentMode {
         CASH, CARD, UPI, CHEQUE, BANK_TRANSFER
+    }
+
+    public enum PharmacyAllocStatus {
+        NOT_REQUIRED, SYNCED, FAILED
     }
 }

@@ -25,6 +25,7 @@ public class BillingController {
 
     private final BillingService billingService;
     private final ErpBillingSyncService erpBillingSyncService;
+    private final BillPdfService billPdfService;
 
     // ---------- tariff master ----------
 
@@ -170,6 +171,17 @@ public class BillingController {
         return respond(billingService.getReceipt(id), "Bill receipt", HttpStatus.OK);
     }
 
+    /** Printable consolidated bill (A4). Available once the bill is FINAL. */
+    @GetMapping(value = "/bills/{id}/receipt.pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('BILLING', 'FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<byte[]> receiptPdf(@PathVariable Long id) {
+        byte[] pdf = billPdfService.renderBillPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=bill-" + id + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
     // ---------- payments ----------
 
     @Getter
@@ -207,12 +219,12 @@ public class BillingController {
         return respond(view(erpBillingSyncService.syncBillJournal(id)), "ERP journal posted", HttpStatus.OK);
     }
 
-    /** Retry the ERP journal for a payment whose automatic sync failed. */
+    /** Retry the ERP sync (hospital journal + pharmacy settlement) for a payment. */
     @PostMapping("/payments/{paymentId}/sync-erp")
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> syncPaymentToErp(@PathVariable Long paymentId) {
-        return respond(paymentView(erpBillingSyncService.syncPaymentJournal(paymentId)),
-                "ERP journal posted", HttpStatus.OK);
+        return respond(paymentView(erpBillingSyncService.syncPayment(paymentId)),
+                "ERP sync complete", HttpStatus.OK);
     }
 
     // ---------- helpers ----------
@@ -242,6 +254,9 @@ public class BillingController {
         view.put("billId", p.getBillId());
         view.put("amount", p.getAmount());
         view.put("paymentMode", p.getPaymentMode().name());
+        view.put("hospitalAmount", p.getHospitalAmount());
+        view.put("pharmacyAmount", p.getPharmacyAmount());
+        view.put("pharmacyAllocStatus", p.getPharmacyAllocStatus().name());
         view.put("reference", p.getReference());
         view.put("erpSyncStatus", p.getErpSyncStatus().name());
         view.put("erpJournalNumber", p.getErpJournalNumber());

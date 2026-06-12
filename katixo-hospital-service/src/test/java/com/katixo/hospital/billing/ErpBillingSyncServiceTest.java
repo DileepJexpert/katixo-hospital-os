@@ -47,6 +47,7 @@ class ErpBillingSyncServiceTest {
     private MockRestServiceServer server;
     private PatientBillRepository billRepository;
     private PatientBillPaymentRepository paymentRepository;
+    private com.katixo.hospital.nursing.NursingIndentRepository indentRepository;
     private ErpBillingSyncService service;
     private PatientBill bill;
 
@@ -66,8 +67,9 @@ class ErpBillingSyncServiceTest {
         billRepository = mock(PatientBillRepository.class);
         paymentRepository = mock(PatientBillPaymentRepository.class);
 
+        indentRepository = mock(com.katixo.hospital.nursing.NursingIndentRepository.class);
         service = new ErpBillingSyncService(erpApiClient, billRepository, paymentRepository,
-                mock(AuditService.class));
+                indentRepository, mock(AuditService.class));
         ReflectionTestUtils.setField(service, "arAccount", "1100");
         ReflectionTestUtils.setField(service, "cashAccount", "1010");
         ReflectionTestUtils.setField(service, "bankAccount", "1020");
@@ -194,6 +196,86 @@ class ErpBillingSyncServiceTest {
 
         assertEquals("JE-2026-000001", result.getErpJournalNumber());
         server.verify(); // no ERP calls
+    }
+
+    @Test
+    void pharmacyShareSettlesIndentInvoicesOldestFirst() {
+        bill.setSourceType(HospitalCharge.SourceType.IPD_ADMISSION);
+        bill.setSourceId(5L);
+        PatientBillPayment payment = paymentFor(bill, "77.45", PatientBillPayment.PaymentMode.CASH);
+        payment.setHospitalAmount(BigDecimal.ZERO);
+        payment.setPharmacyAmount(new BigDecimal("77.45"));
+        payment.setErpSyncStatus(PatientBill.ErpSyncStatus.SYNCED); // journal already done
+
+        com.katixo.hospital.nursing.NursingIndent i1 = indent(101L, "inv-1", "INV-2026-000001");
+        com.katixo.hospital.nursing.NursingIndent i2 = indent(102L, "inv-2", "INV-2026-000002");
+        when(indentRepository.findByTenantIdAndAdmissionIdAndErpSyncStatus(TENANT, 5L,
+                com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED))
+                .thenReturn(java.util.List.of(i2, i1)); // unsorted on purpose
+
+        server.expect(requestTo("http://erp.test/api/v1/invoices/inv-1"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"balanceDue\":37.47}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://erp.test/api/v1/payments"))
+                .andExpect(method(POST))
+                .andExpect(header("Idempotency-Key", "HOSP-PAYALLOC-demo-tenant-31-101"))
+                .andExpect(jsonPath("$.invoiceId").value("inv-1"))
+                .andExpect(jsonPath("$.amount").value(37.47))
+                .andExpect(jsonPath("$.paymentMethod").value("CASH"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"id\":\"pay-1\"}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://erp.test/api/v1/invoices/inv-2"))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"balanceDue\":39.98}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://erp.test/api/v1/payments"))
+                .andExpect(header("Idempotency-Key", "HOSP-PAYALLOC-demo-tenant-31-102"))
+                .andExpect(jsonPath("$.invoiceId").value("inv-2"))
+                .andExpect(jsonPath("$.amount").value(39.98))
+                .andRespond(withSuccess("{\"success\":true,\"data\":{\"id\":\"pay-2\"}}", MediaType.APPLICATION_JSON));
+
+        PatientBillPayment result = service.allocatePharmacyShare(31L);
+
+        server.verify();
+        assertEquals(PatientBillPayment.PharmacyAllocStatus.SYNCED, result.getPharmacyAllocStatus());
+    }
+
+    @Test
+    void zeroHospitalShareSkipsJournalAndMarksSynced() {
+        PatientBillPayment payment = paymentFor(bill, "50.00", PatientBillPayment.PaymentMode.CASH);
+        payment.setHospitalAmount(BigDecimal.ZERO);
+        payment.setPharmacyAmount(new BigDecimal("50.00"));
+
+        PatientBillPayment result = service.syncPaymentJournal(31L);
+
+        assertEquals(PatientBill.ErpSyncStatus.SYNCED, result.getErpSyncStatus());
+        server.verify(); // no journal call
+    }
+
+    @Test
+    void allocationFailureMarksFailedForRetry() {
+        bill.setSourceType(HospitalCharge.SourceType.IPD_ADMISSION);
+        bill.setSourceId(5L);
+        PatientBillPayment payment = paymentFor(bill, "10.00", PatientBillPayment.PaymentMode.UPI);
+        payment.setPharmacyAmount(new BigDecimal("10.00"));
+        com.katixo.hospital.nursing.NursingIndent i1 = indent(101L, "inv-1", "INV-2026-000001");
+        when(indentRepository.findByTenantIdAndAdmissionIdAndErpSyncStatus(TENANT, 5L,
+                com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED))
+                .thenReturn(java.util.List.of(i1));
+
+        server.expect(requestTo("http://erp.test/api/v1/invoices/inv-1"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+
+        assertThrows(BusinessException.class, () -> service.allocatePharmacyShare(31L));
+        assertEquals(PatientBillPayment.PharmacyAllocStatus.FAILED, payment.getPharmacyAllocStatus());
+        assertNotNull(payment.getPharmacyAllocError());
+    }
+
+    private com.katixo.hospital.nursing.NursingIndent indent(Long id, String erpInvoiceId, String number) {
+        com.katixo.hospital.nursing.NursingIndent indent = new com.katixo.hospital.nursing.NursingIndent();
+        indent.setTenantId(TENANT);
+        indent.setAdmissionId(5L);
+        indent.setErpInvoiceId(erpInvoiceId);
+        indent.setErpInvoiceNumber(number);
+        indent.setErpInvoiceTotal(new BigDecimal("38.00"));
+        ReflectionTestUtils.setField(indent, "id", id);
+        return indent;
     }
 
     private PatientBillPayment paymentFor(PatientBill bill, String amount, PatientBillPayment.PaymentMode mode) {

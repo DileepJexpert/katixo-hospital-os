@@ -266,6 +266,13 @@ public class BillingService {
     // (DR Cash|Bank / CR AR) so the patient ledger lives in one place.
     // ------------------------------------------------------------
 
+    /**
+     * Records money collected against a finalized bill. The amount is split:
+     * the HOSPITAL share (up to the bill's hospital balance) is journaled in
+     * the ERP as DR Cash|Bank / CR AR; any remainder is the PHARMACY share —
+     * for IPD bills it settles the attached ERP sales invoices through the
+     * ERP payment API, so the patient can pay the GRAND total in one go.
+     */
     public PatientBillPayment recordPayment(Long billId, BigDecimal amount,
                                             PatientBillPayment.PaymentMode paymentMode,
                                             String reference, String notes) {
@@ -280,31 +287,64 @@ public class BillingService {
         if (paymentMode == null) {
             throw new BusinessException("PAYMENT_MODE_REQUIRED", "Payment mode is required");
         }
-        if (amount.compareTo(bill.getBalanceDue()) > 0) {
+
+        BigDecimal hospitalDue = bill.getBalanceDue();
+        BigDecimal pharmacyDue = pharmacyOutstanding(bill);
+        if (amount.compareTo(hospitalDue.add(pharmacyDue)) > 0) {
             throw new BusinessException("PAYMENT_EXCEEDS_BALANCE",
-                    "Payment " + amount + " exceeds balance due " + bill.getBalanceDue());
+                    "Payment " + amount + " exceeds total due (hospital " + hospitalDue
+                            + " + pharmacy " + pharmacyDue + ")");
         }
+
+        BigDecimal hospitalShare = amount.min(hospitalDue);
+        BigDecimal pharmacyShare = amount.subtract(hospitalShare);
 
         PatientBillPayment payment = new PatientBillPayment();
         payment.setBillId(billId);
         payment.setAmount(amount);
+        payment.setHospitalAmount(hospitalShare);
+        payment.setPharmacyAmount(pharmacyShare);
+        payment.setPharmacyAllocStatus(PatientBillPayment.PharmacyAllocStatus.NOT_REQUIRED);
         payment.setPaymentMode(paymentMode);
         payment.setReference(reference);
         payment.setNotes(notes);
         stamp(payment);
         PatientBillPayment saved = paymentRepository.save(payment);
 
-        bill.setAmountPaid(bill.getAmountPaid().add(amount));
+        bill.setAmountPaid(bill.getAmountPaid().add(hospitalShare));
         bill.setUpdatedBy(userId());
         billRepository.save(bill);
 
         auditService.audit("PatientBillPayment", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
-                null, Map.of("billId", billId, "amount", amount, "mode", paymentMode.name()),
+                null, Map.of("billId", billId, "amount", amount,
+                        "hospitalShare", hospitalShare, "pharmacyShare", pharmacyShare,
+                        "mode", paymentMode.name()),
                 UUID.randomUUID().toString());
 
         Long paymentIdForSync = saved.getId();
-        afterCommit(() -> erpBillingSyncService.syncPaymentJournalQuietly(paymentIdForSync));
+        afterCommit(() -> erpBillingSyncService.syncPaymentQuietly(paymentIdForSync));
         return saved;
+    }
+
+    /** Unpaid balance of the bill's IPD pharmacy ERP invoices (OPD receipts are cash-settled). */
+    private BigDecimal pharmacyOutstanding(PatientBill bill) {
+        if (bill.getSourceType() != HospitalCharge.SourceType.IPD_ADMISSION) {
+            return BigDecimal.ZERO;
+        }
+        var ctx = TenantContext.get();
+        BigDecimal invoiced = indentRepository
+                .findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
+                        com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED)
+                .stream()
+                .map(i -> i.getErpInvoiceTotal() == null ? BigDecimal.ZERO : i.getErpInvoiceTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal allocated = paymentRepository
+                .findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
+                .stream()
+                .map(p -> p.getPharmacyAmount() == null ? BigDecimal.ZERO : p.getPharmacyAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal due = invoiced.subtract(allocated);
+        return due.signum() < 0 ? BigDecimal.ZERO : due;
     }
 
     @Transactional(readOnly = true)

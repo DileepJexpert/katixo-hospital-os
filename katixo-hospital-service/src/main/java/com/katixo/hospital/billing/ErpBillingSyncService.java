@@ -45,6 +45,7 @@ public class ErpBillingSyncService {
     private final ErpApiClient erpApiClient;
     private final PatientBillRepository billRepository;
     private final PatientBillPaymentRepository paymentRepository;
+    private final com.katixo.hospital.nursing.NursingIndentRepository indentRepository;
     private final AuditService auditService;
 
     // Katasticho default chart-of-accounts codes; override per deployment if a
@@ -137,12 +138,19 @@ public class ErpBillingSyncService {
     // ------------------------------------------------------------
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void syncPaymentJournalQuietly(Long paymentId) {
+    public void syncPaymentQuietly(Long paymentId) {
         try {
-            syncPaymentJournal(paymentId);
+            syncPayment(paymentId);
         } catch (Exception e) {
-            log.error("ERP journal sync failed for payment {}: {}", paymentId, e.getMessage());
+            log.error("ERP sync failed for payment {}: {}", paymentId, e.getMessage());
         }
+    }
+
+    /** Posts the hospital-share journal AND settles the pharmacy share. Idempotent; safe to retry. */
+    @Transactional
+    public PatientBillPayment syncPayment(Long paymentId) {
+        PatientBillPayment payment = syncPaymentJournal(paymentId);
+        return allocatePharmacyShare(payment.getId());
     }
 
     @Transactional
@@ -153,6 +161,15 @@ public class ErpBillingSyncService {
 
         if (payment.getErpSyncStatus() == PatientBill.ErpSyncStatus.SYNCED) {
             return payment;
+        }
+
+        BigDecimal hospitalShare = payment.getHospitalAmount() == null
+                ? payment.getAmount() : payment.getHospitalAmount();
+        if (hospitalShare.signum() == 0) {
+            // Pure pharmacy settlement: nothing to journal on the hospital side.
+            payment.setErpSyncStatus(PatientBill.ErpSyncStatus.SYNCED);
+            payment.setErpSyncedAt(LocalDateTime.now());
+            return paymentRepository.save(payment);
         }
 
         PatientBill bill = billRepository.findById(payment.getBillId())
@@ -174,8 +191,8 @@ public class ErpBillingSyncService {
         try {
             Map<String, Object> journal = postJournal(LocalDate.now(), description, sourceRef,
                     payment.getErpIdempotencyKey(), List.of(
-                            line(moneyAccount, payment.getAmount(), null, payment.getPaymentMode().name()),
-                            line(arAccount, null, payment.getAmount(), "Settles " + bill.getBillNumber())));
+                            line(moneyAccount, hospitalShare, null, payment.getPaymentMode().name()),
+                            line(arAccount, null, hospitalShare, "Settles " + bill.getBillNumber())));
             payment.setErpSyncStatus(PatientBill.ErpSyncStatus.SYNCED);
             payment.setErpJournalId(String.valueOf(journal.get("id")));
             payment.setErpJournalNumber(String.valueOf(journal.get("entryNumber")));
@@ -195,6 +212,90 @@ public class ErpBillingSyncService {
         log.info("Payment {} for bill {} posted to ERP journal {}",
                 paymentId, bill.getBillNumber(), saved.getErpJournalNumber());
         return saved;
+    }
+
+    // ------------------------------------------------------------
+    // Pharmacy share → ERP payments against the indent invoices
+    // ------------------------------------------------------------
+
+    /**
+     * Settles the payment's pharmacy share against the admission's open ERP
+     * sales invoices, oldest first. Each ERP payment uses a deterministic
+     * idempotency key ({@code HOSP-PAYALLOC-<tenant>-<paymentId>-<indentId>}),
+     * so a retry after a partial failure replays the completed allocations and
+     * resumes where it stopped.
+     */
+    @Transactional
+    public PatientBillPayment allocatePharmacyShare(Long paymentId) {
+        TenantContext ctx = TenantContext.get();
+        PatientBillPayment payment = paymentRepository.findByIdAndTenantId(paymentId, ctx.getTenantId())
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found: " + paymentId));
+
+        BigDecimal pharmacyShare = payment.getPharmacyAmount() == null
+                ? BigDecimal.ZERO : payment.getPharmacyAmount();
+        if (pharmacyShare.signum() == 0
+                || payment.getPharmacyAllocStatus() == PatientBillPayment.PharmacyAllocStatus.SYNCED) {
+            return payment;
+        }
+
+        PatientBill bill = billRepository.findById(payment.getBillId())
+                .filter(b -> b.getTenantId().equals(ctx.getTenantId()))
+                .orElseThrow(() -> new BusinessException("BILL_NOT_FOUND", "Bill not found: " + payment.getBillId()));
+
+        List<com.katixo.hospital.nursing.NursingIndent> indents = indentRepository
+                .findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
+                        com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED)
+                .stream()
+                .sorted(java.util.Comparator.comparing(com.katixo.hospital.nursing.NursingIndent::getId))
+                .toList();
+
+        try {
+            BigDecimal remaining = pharmacyShare;
+            for (com.katixo.hospital.nursing.NursingIndent indent : indents) {
+                if (remaining.signum() <= 0) {
+                    break;
+                }
+                BigDecimal invoiceDue = fetchInvoiceBalance(indent.getErpInvoiceId(), "PAYMENT-" + payment.getId());
+                if (invoiceDue.signum() <= 0) {
+                    continue;
+                }
+                BigDecimal pay = remaining.min(invoiceDue);
+                Map<String, Object> request = new LinkedHashMap<>();
+                request.put("invoiceId", indent.getErpInvoiceId());
+                request.put("paymentDate", LocalDate.now().toString());
+                request.put("amount", pay);
+                request.put("paymentMethod", payment.getPaymentMode().name());
+                request.put("referenceNumber", payment.getReference());
+                request.put("notes", "Hospital bill " + bill.getBillNumber()
+                        + " settles " + indent.getErpInvoiceNumber());
+                erpApiClient.post("/api/v1/payments", request, Map.class,
+                        "PAYMENT-" + payment.getId(),
+                        "HOSP-PAYALLOC-" + ctx.getTenantId() + "-" + payment.getId() + "-" + indent.getId());
+                remaining = remaining.subtract(pay);
+            }
+            payment.setPharmacyAllocStatus(PatientBillPayment.PharmacyAllocStatus.SYNCED);
+            payment.setPharmacyAllocError(null);
+        } catch (BusinessException e) {
+            payment.setPharmacyAllocStatus(PatientBillPayment.PharmacyAllocStatus.FAILED);
+            payment.setPharmacyAllocError(e.getCode() + ": " + e.getMessage());
+            paymentRepository.save(payment);
+            throw e;
+        }
+
+        PatientBillPayment saved = paymentRepository.save(payment);
+        log.info("Payment {} pharmacy share {} settled against ERP invoices", paymentId, pharmacyShare);
+        return saved;
+    }
+
+    @SuppressWarnings("unchecked")
+    private BigDecimal fetchInvoiceBalance(String erpInvoiceId, String sourceRef) {
+        Map<String, Object> response = erpApiClient.get("/api/v1/invoices/" + erpInvoiceId, Map.class, sourceRef);
+        Map<String, Object> data = response == null ? null : (Map<String, Object>) response.get("data");
+        if (data == null || data.get("balanceDue") == null) {
+            throw new BusinessException("ERP_INVOICE_LOOKUP_FAILED",
+                    "Could not read balance of ERP invoice " + erpInvoiceId);
+        }
+        return new BigDecimal(String.valueOf(data.get("balanceDue")));
     }
 
     // ------------------------------------------------------------

@@ -1251,7 +1251,11 @@ CREATE TABLE patient_bill_payment (
     created_by bigint,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_by bigint,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    hospital_amount numeric(12,2),
+    pharmacy_amount numeric(12,2),
+    pharmacy_alloc_status character varying(20) DEFAULT 'NOT_REQUIRED'::character varying NOT NULL,
+    pharmacy_alloc_error text
 );
 
 

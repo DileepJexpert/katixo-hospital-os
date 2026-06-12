@@ -213,6 +213,17 @@ katixo-hospital-service/
   ERP failure → erp_sync_status=FAILED, retry via `POST /bills/{id}/sync-erp` and
   `POST /payments/{paymentId}/sync-erp`. `generateBill` auto-attaches SYNCED pharmacy
   dispense receipts as BillErpInvoiceRef (OPD: dispense.visitId == bill.sourceId).
+- **Grand-total payment split (IMPLEMENTED):** a payment may cover hospital + IPD pharmacy.
+  `recordPayment` splits it: hospital share (≤ bill balance) → Cash|Bank/AR journal;
+  remainder = pharmacy share → settled against the admission's open ERP sales invoices
+  oldest-first via `POST /api/v1/payments` (keys `HOSP-PAYALLOC-<tenant>-<paymentId>-<indentId>`,
+  resume-safe on partial failure). Validation: amount ≤ hospitalDue + pharmacyDue.
+- **Printable bill (IMPLEMENTED):** `GET /api/v1/billing/bills/{id}/receipt.pdf` —
+  A4 PDF via openhtmltopdf (`BillPdfService`): charges by category (GST-exempt note),
+  pharmacy invoices, discount, payments, grand total. FINAL bills only.
+- **Dev-reset caveat:** idempotency keys embed row ids; resetting the hospital DB reuses
+  ids, so Katasticho REPLAYS old responses for up to 48h. When resetting the hospital DB
+  in dev, also clear the ERP org's `idempotency_record` (or use a fresh ERP org).
 - Patient credit account: balance, configurable limit, warn/block action
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
