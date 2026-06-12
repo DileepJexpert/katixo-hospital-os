@@ -181,7 +181,8 @@ class _OTRoomManagementScreenState extends State<OTRoomManagementScreen> {
 
       try {
         final api = context.read<ApiClient>();
-        await api.delete('/api/v1/ot/rooms/${room.id}');
+        await api.delete('/api/v1/ot/rooms/${room.id}',
+            fromJson: (_) => null);
         setState(() => _success = 'OT room deleted');
         await _loadRooms();
       } on ApiException catch (e) {

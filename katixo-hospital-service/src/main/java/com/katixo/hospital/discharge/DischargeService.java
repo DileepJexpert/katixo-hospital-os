@@ -2,9 +2,9 @@ package com.katixo.hospital.discharge;
 
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,11 +25,11 @@ public class DischargeService {
 
     private final DischargeSummaryRepository dischargeSummaryRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     public DischargeSummaryResponse createDischargeSummary(CreateDischargeSummaryRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        Long userId = Long.parseLong(ctx.getUserId());
 
         var summary = new DischargeSummary();
         summary.setTenantId(ctx.getTenantId());
@@ -45,41 +47,37 @@ public class DischargeService {
         summary.setWarningSymptoms(request.warningSymptoms);
         summary.setDischargeType(DischargeSummary.DischargeType.valueOf(request.dischargeType));
         summary.setDischargeStatus(DischargeSummary.DischargeSummaryStatus.DRAFT);
-        summary.setPreparedBy(ctx.getCurrentUserId());
+        summary.setPreparedBy(userId);
         summary.setPreparedAt(LocalDateTime.now());
         summary.setAdditionalNotes(request.additionalNotes);
-        summary.setCreatedBy(ctx.getCurrentUserId());
-        summary.setUpdatedBy(ctx.getCurrentUserId());
+        summary.setCreatedBy(userId);
+        summary.setUpdatedBy(userId);
+        summary.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         summary = dischargeSummaryRepository.save(summary);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("CREATE_DISCHARGE_SUMMARY")
-                .entityType("DischargeSummary")
-                .entityId(summary.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("DischargeSummary", String.valueOf(summary.getId()),
+                AuditLog.AuditAction.CREATE, null,
+                Map.of("dischargeStatus", summary.getDischargeStatus().name(),
+                        "admissionId", summary.getAdmissionId()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("DischargeSummary", String.valueOf(summary.getId()),
                 "discharge.summary.created",
-                "DischargeSummary",
-                summary.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("dischargeSummaryId", summary.getId(),
+                        "admissionId", summary.getAdmissionId(),
+                        "patientId", summary.getPatientId()));
 
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse updateDischargeSummary(Long summaryId, UpdateDischargeSummaryRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var summary = dischargeSummaryRepository.findById(summaryId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
-        if (summary.getDischargeSummaryStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
-            throw new ApiException("CANNOT_EDIT", "Can only edit draft discharge summaries");
+        if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
+            throw new BusinessException("CANNOT_EDIT", "Can only edit draft discharge summaries");
         }
 
         if (request.diagnosis != null) summary.setDiagnosis(request.diagnosis);
@@ -87,138 +85,121 @@ public class DischargeService {
         if (request.medications != null) summary.setMedications(request.medications);
         if (request.followUpInstructions != null) summary.setFollowUpInstructions(request.followUpInstructions);
 
-        summary.setUpdatedBy(ctx.getCurrentUserId());
+        summary.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         summary = dischargeSummaryRepository.save(summary);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("UPDATE_DISCHARGE_SUMMARY")
-                .entityType("DischargeSummary")
-                .entityId(summary.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("DischargeSummary", String.valueOf(summary.getId()),
+                AuditLog.AuditAction.UPDATE, null,
+                Map.of("dischargeStatus", summary.getDischargeStatus().name()),
+                UUID.randomUUID().toString());
 
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse submitForApproval(Long summaryId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var summary = dischargeSummaryRepository.findById(summaryId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
-        if (summary.getDischargeSummaryStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
-            throw new ApiException("INVALID_STATUS", "Only draft summaries can be submitted");
+        if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.DRAFT) {
+            throw new BusinessException("INVALID_STATUS", "Only draft summaries can be submitted");
         }
 
+        var beforeStatus = summary.getDischargeStatus().name();
         summary.setDischargeStatus(DischargeSummary.DischargeSummaryStatus.PENDING_APPROVAL);
-        summary.setUpdatedBy(ctx.getCurrentUserId());
+        summary.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         summary = dischargeSummaryRepository.save(summary);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("SUBMIT_DISCHARGE_SUMMARY")
-                .entityType("DischargeSummary")
-                .entityId(summary.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("DischargeSummary", String.valueOf(summary.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("dischargeStatus", beforeStatus),
+                Map.of("dischargeStatus", summary.getDischargeStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("DischargeSummary", String.valueOf(summary.getId()),
                 "discharge.summary.submitted",
-                "DischargeSummary",
-                summary.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("dischargeSummaryId", summary.getId(),
+                        "admissionId", summary.getAdmissionId()));
 
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse approveDischargeSummary(Long summaryId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        Long userId = Long.parseLong(ctx.getUserId());
         var summary = dischargeSummaryRepository.findById(summaryId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
-        if (summary.getDischargeSummaryStatus() != DischargeSummary.DischargeSummaryStatus.PENDING_APPROVAL) {
-            throw new ApiException("INVALID_STATUS", "Only pending summaries can be approved");
+        if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.PENDING_APPROVAL) {
+            throw new BusinessException("INVALID_STATUS", "Only pending summaries can be approved");
         }
 
+        var beforeStatus = summary.getDischargeStatus().name();
         summary.setDischargeStatus(DischargeSummary.DischargeSummaryStatus.APPROVED);
-        summary.setApprovedBy(ctx.getCurrentUserId());
+        summary.setApprovedBy(userId);
         summary.setApprovedAt(LocalDateTime.now());
-        summary.setUpdatedBy(ctx.getCurrentUserId());
+        summary.setUpdatedBy(userId);
         summary = dischargeSummaryRepository.save(summary);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("APPROVE_DISCHARGE_SUMMARY")
-                .entityType("DischargeSummary")
-                .entityId(summary.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("DischargeSummary", String.valueOf(summary.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("dischargeStatus", beforeStatus),
+                Map.of("dischargeStatus", summary.getDischargeStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("DischargeSummary", String.valueOf(summary.getId()),
                 "discharge.summary.approved",
-                "DischargeSummary",
-                summary.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("dischargeSummaryId", summary.getId(),
+                        "admissionId", summary.getAdmissionId()));
 
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse finalizeDischargeSummary(Long summaryId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        Long userId = Long.parseLong(ctx.getUserId());
         var summary = dischargeSummaryRepository.findById(summaryId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
 
-        if (summary.getDischargeSummaryStatus() != DischargeSummary.DischargeSummaryStatus.APPROVED) {
-            throw new ApiException("INVALID_STATUS", "Only approved summaries can be finalized");
+        if (summary.getDischargeStatus() != DischargeSummary.DischargeSummaryStatus.APPROVED) {
+            throw new BusinessException("INVALID_STATUS", "Only approved summaries can be finalized");
         }
 
+        var beforeStatus = summary.getDischargeStatus().name();
         summary.setDischargeStatus(DischargeSummary.DischargeSummaryStatus.FINALIZED);
-        summary.setFinishedBy(ctx.getCurrentUserId());
+        summary.setFinishedBy(userId);
         summary.setFinishedAt(LocalDateTime.now());
-        summary.setUpdatedBy(ctx.getCurrentUserId());
+        summary.setUpdatedBy(userId);
         summary = dischargeSummaryRepository.save(summary);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("FINALIZE_DISCHARGE_SUMMARY")
-                .entityType("DischargeSummary")
-                .entityId(summary.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("DischargeSummary", String.valueOf(summary.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("dischargeStatus", beforeStatus),
+                Map.of("dischargeStatus", summary.getDischargeStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("DischargeSummary", String.valueOf(summary.getId()),
                 "discharge.summary.finalized",
-                "DischargeSummary",
-                summary.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("dischargeSummaryId", summary.getId(),
+                        "admissionId", summary.getAdmissionId()));
 
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse getDischargeSummaryByAdmission(Long admissionId) {
         var summary = dischargeSummaryRepository.findByAdmissionId(admissionId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "No discharge summary for this admission"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "No discharge summary for this admission"));
         return toResponse(summary);
     }
 
     public DischargeSummaryResponse getDischargeSummaryById(Long summaryId) {
         var summary = dischargeSummaryRepository.findById(summaryId)
-                .orElseThrow(() -> new ApiException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
+                .orElseThrow(() -> new BusinessException("DISCHARGE_SUMMARY_NOT_FOUND", "Discharge summary not found"));
         return toResponse(summary);
     }
 
     public List<DischargeSummaryResponse> getPendingApprovalSummaries() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var summaries = dischargeSummaryRepository.findByTenantIdAndBranchIdAndDischargeStatusAndApprovedByIsNull(
                 ctx.getTenantId(),
                 Long.parseLong(ctx.getBranchId()),
@@ -241,7 +222,7 @@ public class DischargeService {
                 .restrictions(summary.getRestrictions())
                 .warningSymptoms(summary.getWarningSymptoms())
                 .dischargeType(summary.getDischargeType().toString())
-                .dischargeStatus(summary.getDischargeSummaryStatus().toString())
+                .dischargeStatus(summary.getDischargeStatus().toString())
                 .preparedBy(summary.getPreparedBy())
                 .preparedAt(summary.getPreparedAt())
                 .approvedBy(summary.getApprovedBy())

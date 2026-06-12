@@ -123,6 +123,44 @@ public class OPDService {
         return saved;
     }
 
+    @Transactional(readOnly = true)
+    public List<Appointment> listPatientAppointments(Long patientId) {
+        var context = TenantContext.get();
+        return appointmentRepository.findByTenantIdAndBranchIdAndPatientIdOrderByAppointmentDateDescSlotStartDesc(
+                context.getTenantId(), Long.parseLong(context.getBranchId()), patientId);
+    }
+
+    public Appointment cancelAppointment(Long appointmentId, String reason) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+
+        Appointment appointment = appointmentRepository
+                .findByIdAndTenantIdAndBranchId(appointmentId, context.getTenantId(), branchId)
+                .orElseThrow(() -> new BusinessException("APPOINTMENT_NOT_FOUND",
+                        "Appointment not found: " + appointmentId));
+
+        if (appointment.getAppointmentStatus() != Appointment.AppointmentStatus.BOOKED
+                && appointment.getAppointmentStatus() != Appointment.AppointmentStatus.CONFIRMED) {
+            throw new BusinessException("INVALID_STATE",
+                    "Appointment cannot be cancelled from state " + appointment.getAppointmentStatus());
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("REASON_REQUIRED", "Cancellation reason is required");
+        }
+
+        Appointment.AppointmentStatus before = appointment.getAppointmentStatus();
+        appointment.setAppointmentStatus(Appointment.AppointmentStatus.CANCELLED);
+        appointment.setNotes(appointment.getNotes() == null
+                ? "Cancelled: " + reason
+                : appointment.getNotes() + " | Cancelled: " + reason);
+        appointment.setUpdatedBy(Long.parseLong(context.getUserId()));
+
+        Appointment saved = appointmentRepository.save(appointment);
+        auditService.audit("Appointment", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
+                before, saved.getAppointmentStatus(), UUID.randomUUID().toString());
+        return saved;
+    }
+
     /**
      * Check-in: appointment patient joins the SAME queue as walk-ins (merged worklist).
      */

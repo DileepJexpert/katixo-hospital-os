@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,274 +7,340 @@ import '../../core/api/http_client.dart';
 import '../../core/api/notification_models.dart';
 import '../../core/theme/design_tokens.dart';
 
-class NotificationCenter extends StatefulWidget {
-  const NotificationCenter({super.key});
+/// Bell icon with unread badge for the AppShell actions row.
+/// Opens a compact anchored panel — not a full screen.
+class NotificationBell extends StatefulWidget {
+  const NotificationBell({super.key});
 
   @override
-  State<NotificationCenter> createState() => _NotificationCenterState();
+  State<NotificationBell> createState() => _NotificationBellState();
 }
 
-class _NotificationCenterState extends State<NotificationCenter> {
-  List<NotificationResponse> _notifications = [];
-  bool _loading = false;
-  String? _error;
-  int _unreadCount = 0;
+class _NotificationBellState extends State<NotificationBell> {
+  int _unread = 0;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
-  }
-
-  Future<void> _loadNotifications() async {
-    setState(() => _loading = true);
-    try {
-      final api = context.read<ApiClient>();
-      final notifications = await api.get<List<NotificationResponse>>(
-        '/api/v1/notifications/history',
-        fromJson: (json) {
-          if (json is List) {
-            return json
-                .map((n) =>
-                    NotificationResponse.fromJson(n as Map<String, dynamic>))
-                .toList();
-          }
-          return [];
-        },
-      );
-      setState(() {
-        _notifications = notifications;
-        _unreadCount =
-            notifications.where((n) => !n.isRead).length;
-        _error = null;
-      });
-    } catch (e) {
-      setState(() => _error = 'Failed to load notifications: $e');
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _markAsRead(int notificationId) async {
-    try {
-      final api = context.read<ApiClient>();
-      await api.post(
-        '/api/v1/notifications/$notificationId/read',
-        {},
-        fromJson: (_) => null,
-      );
-      _loadNotifications();
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  Future<void> _markAllAsRead() async {
-    try {
-      final api = context.read<ApiClient>();
-      await api.post(
-        '/api/v1/notifications/read-all',
-        {},
-        fromJson: (_) => null,
-      );
-      _loadNotifications();
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
+    _loadUnreadCount();
+    _pollTimer = Timer.periodic(
+        const Duration(seconds: 30), (_) => _loadUnreadCount());
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        actions: [
-          if (_unreadCount > 0)
-            TextButton(
-              onPressed: _markAllAsRead,
-              child: const Text('Mark All Read'),
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadNotifications,
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_error!),
-                      const SizedBox(height: Space.md),
-                      ElevatedButton(
-                        onPressed: _loadNotifications,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : _notifications.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.notifications_none_outlined,
-                              size: 48, color: Colors.grey),
-                          SizedBox(height: Space.md),
-                          Text('No notifications yet'),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _notifications.length,
-                      itemBuilder: (context, index) {
-                        final notification = _notifications[index];
-                        return _NotificationTile(
-                          notification: notification,
-                          onTap: notification.isRead
-                              ? null
-                              : () => _markAsRead(notification.id),
-                          onMarkRead: () => _markAsRead(notification.id),
-                        );
-                      },
-                    ),
-    );
-  }
-}
-
-class _NotificationTile extends StatelessWidget {
-  final NotificationResponse notification;
-  final VoidCallback? onTap;
-  final VoidCallback? onMarkRead;
-
-  const _NotificationTile({
-    required this.notification,
-    this.onTap,
-    this.onMarkRead,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: notification.isRead ? Colors.transparent : Colors.blue.shade50,
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: notification.isRead ? Colors.grey.shade200 : Colors.blue,
-          ),
-          child: Center(
-            child: Text(notification.icon, style: const TextStyle(fontSize: 20)),
-          ),
-        ),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight:
-                notification.isRead ? FontWeight.normal : FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: Space.xs),
-            Text(
-              notification.message,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: Space.xs),
-            Text(
-              _formatTime(notification.createdAt),
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ],
-        ),
-        trailing: !notification.isRead
-            ? GestureDetector(
-                onTap: onMarkRead,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue,
-                  ),
-                ),
-              )
-            : null,
-        isThreeLine: true,
-        onTap: onTap,
-      ),
-    );
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return dateTime.toString().split(' ')[0];
+  Future<void> _loadUnreadCount() async {
+    try {
+      final api = context.read<ApiClient>();
+      final unread = await api.get<List<NotificationResponse>>(
+        '/api/v1/notifications/unread',
+        fromJson: (json) => (json as List? ?? [])
+            .map((e) =>
+                NotificationResponse.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+      if (mounted) setState(() => _unread = unread.length);
+    } catch (_) {
+      // Silent on poll errors.
     }
   }
-}
 
-class NotificationBadge extends StatelessWidget {
-  final int unreadCount;
-  final VoidCallback onTap;
-
-  const NotificationBadge({
-    required this.unreadCount,
-    required this.onTap,
-  });
+  void _openPanel() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => Align(
+        alignment: Alignment.topRight,
+        child: Padding(
+          padding: const EdgeInsets.only(
+              top: Metrics.appBarHeight + Space.xs, right: Space.md),
+          child: Material(
+            elevation: Elevations.dialog,
+            borderRadius: Corners.mdRadius,
+            clipBehavior: Clip.antiAlias,
+            child: const SizedBox(
+              width: 380,
+              height: 440,
+              child: NotificationPanel(),
+            ),
+          ),
+        ),
+      ),
+    ).then((_) => _loadUnreadCount());
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
+      clipBehavior: Clip.none,
       children: [
         IconButton(
+          tooltip: 'Notifications',
           icon: const Icon(Icons.notifications_outlined),
-          onPressed: onTap,
+          onPressed: _openPanel,
         ),
-        if (unreadCount > 0)
+        if (_unread > 0)
           Positioned(
-            right: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              child: Center(
+            right: 6,
+            top: 6,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Space.xs, vertical: 1),
+                decoration: BoxDecoration(
+                  color: StatusColors.danger,
+                  borderRadius: Corners.smRadius,
+                ),
+                constraints: const BoxConstraints(minWidth: 16),
                 child: Text(
-                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                  _unread > 99 ? '99+' : '$_unread',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Compact notification list: dense rows, unread dot, mark-all-read.
+class NotificationPanel extends StatefulWidget {
+  const NotificationPanel({super.key});
+
+  @override
+  State<NotificationPanel> createState() => _NotificationPanelState();
+}
+
+class _NotificationPanelState extends State<NotificationPanel> {
+  List<NotificationResponse> _notifications = [];
+  bool _loading = true;
+  String? _error;
+
+  int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final api = context.read<ApiClient>();
+      final notifications = await api.get<List<NotificationResponse>>(
+        '/api/v1/notifications/history?limit=30',
+        fromJson: (json) => (json as List? ?? [])
+            .map((e) =>
+                NotificationResponse.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+      if (mounted) {
+        setState(() {
+          _notifications = notifications;
+          _error = null;
+          _loading = false;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.error.message;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load notifications';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _markRead(NotificationResponse n) async {
+    try {
+      final api = context.read<ApiClient>();
+      await api.post('/api/v1/notifications/${n.id}/read', const {},
+          fromJson: (_) => null);
+      await _load();
+    } catch (_) {}
+  }
+
+  Future<void> _markAllRead() async {
+    try {
+      final api = context.read<ApiClient>();
+      await api.post('/api/v1/notifications/read-all', const {},
+          fromJson: (_) => null);
+      await _load();
+    } catch (_) {}
+  }
+
+  IconData _iconFor(String type) => switch (type) {
+        'APPOINTMENT_REMINDER' ||
+        'APPOINTMENT_CONFIRMED' ||
+        'APPOINTMENT_CANCELLED' =>
+          Icons.event_outlined,
+        'DISCHARGE_SCHEDULED' ||
+        'DISCHARGE_COMPLETED' =>
+          Icons.exit_to_app_outlined,
+        'BILL_GENERATED' ||
+        'PAYMENT_RECEIVED' ||
+        'REFUND_PROCESSED' =>
+          Icons.receipt_long_outlined,
+        'TEST_RESULTS_READY' => Icons.science_outlined,
+        'PRESCRIPTION_READY' => Icons.medication_outlined,
+        'SYSTEM_ALERT' => Icons.warning_amber_outlined,
+        _ => Icons.info_outline,
+      };
+
+  String _relativeTime(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m';
+    if (d.inHours < 24) return '${d.inHours}h';
+    if (d.inDays < 7) return '${d.inDays}d';
+    return '${t.day}/${t.month}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.md, Space.sm, Space.xs, 0),
+          child: Row(
+            children: [
+              Text('Notifications', style: theme.textTheme.titleMedium),
+              const Spacer(),
+              if (_unreadCount > 0)
+                TextButton(
+                  onPressed: _markAllRead,
+                  child: Text('Mark all read',
+                      style: theme.textTheme.labelSmall),
+                ),
+              IconButton(
+                tooltip: 'Refresh',
+                iconSize: 18,
+                icon: const Icon(Icons.refresh),
+                onPressed: _load,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
+                      child: Text(_error!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant)))
+                  : _notifications.isEmpty
+                      ? Center(
+                          child: Text('No notifications',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant)))
+                      : ListView.separated(
+                          itemCount: _notifications.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                            final n = _notifications[i];
+                            return InkWell(
+                              onTap: n.isRead ? null : () => _markRead(n),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: Space.md,
+                                    vertical: Space.sm),
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(_iconFor(n.notificationType),
+                                        size: 18,
+                                        color: n.isRead
+                                            ? theme.colorScheme
+                                                .onSurfaceVariant
+                                            : theme.colorScheme.primary),
+                                    const SizedBox(width: Space.sm),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(n.title,
+                                              style: theme
+                                                  .textTheme.bodySmall
+                                                  ?.copyWith(
+                                                      fontWeight: n.isRead
+                                                          ? FontWeight.w400
+                                                          : FontWeight
+                                                              .w600)),
+                                          Text(n.message,
+                                              maxLines: 2,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              style: theme
+                                                  .textTheme.labelSmall
+                                                  ?.copyWith(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant)),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: Space.sm),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(_relativeTime(n.createdAt),
+                                            style: theme
+                                                .textTheme.labelSmall
+                                                ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant)),
+                                        if (!n.isRead)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                top: Space.xs),
+                                            child: Container(
+                                              width: 7,
+                                              height: 7,
+                                              decoration:
+                                                  const BoxDecoration(
+                                                color: StatusColors.info,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+        ),
       ],
     );
   }

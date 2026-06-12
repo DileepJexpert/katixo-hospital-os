@@ -2,9 +2,9 @@ package com.katixo.hospital.tpa;
 
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,11 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,13 +28,12 @@ public class TPAService {
     private final TPACaseRepository caseRepository;
     private final TPADocumentRepository documentRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     private static final String CASE_NUMBER_FORMAT = "CASE-%d-%05d";
 
     public TPACaseResponse registerCase(RegisterTPACaseRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var caseNumber = generateCaseNumber();
 
         var tpaCase = new TPACase();
@@ -55,23 +53,26 @@ public class TPAService {
         tpaCase.setTpaCoordinator(request.tpaCoordinator);
         tpaCase.setTpaPhone(request.tpaPhone);
         tpaCase.setNotes(request.notes);
-        tpaCase.setCreatedBy(ctx.getCurrentUserId());
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setCreatedBy(Long.parseLong(ctx.getUserId()));
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+        tpaCase.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
-        tpaCase = caseRepository.save(tpaCase);
+        var savedCase = caseRepository.save(tpaCase);
 
-        List<TPADocument> documents = request.requiredDocuments.stream()
+        List<TPADocument> documents = request.requiredDocuments == null ? List.of()
+                : request.requiredDocuments.stream()
                 .map(docType -> {
                     var doc = new TPADocument();
                     doc.setTenantId(ctx.getTenantId());
                     doc.setHospitalGroupId(Long.parseLong(ctx.getHospitalGroupId()));
                     doc.setBranchId(Long.parseLong(ctx.getBranchId()));
-                    doc.setTpaCaseId(tpaCase.getId());
+                    doc.setTpaCaseId(savedCase.getId());
                     doc.setDocumentType(docType);
                     doc.setRequired(true);
                     doc.setSubmitted(false);
-                    doc.setCreatedBy(ctx.getCurrentUserId());
-                    doc.setUpdatedBy(ctx.getCurrentUserId());
+                    doc.setCreatedBy(Long.parseLong(ctx.getUserId()));
+                    doc.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+                    doc.setStatus(BaseEntity.EntityStatus.ACTIVE);
                     return doc;
                 })
                 .collect(Collectors.toList());
@@ -80,28 +81,24 @@ public class TPAService {
             documentRepository.saveAll(documents);
         }
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("REGISTER_TPA_CASE")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(savedCase.getId()),
+                AuditLog.AuditAction.CREATE,
+                null,
+                Map.of("caseNumber", savedCase.getCaseNumber(),
+                        "caseStatus", savedCase.getCaseStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(savedCase.getId()),
                 "tpa.case.registered",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", savedCase.getId(),
+                        "caseNumber", savedCase.getCaseNumber(),
+                        "admissionId", savedCase.getAdmissionId()));
 
-        return toResponse(tpaCase);
+        return toResponse(savedCase);
     }
 
     public List<TPACaseResponse> getCasesByStatus(TPACase.CaseStatus status) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var cases = caseRepository.findByTenantIdAndBranchIdAndCaseStatus(
                 ctx.getTenantId(),
                 Long.parseLong(ctx.getBranchId()),
@@ -117,220 +114,193 @@ public class TPAService {
 
     public TPACaseResponse getCaseById(Long caseId) {
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse submitPreauth(Long caseId, SubmitPreauthRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.REGISTERED) {
-            throw new ApiException("INVALID_STATUS", "Case must be in REGISTERED status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in REGISTERED status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.PREAUTH_PENDING);
         tpaCase.setPreauthRefNumber(request.preauthRefNumber);
         tpaCase.setPreauthDate(LocalDateTime.now());
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("SUBMIT_PREAUTH")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.preauth.submitted",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId(),
+                        "preauthRefNumber", String.valueOf(tpaCase.getPreauthRefNumber())));
 
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse approvePreauth(Long caseId, ApprovePreauthRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_PENDING) {
-            throw new ApiException("INVALID_STATUS", "Case must be in PREAUTH_PENDING status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in PREAUTH_PENDING status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.PREAUTH_APPROVED);
         tpaCase.setPreauthApprovedAt(LocalDateTime.now());
         tpaCase.setApprovedAmount(request.approvedAmount);
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("APPROVE_PREAUTH")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name(),
+                        "approvedAmount", String.valueOf(tpaCase.getApprovedAmount())),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.preauth.approved",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId(),
+                        "approvedAmount", String.valueOf(tpaCase.getApprovedAmount())));
 
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse rejectPreauth(Long caseId, RejectPreauthRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_PENDING) {
-            throw new ApiException("INVALID_STATUS", "Case must be in PREAUTH_PENDING status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in PREAUTH_PENDING status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.PREAUTH_REJECTED);
         tpaCase.setNotes(request.reason);
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("REJECT_PREAUTH")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.preauth.rejected",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId()));
 
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse submitClaim(Long caseId, SubmitClaimRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.PREAUTH_APPROVED) {
-            throw new ApiException("INVALID_STATUS", "Case must be in PREAUTH_APPROVED status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in PREAUTH_APPROVED status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.CLAIM_SUBMITTED);
         tpaCase.setClaimNumber(request.claimNumber);
         tpaCase.setClaimSubmittedAt(LocalDateTime.now());
         tpaCase.setClaimAmount(request.claimAmount);
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("SUBMIT_CLAIM")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name(),
+                        "claimNumber", String.valueOf(tpaCase.getClaimNumber())),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.claim.submitted",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId(),
+                        "claimNumber", String.valueOf(tpaCase.getClaimNumber()),
+                        "claimAmount", String.valueOf(tpaCase.getClaimAmount())));
 
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse approveClaim(Long caseId, ApproveClaimRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.CLAIM_SUBMITTED) {
-            throw new ApiException("INVALID_STATUS", "Case must be in CLAIM_SUBMITTED status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in CLAIM_SUBMITTED status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.CLAIM_APPROVED);
         tpaCase.setClaimApprovedAt(LocalDateTime.now());
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        if (request.approvedAmount != null) {
+            tpaCase.setApprovedAmount(request.approvedAmount);
+        }
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("APPROVE_CLAIM")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.claim.approved",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId()));
 
         return toResponse(tpaCase);
     }
 
     public TPACaseResponse rejectClaim(Long caseId, RejectClaimRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var tpaCase = caseRepository.findById(caseId)
-                .orElseThrow(() -> new ApiException("TPA_CASE_NOT_FOUND", "TPA case not found"));
+                .orElseThrow(() -> new BusinessException("TPA_CASE_NOT_FOUND", "TPA case not found"));
 
         if (tpaCase.getCaseStatus() != TPACase.CaseStatus.CLAIM_SUBMITTED) {
-            throw new ApiException("INVALID_STATUS", "Case must be in CLAIM_SUBMITTED status");
+            throw new BusinessException("INVALID_STATUS", "Case must be in CLAIM_SUBMITTED status");
         }
 
+        var oldStatus = tpaCase.getCaseStatus();
         tpaCase.setCaseStatus(TPACase.CaseStatus.CLAIM_REJECTED);
         tpaCase.setNotes(request.reason);
-        tpaCase.setUpdatedBy(ctx.getCurrentUserId());
+        tpaCase.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         tpaCase = caseRepository.save(tpaCase);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("REJECT_CLAIM")
-                .entityType("TPACase")
-                .entityId(tpaCase.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPACase", String.valueOf(tpaCase.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("caseStatus", oldStatus.name()),
+                Map.of("caseStatus", tpaCase.getCaseStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPACase", String.valueOf(tpaCase.getId()),
                 "tpa.claim.rejected",
-                "TPACase",
-                tpaCase.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("caseId", tpaCase.getId()));
 
         return toResponse(tpaCase);
     }
@@ -346,83 +316,77 @@ public class TPAService {
     }
 
     public TPADocumentResponse submitDocument(Long documentId, SubmitDocumentRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new ApiException("DOCUMENT_NOT_FOUND", "Document not found"));
+                .orElseThrow(() -> new BusinessException("DOCUMENT_NOT_FOUND", "Document not found"));
 
+        var wasSubmitted = Boolean.TRUE.equals(document.getSubmitted());
         document.setSubmitted(true);
         document.setSubmittedAt(LocalDateTime.now());
-        document.setSubmittedBy(ctx.getCurrentUserId());
+        document.setSubmittedBy(Long.parseLong(ctx.getUserId()));
         document.setFileUrl(request.fileUrl);
         document.setNotes(request.notes);
-        document.setUpdatedBy(ctx.getCurrentUserId());
+        document.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
         document = documentRepository.save(document);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("SUBMIT_TPA_DOCUMENT")
-                .entityType("TPADocument")
-                .entityId(document.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("TPADocument", String.valueOf(document.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("submitted", String.valueOf(wasSubmitted)),
+                Map.of("submitted", "true",
+                        "documentType", document.getDocumentType()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("TPADocument", String.valueOf(document.getId()),
                 "tpa.document.submitted",
-                "TPADocument",
-                document.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("documentId", document.getId(),
+                        "tpaCaseId", document.getTpaCaseId()));
 
         return toDocumentResponse(document);
     }
 
     public TPADocumentResponse uploadDocument(Long documentId, MultipartFile file, String notes) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new ApiException("DOCUMENT_NOT_FOUND", "Document not found"));
+                .orElseThrow(() -> new BusinessException("DOCUMENT_NOT_FOUND", "Document not found"));
 
         if (file.isEmpty()) {
-            throw new ApiException("FILE_EMPTY", "File cannot be empty");
+            throw new BusinessException("FILE_EMPTY", "File cannot be empty");
         }
 
         try {
             String fileName = generateFileUrl(documentId, file.getOriginalFilename());
 
+            var wasSubmitted = Boolean.TRUE.equals(document.getSubmitted());
             document.setSubmitted(true);
             document.setSubmittedAt(LocalDateTime.now());
-            document.setSubmittedBy(ctx.getCurrentUserId());
+            document.setSubmittedBy(Long.parseLong(ctx.getUserId()));
             document.setFileUrl(fileName);
             if (notes != null && !notes.isBlank()) {
                 document.setNotes(notes);
             }
-            document.setUpdatedBy(ctx.getCurrentUserId());
+            document.setUpdatedBy(Long.parseLong(ctx.getUserId()));
 
             document = documentRepository.save(document);
 
-            auditService.log(AuditLog.builder()
-                    .actorId(ctx.getCurrentUserId())
-                    .action("UPLOAD_TPA_DOCUMENT")
-                    .entityType("TPADocument")
-                    .entityId(document.getId())
-                    .tenantId(ctx.getTenantId())
-                    .branchId(Long.parseLong(ctx.getBranchId()))
-                    .build());
+            auditService.audit("TPADocument", String.valueOf(document.getId()),
+                    AuditLog.AuditAction.UPDATE,
+                    Map.of("submitted", String.valueOf(wasSubmitted)),
+                    Map.of("submitted", "true",
+                            "documentType", document.getDocumentType()),
+                    UUID.randomUUID().toString());
 
-            outboxPublisher.publish(new OutboxEvent(
+            outboxEventService.publish("TPADocument", String.valueOf(document.getId()),
                     "tpa.document.uploaded",
-                    "TPADocument",
-                    document.getId(),
-                    ctx.getTenantId(),
-                    Long.parseLong(ctx.getBranchId())
-            ));
+                    Map.of("documentId", document.getId(),
+                            "tpaCaseId", document.getTpaCaseId()));
 
             return toDocumentResponse(document);
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to upload document: {}", e.getMessage(), e);
-            throw new ApiException("UPLOAD_FAILED", "Failed to upload document: " + e.getMessage());
+            throw new BusinessException("UPLOAD_FAILED", "Failed to upload document: " + e.getMessage());
         }
     }
 
@@ -475,11 +439,9 @@ public class TPAService {
     }
 
     private String generateCaseNumber() {
-        var ctx = tenantContext.current();
         var month = YearMonth.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"));
         var sequence = 1;
-        var prefix = String.format(CASE_NUMBER_FORMAT, Long.parseLong(month), sequence);
-        return prefix;
+        return String.format(CASE_NUMBER_FORMAT, Long.parseLong(month), sequence);
     }
 
     private String generateFileUrl(Long documentId, String originalFilename) {

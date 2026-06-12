@@ -1,7 +1,6 @@
 package com.katixo.hospital.billing;
 
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.patient.Patient;
+import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
+/**
+ * Read-only patient-portal view over billing data. Payments are owned by the ERP
+ * unified ledger (CLAUDE.md billing ownership), so payment history cannot be sourced
+ * from this service — the endpoint keeps its response shape and returns an empty list.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -23,36 +26,33 @@ public class PatientPortalService {
 
     private final PatientBillRepository billRepository;
     private final HospitalChargeRepository chargeRepository;
+    private final BillErpInvoiceRefRepository erpRefRepository;
     private final PatientRepository patientRepository;
-    private final TenantContext tenantContext;
 
     public PatientDashboardResponse getPatientDashboard(Long patientId) {
-        var ctx = tenantContext.current();
-        var patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ApiException("PATIENT_NOT_FOUND", "Patient not found"));
-
         validatePatientAccess(patientId);
+        var ctx = TenantContext.get();
 
-        var bills = billRepository.findByPatientIdAndTenantIdAndStatus(
-                patientId,
-                ctx.getTenantId(),
-                PatientBill.BillStatus.ACTIVE
-        );
+        var patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                        patientId, ctx.getTenantId(), Long.parseLong(ctx.getBranchId()))
+                .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND", "Patient not found"));
+
+        var bills = billRepository.findByTenantIdAndPatientIdOrderByCreatedAtDesc(
+                ctx.getTenantId(), patientId);
 
         var recentBills = bills.stream()
                 .limit(5)
                 .map(this::toBillResponse)
-                .collect(Collectors.toList());
+                .toList();
 
         var totalOutstanding = bills.stream()
-                .map(PatientBill::getGrandTotal)
+                .filter(b -> b.getBillStatus() == PatientBill.BillStatus.FINAL)
+                .map(PatientBill::getNetAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        var paidBills = billRepository.findByPatientIdAndTenantIdAndStatus(
-                patientId,
-                ctx.getTenantId(),
-                PatientBill.BillStatus.PAID
-        ).size();
+        var activeBills = (int) bills.stream()
+                .filter(b -> b.getBillStatus() != PatientBill.BillStatus.CANCELLED)
+                .count();
 
         return PatientDashboardResponse.builder()
                 .patientId(patientId)
@@ -60,50 +60,47 @@ public class PatientPortalService {
                 .uhid(patient.getUhid())
                 .recentBills(recentBills)
                 .totalOutstanding(totalOutstanding)
-                .activeBills(bills.size())
-                .paidBills(paidBills)
+                .activeBills(activeBills)
+                .paidBills(null) // paid/unpaid is tracked in the ERP payment ledger, not here
                 .build();
     }
 
     public List<PatientBillResponse> getPatientBills(Long patientId, String status, int page, int size) {
         validatePatientAccess(patientId);
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
 
         List<PatientBill> bills;
         if (status != null && !status.isEmpty()) {
-            var billStatus = PatientBill.BillStatus.valueOf(status);
-            bills = billRepository.findByPatientIdAndTenantIdAndStatus(
-                    patientId,
-                    ctx.getTenantId(),
-                    billStatus
-            );
+            PatientBill.BillStatus billStatus;
+            try {
+                billStatus = PatientBill.BillStatus.valueOf(status);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException("INVALID_STATUS", "Unknown bill status: " + status);
+            }
+            bills = billRepository.findByTenantIdAndPatientIdAndBillStatusOrderByCreatedAtDesc(
+                    ctx.getTenantId(), patientId, billStatus);
         } else {
-            bills = billRepository.findByPatientIdAndTenantId(patientId, ctx.getTenantId());
+            bills = billRepository.findByTenantIdAndPatientIdOrderByCreatedAtDesc(
+                    ctx.getTenantId(), patientId);
         }
 
         return bills.stream()
                 .skip((long) page * size)
                 .limit(size)
                 .map(this::toBillResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public PatientBillResponse getPatientBillDetails(Long billId, Long patientId) {
-        var ctx = tenantContext.current();
-        var bill = billRepository.findById(billId)
-                .orElseThrow(() -> new ApiException("BILL_NOT_FOUND", "Bill not found"));
+        var ctx = TenantContext.get();
+        var bill = billRepository.findByIdAndTenantId(billId, ctx.getTenantId())
+                .orElseThrow(() -> new BusinessException("BILL_NOT_FOUND", "Bill not found"));
 
         if (!bill.getPatientId().equals(patientId)) {
-            throw new ApiException("UNAUTHORIZED", "You do not have access to this bill");
+            throw new BusinessException("UNAUTHORIZED", "You do not have access to this bill");
         }
 
-        var charges = chargeRepository.findByPatientIdAndSourceTypeAndStatus(
-                patientId,
-                null,
-                "ACTIVE"
-        );
-
-        var billResponse = toBillResponse(bill);
+        var charges = chargeRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
         var chargeItems = charges.stream()
                 .map(charge -> ChargeLineItem.builder()
                         .id(charge.getId())
@@ -111,51 +108,52 @@ public class PatientPortalService {
                         .serviceName(charge.getServiceName())
                         .category(charge.getCategory().name())
                         .quantity(charge.getQuantity())
-                        .unitRate(charge.getUnitRate())
-                        .totalAmount(charge.getTotalAmount())
+                        .unitRate(charge.getRate())
+                        .totalAmount(charge.getAmount())
                         .sourceType(charge.getSourceType().name())
                         .sourceId(charge.getSourceId())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
 
+        var erpTotal = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId).stream()
+                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        var billResponse = toBillResponse(bill);
+        billResponse.setErpInvoicesTotal(erpTotal);
+        billResponse.setGrandTotal(bill.getNetAmount().add(erpTotal));
         billResponse.setCharges(chargeItems);
         return billResponse;
     }
 
     public List<PaymentHistoryResponse> getPaymentHistory(Long patientId, int page, int size) {
         validatePatientAccess(patientId);
-
-        List<PaymentHistoryResponse> payments = new ArrayList<>();
-        // Placeholder for payment history - would integrate with payment module
-        return payments.stream()
-                .skip((long) page * size)
-                .limit(size)
-                .collect(Collectors.toList());
+        // Payment ledger is owned by the ERP service; no payment data exists in this service.
+        // Response shape is preserved; integration-service/ERP query can fill this later.
+        return List.of();
     }
 
     public PatientPortalController.PatientOutstandingResponse getOutstandingAmount(Long patientId) {
         validatePatientAccess(patientId);
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
 
-        var bills = billRepository.findByPatientIdAndTenantIdAndStatus(
-                patientId,
-                ctx.getTenantId(),
-                PatientBill.BillStatus.ACTIVE
-        );
+        var bills = billRepository.findByTenantIdAndPatientIdAndBillStatusOrderByCreatedAtDesc(
+                ctx.getTenantId(), patientId, PatientBill.BillStatus.FINAL);
 
         var totalOutstanding = bills.stream()
-                .map(PatientBill::getGrandTotal)
+                .map(PatientBill::getNetAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        var oldestBill = bills.stream()
-                .min(java.util.Comparator.comparing(PatientBill::getGeneratedAt))
+        LocalDateTime oldestBillDate = bills.stream()
+                .map(PatientBill::getCreatedAt)
+                .min(Comparator.naturalOrder())
                 .orElse(null);
 
         return PatientPortalController.PatientOutstandingResponse.builder()
                 .patientId(patientId)
                 .totalOutstanding(totalOutstanding)
                 .billCount(bills.size())
-                .oldestBillDate(oldestBill != null ? oldestBill.getGeneratedAt() : null)
+                .oldestBillDate(oldestBillDate)
                 .build();
     }
 
@@ -164,23 +162,28 @@ public class PatientPortalService {
                 .id(bill.getId())
                 .billNumber(bill.getBillNumber())
                 .patientId(bill.getPatientId())
-                .billStatus(bill.getStatus().name())
-                .hospitalChargesTotal(bill.getHospitalChargesTotal())
-                .erpInvoicesTotal(bill.getErpInvoicesTotal())
+                .billStatus(bill.getBillStatus().name())
+                .hospitalChargesTotal(bill.getChargesTotal())
+                .erpInvoicesTotal(null) // populated in the bill-detail view from ERP invoice refs
                 .discountAmount(bill.getDiscountAmount())
-                .grandTotal(bill.getGrandTotal())
-                .generatedAt(bill.getGeneratedAt())
+                .grandTotal(bill.getNetAmount())
+                .generatedAt(bill.getCreatedAt())
                 .finalizedAt(bill.getFinalizedAt())
-                .dueDate(bill.getDueDate())
+                .dueDate(null) // due dates are not tracked on PatientBill
                 .build();
     }
 
+    /** Portal callers may only see their own data: JWT userId must equal the patientId. */
     private void validatePatientAccess(Long patientId) {
-        var ctx = tenantContext.current();
-        var currentUserId = Long.parseLong(ctx.getCurrentUserId());
-
+        var ctx = TenantContext.get();
+        Long currentUserId;
+        try {
+            currentUserId = Long.parseLong(ctx.getUserId());
+        } catch (RuntimeException e) {
+            throw new BusinessException("UNAUTHORIZED", "Patient identity could not be resolved");
+        }
         if (!currentUserId.equals(patientId)) {
-            throw new ApiException("UNAUTHORIZED", "You cannot access other patients' information");
+            throw new BusinessException("UNAUTHORIZED", "You cannot access other patients' information");
         }
     }
 }

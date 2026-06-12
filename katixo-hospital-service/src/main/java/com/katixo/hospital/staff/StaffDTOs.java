@@ -45,7 +45,7 @@ class UpdateStaffRequest {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StaffResponse {
+class StaffResponse {
     public Long id;
     public String firstName;
     public String lastName;

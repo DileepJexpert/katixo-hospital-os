@@ -2,9 +2,9 @@ package com.katixo.hospital.nursing;
 
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,18 +25,18 @@ public class NursingVitalService {
 
     private final NursingVitalRepository vitalRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     public NursingVitalResponse recordVital(RecordVitalRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var vital = new NursingVital();
         vital.setTenantId(ctx.getTenantId());
         vital.setHospitalGroupId(Long.parseLong(ctx.getHospitalGroupId()));
         vital.setBranchId(Long.parseLong(ctx.getBranchId()));
         vital.setAdmissionId(request.admissionId);
         vital.setPatientId(request.patientId);
-        vital.setRecordedBy(ctx.getCurrentUserId());
+        vital.setRecordedBy(userId);
 
         vital.setTemperatureCelsius(request.temperatureCelsius);
         vital.setHeartRateBpm(request.heartRateBpm);
@@ -57,28 +59,25 @@ public class NursingVitalService {
         }
 
         vital.setRoundStatus(NursingVital.RoundStatus.RECORDED);
-        vital.setCreatedBy(ctx.getCurrentUserId());
-        vital.setUpdatedBy(ctx.getCurrentUserId());
+        vital.setCreatedBy(userId);
+        vital.setUpdatedBy(userId);
+        vital.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         vital = vitalRepository.save(vital);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("RECORD_VITAL")
-                .entityType("NursingVital")
-                .entityId(vital.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingVital", String.valueOf(vital.getId()),
+                AuditLog.AuditAction.CREATE, null,
+                Map.of("roundStatus", vital.getRoundStatus().name(),
+                        "isAbnormal", abnormal),
+                UUID.randomUUID().toString());
 
         if (abnormal) {
-            outboxPublisher.publish(new OutboxEvent(
+            outboxEventService.publish("NursingVital", String.valueOf(vital.getId()),
                     "vital.abnormal",
-                    "NursingVital",
-                    vital.getId(),
-                    ctx.getTenantId(),
-                    Long.parseLong(ctx.getBranchId())
-            ));
+                    Map.of("vitalId", vital.getId(),
+                            "admissionId", vital.getAdmissionId(),
+                            "patientId", vital.getPatientId(),
+                            "abnormalityNotes", vital.getAbnormalityNotes()));
         }
 
         return toResponse(vital);
@@ -92,7 +91,7 @@ public class NursingVitalService {
     }
 
     public List<NursingVitalResponse> getAbnormalVitals() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var vitals = vitalRepository.findByTenantIdAndBranchIdAndIsAbnormalTrue(
                 ctx.getTenantId(),
                 Long.parseLong(ctx.getBranchId())
@@ -103,28 +102,28 @@ public class NursingVitalService {
     }
 
     public NursingVitalResponse reviewVital(Long vitalId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var vital = vitalRepository.findById(vitalId)
-                .orElseThrow(() -> new ApiException("VITAL_NOT_FOUND", "Vital record not found"));
+                .orElseThrow(() -> new BusinessException("VITAL_NOT_FOUND", "Vital record not found"));
 
         if (!vital.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
+        var beforeStatus = vital.getRoundStatus().name();
+
         vital.setRoundStatus(NursingVital.RoundStatus.REVIEWED);
-        vital.setReviewedBy(ctx.getCurrentUserId());
+        vital.setReviewedBy(userId);
         vital.setReviewedAt(LocalDateTime.now());
-        vital.setUpdatedBy(ctx.getCurrentUserId());
+        vital.setUpdatedBy(userId);
         vital = vitalRepository.save(vital);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("REVIEW_VITAL")
-                .entityType("NursingVital")
-                .entityId(vital.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingVital", String.valueOf(vital.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("roundStatus", beforeStatus),
+                Map.of("roundStatus", vital.getRoundStatus().name()),
+                UUID.randomUUID().toString());
 
         return toResponse(vital);
     }

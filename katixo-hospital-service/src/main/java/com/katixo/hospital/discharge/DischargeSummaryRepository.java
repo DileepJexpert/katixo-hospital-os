@@ -7,11 +7,10 @@ import java.util.Optional;
 
 public interface DischargeSummaryRepository extends JpaRepository<DischargeSummary, Long> {
     Optional<DischargeSummary> findByAdmissionId(Long admissionId);
-    List<DischargeSummary> findByPatientIdAndStatus(Long patientId, String status);
-    List<DischargeSummary> findByTenantIdAndBranchIdAndDischargeSummaryStatus(
-            String tenantId, Long branchId, DischargeSummary.DischargeSummaryStatus status
+    List<DischargeSummary> findByTenantIdAndBranchIdAndDischargeStatus(
+            String tenantId, Long branchId, DischargeSummary.DischargeSummaryStatus dischargeStatus
     );
     List<DischargeSummary> findByTenantIdAndBranchIdAndDischargeStatusAndApprovedByIsNull(
-            String tenantId, Long branchId, DischargeSummary.DischargeSummaryStatus status
+            String tenantId, Long branchId, DischargeSummary.DischargeSummaryStatus dischargeStatus
     );
 }

@@ -50,6 +50,24 @@ public class OPDController {
         return respond(VisitResponse.from(visit), "Checked in, token issued", HttpStatus.CREATED);
     }
 
+    @GetMapping("/appointments/patient/{patientId}")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<AppointmentResponse>>> patientAppointments(@PathVariable Long patientId) {
+        List<AppointmentResponse> appointments = opdService.listPatientAppointments(patientId).stream()
+                .map(AppointmentResponse::from)
+                .toList();
+        return respond(appointments, "Patient appointments", HttpStatus.OK);
+    }
+
+    @PostMapping("/appointments/{appointmentId}/cancel")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> cancelAppointment(
+            @PathVariable Long appointmentId,
+            @Valid @RequestBody CancelAppointmentRequest request) {
+        Appointment appointment = opdService.cancelAppointment(appointmentId, request.getReason());
+        return respond(AppointmentResponse.from(appointment), "Appointment cancelled", HttpStatus.OK);
+    }
+
     @GetMapping("/queue/doctor/{doctorId}")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<TokenResponse>>> worklist(@PathVariable Long doctorId) {

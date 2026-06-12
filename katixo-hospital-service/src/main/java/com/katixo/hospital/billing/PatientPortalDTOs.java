@@ -13,63 +13,63 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PatientBillResponse {
-    public Long id;
-    public String billNumber;
-    public Long patientId;
-    public String patientName;
-    public String billStatus;
-    public BigDecimal hospitalChargesTotal;
-    public BigDecimal erpInvoicesTotal;
-    public BigDecimal discountAmount;
-    public BigDecimal grandTotal;
-    public LocalDateTime generatedAt;
-    public LocalDateTime finalizedAt;
-    public LocalDateTime dueDate;
-    public List<ChargeLineItem> charges;
+class PatientBillResponse {
+    private Long id;
+    private String billNumber;
+    private Long patientId;
+    private String patientName;
+    private String billStatus;
+    private BigDecimal hospitalChargesTotal;
+    private BigDecimal erpInvoicesTotal;
+    private BigDecimal discountAmount;
+    private BigDecimal grandTotal;
+    private LocalDateTime generatedAt;
+    private LocalDateTime finalizedAt;
+    private LocalDateTime dueDate;
+    private List<ChargeLineItem> charges;
 }
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ChargeLineItem {
-    public Long id;
-    public String serviceCode;
-    public String serviceName;
-    public String category;
-    public Integer quantity;
-    public BigDecimal unitRate;
-    public BigDecimal totalAmount;
-    public String sourceType;
-    public Long sourceId;
+class ChargeLineItem {
+    private Long id;
+    private String serviceCode;
+    private String serviceName;
+    private String category;
+    private Integer quantity;
+    private BigDecimal unitRate;
+    private BigDecimal totalAmount;
+    private String sourceType;
+    private Long sourceId;
 }
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PatientDashboardResponse {
-    public Long patientId;
-    public String patientName;
-    public String uhid;
-    public List<PatientBillResponse> recentBills;
-    public BigDecimal totalOutstanding;
-    public Integer activeBills;
-    public Integer paidBills;
+class PatientDashboardResponse {
+    private Long patientId;
+    private String patientName;
+    private String uhid;
+    private List<PatientBillResponse> recentBills;
+    private BigDecimal totalOutstanding;
+    private Integer activeBills;
+    private Integer paidBills;
 }
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class PaymentHistoryResponse {
-    public Long id;
-    public Long billId;
-    public String billNumber;
-    public BigDecimal amount;
-    public String paymentMethod;
-    public String status;
-    public LocalDateTime paymentDate;
-    public String transactionRef;
+class PaymentHistoryResponse {
+    private Long id;
+    private Long billId;
+    private String billNumber;
+    private BigDecimal amount;
+    private String paymentMethod;
+    private String status;
+    private LocalDateTime paymentDate;
+    private String transactionRef;
 }

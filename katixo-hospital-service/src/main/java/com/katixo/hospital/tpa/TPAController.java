@@ -1,6 +1,6 @@
 package com.katixo.hospital.tpa;
 
-import com.katixo.hospital.common.ApiResponse;
+import com.katixo.hospital.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/tpa")
@@ -23,15 +24,14 @@ public class TPAController {
     @PreAuthorize("hasAnyRole('ADMIN', 'FRONT_DESK')")
     public ResponseEntity<ApiResponse<TPACaseResponse>> registerCase(@RequestBody RegisterTPACaseRequest request) {
         var response = tpaService.registerCase(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "TPA case registered successfully"));
+        return respond(response, "TPA case registered successfully", HttpStatus.CREATED);
     }
 
     @GetMapping("/cases/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'FRONT_DESK')")
     public ResponseEntity<ApiResponse<TPACaseResponse>> getCaseById(@PathVariable Long id) {
         var response = tpaService.getCaseById(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "TPA case retrieved"));
+        return respond(response, "TPA case retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/cases/status/{status}")
@@ -39,14 +39,14 @@ public class TPAController {
     public ResponseEntity<ApiResponse<List<TPACaseResponse>>> getCasesByStatus(@PathVariable String status) {
         var caseStatus = TPACase.CaseStatus.valueOf(status);
         var response = tpaService.getCasesByStatus(caseStatus);
-        return ResponseEntity.ok(ApiResponse.success(response, "TPA cases retrieved"));
+        return respond(response, "TPA cases retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/cases/admission/{admissionId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'FRONT_DESK')")
     public ResponseEntity<ApiResponse<List<TPACaseResponse>>> getCasesByAdmission(@PathVariable Long admissionId) {
         var response = tpaService.getCasesByAdmission(admissionId);
-        return ResponseEntity.ok(ApiResponse.success(response, "TPA cases retrieved"));
+        return respond(response, "TPA cases retrieved", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/preauth")
@@ -55,7 +55,7 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody SubmitPreauthRequest request) {
         var response = tpaService.submitPreauth(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Preauth submitted"));
+        return respond(response, "Preauth submitted", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/preauth/approve")
@@ -64,7 +64,7 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody ApprovePreauthRequest request) {
         var response = tpaService.approvePreauth(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Preauth approved"));
+        return respond(response, "Preauth approved", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/preauth/reject")
@@ -73,7 +73,7 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody RejectPreauthRequest request) {
         var response = tpaService.rejectPreauth(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Preauth rejected"));
+        return respond(response, "Preauth rejected", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/claim")
@@ -82,7 +82,7 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody SubmitClaimRequest request) {
         var response = tpaService.submitClaim(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Claim submitted"));
+        return respond(response, "Claim submitted", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/claim/approve")
@@ -91,7 +91,7 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody ApproveClaimRequest request) {
         var response = tpaService.approveClaim(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Claim approved"));
+        return respond(response, "Claim approved", HttpStatus.OK);
     }
 
     @PostMapping("/cases/{id}/claim/reject")
@@ -100,21 +100,21 @@ public class TPAController {
             @PathVariable Long id,
             @RequestBody RejectClaimRequest request) {
         var response = tpaService.rejectClaim(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Claim rejected"));
+        return respond(response, "Claim rejected", HttpStatus.OK);
     }
 
     @GetMapping("/cases/{caseId}/documents/required")
     @PreAuthorize("hasAnyRole('ADMIN', 'FRONT_DESK', 'DOCTOR')")
     public ResponseEntity<ApiResponse<List<TPADocumentResponse>>> getRequiredDocuments(@PathVariable Long caseId) {
         var response = tpaService.getRequiredDocuments(caseId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Required documents retrieved"));
+        return respond(response, "Required documents retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/cases/{caseId}/documents/pending")
     @PreAuthorize("hasAnyRole('ADMIN', 'FRONT_DESK', 'DOCTOR')")
     public ResponseEntity<ApiResponse<List<TPADocumentResponse>>> getPendingDocuments(@PathVariable Long caseId) {
         var response = tpaService.getPendingDocuments(caseId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Pending documents retrieved"));
+        return respond(response, "Pending documents retrieved", HttpStatus.OK);
     }
 
     @PostMapping("/documents/{documentId}/submit")
@@ -123,7 +123,7 @@ public class TPAController {
             @PathVariable Long documentId,
             @RequestBody SubmitDocumentRequest request) {
         var response = tpaService.submitDocument(documentId, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Document submitted"));
+        return respond(response, "Document submitted", HttpStatus.OK);
     }
 
     @PostMapping("/documents/{documentId}/upload")
@@ -133,6 +133,16 @@ public class TPAController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "notes", required = false) String notes) {
         var response = tpaService.uploadDocument(documentId, file, notes);
-        return ResponseEntity.ok(ApiResponse.success(response, "Document uploaded successfully"));
+        return respond(response, "Document uploaded successfully", HttpStatus.OK);
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
+        return ResponseEntity.status(status).body(ApiResponse.<T>builder()
+                .success(true)
+                .status(status.value())
+                .message(message)
+                .correlationId(UUID.randomUUID())
+                .data(data)
+                .build());
     }
 }

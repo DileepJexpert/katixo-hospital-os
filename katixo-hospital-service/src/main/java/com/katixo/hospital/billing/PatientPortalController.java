@@ -1,6 +1,6 @@
 package com.katixo.hospital.billing;
 
-import com.katixo.hospital.common.ApiResponse;
+import com.katixo.hospital.common.dto.ApiResponse;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,11 +8,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/patient-portal/billing")
@@ -21,16 +23,12 @@ import java.util.List;
 public class PatientPortalController {
 
     private final PatientPortalService patientPortalService;
-    private final TenantContext tenantContext;
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyRole('PATIENT')")
     public ResponseEntity<ApiResponse<PatientDashboardResponse>> getDashboard() {
-        var ctx = tenantContext.current();
-        var dashboard = patientPortalService.getPatientDashboard(
-                Long.parseLong(ctx.getCurrentUserId())
-        );
-        return ResponseEntity.ok(ApiResponse.success(dashboard, "Dashboard retrieved"));
+        var dashboard = patientPortalService.getPatientDashboard(currentPatientId());
+        return respond(dashboard, "Dashboard retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/bills")
@@ -39,25 +37,15 @@ public class PatientPortalController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
-        var ctx = tenantContext.current();
-        var bills = patientPortalService.getPatientBills(
-                Long.parseLong(ctx.getCurrentUserId()),
-                status,
-                page,
-                size
-        );
-        return ResponseEntity.ok(ApiResponse.success(bills, "Bills retrieved"));
+        var bills = patientPortalService.getPatientBills(currentPatientId(), status, page, size);
+        return respond(bills, "Bills retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/bills/{billId}")
     @PreAuthorize("hasAnyRole('PATIENT')")
     public ResponseEntity<ApiResponse<PatientBillResponse>> getBillDetails(@PathVariable Long billId) {
-        var ctx = tenantContext.current();
-        var bill = patientPortalService.getPatientBillDetails(
-                billId,
-                Long.parseLong(ctx.getCurrentUserId())
-        );
-        return ResponseEntity.ok(ApiResponse.success(bill, "Bill retrieved"));
+        var bill = patientPortalService.getPatientBillDetails(billId, currentPatientId());
+        return respond(bill, "Bill retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/payments")
@@ -65,23 +53,29 @@ public class PatientPortalController {
     public ResponseEntity<ApiResponse<List<PaymentHistoryResponse>>> getPaymentHistory(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
-        var ctx = tenantContext.current();
-        var payments = patientPortalService.getPaymentHistory(
-                Long.parseLong(ctx.getCurrentUserId()),
-                page,
-                size
-        );
-        return ResponseEntity.ok(ApiResponse.success(payments, "Payment history retrieved"));
+        var payments = patientPortalService.getPaymentHistory(currentPatientId(), page, size);
+        return respond(payments, "Payment history retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/outstanding")
     @PreAuthorize("hasAnyRole('PATIENT')")
     public ResponseEntity<ApiResponse<PatientOutstandingResponse>> getOutstandingAmount() {
-        var ctx = tenantContext.current();
-        var outstanding = patientPortalService.getOutstandingAmount(
-                Long.parseLong(ctx.getCurrentUserId())
-        );
-        return ResponseEntity.ok(ApiResponse.success(outstanding, "Outstanding amount retrieved"));
+        var outstanding = patientPortalService.getOutstandingAmount(currentPatientId());
+        return respond(outstanding, "Outstanding amount retrieved", HttpStatus.OK);
+    }
+
+    private Long currentPatientId() {
+        return Long.parseLong(TenantContext.get().getUserId());
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
+        return ResponseEntity.status(status).body(ApiResponse.<T>builder()
+                .success(true)
+                .status(status.value())
+                .message(message)
+                .correlationId(UUID.randomUUID())
+                .data(data)
+                .build());
     }
 
     @Data
@@ -89,9 +83,9 @@ public class PatientPortalController {
     @AllArgsConstructor
     @Builder
     public static class PatientOutstandingResponse {
-        public Long patientId;
-        public java.math.BigDecimal totalOutstanding;
-        public Integer billCount;
-        public java.time.LocalDateTime oldestBillDate;
+        private Long patientId;
+        private java.math.BigDecimal totalOutstanding;
+        private Integer billCount;
+        private java.time.LocalDateTime oldestBillDate;
     }
 }

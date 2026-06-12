@@ -4,337 +4,349 @@ import 'package:provider/provider.dart';
 import '../../core/api/discharge_models.dart';
 import '../../core/api/http_client.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/app_shell.dart';
+import '../../core/widgets/status_chip.dart';
+import '../front_desk/registration_screen.dart' show MessageBanner;
 
+/// Doctor discharge summary workflow (body only — lives inside DoctorHome
+/// shell): load by admission ID, draft the summary, submit → approve → finalize.
 class DischargeSummaryScreen extends StatefulWidget {
-  final int admissionId;
-  final int patientId;
-  final bool isViewOnly;
-
-  const DischargeSummaryScreen({
-    required this.admissionId,
-    required this.patientId,
-    this.isViewOnly = false,
-    super.key,
-  });
+  const DischargeSummaryScreen({super.key});
 
   @override
   State<DischargeSummaryScreen> createState() => _DischargeSummaryScreenState();
 }
 
 class _DischargeSummaryScreenState extends State<DischargeSummaryScreen> {
+  final _admissionCtrl = TextEditingController();
+  final _patientCtrl = TextEditingController();
+  final _diagnosisCtrl = TextEditingController();
+  final _treatmentCtrl = TextEditingController();
+  final _medicationsCtrl = TextEditingController();
+  final _followUpCtrl = TextEditingController();
+
   DischargeSummaryResponse? _summary;
-  bool _loading = true;
+  String _dischargeType = 'NORMAL';
+  bool _loading = false;
+  bool _notFound = false;
   String? _error;
-  bool _isEditing = false;
+  String? _success;
 
-  late TextEditingController _diagnosisController;
-  late TextEditingController _treatmentController;
-  late TextEditingController _medicationsController;
-  late TextEditingController _followUpController;
+  static const _dischargeTypes = ['NORMAL', 'LAMA', 'DEATH', 'REFERRED'];
 
-  @override
-  void initState() {
-    super.initState();
-    _diagnosisController = TextEditingController();
-    _treatmentController = TextEditingController();
-    _medicationsController = TextEditingController();
-    _followUpController = TextEditingController();
-    _loadSummary();
-  }
+  bool get _isDraft => _summary?.dischargeStatus == 'DRAFT';
 
   @override
   void dispose() {
-    _diagnosisController.dispose();
-    _treatmentController.dispose();
-    _medicationsController.dispose();
-    _followUpController.dispose();
+    _admissionCtrl.dispose();
+    _patientCtrl.dispose();
+    _diagnosisCtrl.dispose();
+    _treatmentCtrl.dispose();
+    _medicationsCtrl.dispose();
+    _followUpCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSummary() async {
-    setState(() => _loading = true);
+  void _fillControllers(DischargeSummaryResponse s) {
+    _diagnosisCtrl.text = s.diagnosis ?? '';
+    _treatmentCtrl.text = s.treatmentSummary ?? '';
+    _medicationsCtrl.text = s.medications ?? '';
+    _followUpCtrl.text = s.followUpInstructions ?? '';
+    _dischargeType = s.dischargeType;
+  }
+
+  Future<void> _load() async {
+    final admissionId = int.tryParse(_admissionCtrl.text.trim());
+    if (admissionId == null) {
+      setState(() => _error = 'Enter a valid admission ID');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+      _summary = null;
+      _notFound = false;
+    });
     try {
       final api = context.read<ApiClient>();
       final summary = await api.get<DischargeSummaryResponse>(
-        '/api/v1/discharge/admissions/${widget.admissionId}',
+        '/api/v1/discharge/admissions/$admissionId',
         fromJson: (json) =>
             DischargeSummaryResponse.fromJson(json as Map<String, dynamic>),
       );
       setState(() {
         _summary = summary;
-        _diagnosisController.text = summary.diagnosis ?? '';
-        _treatmentController.text = summary.treatmentSummary ?? '';
-        _medicationsController.text = summary.medications ?? '';
-        _followUpController.text = summary.followUpInstructions ?? '';
-        _error = null;
+        _fillControllers(summary);
       });
+    } on ApiException {
+      // No summary yet for this admission — show the create form.
+      setState(() => _notFound = true);
     } catch (e) {
-      setState(() {
-        if (e.toString().contains('404')) {
-          _summary = null;
-        } else {
-          _error = 'Failed to load discharge summary: $e';
-        }
-      });
+      setState(() => _error = 'Load failed: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _createSummary() async {
-    try {
-      final api = context.read<ApiClient>();
-      final request = CreateDischargeSummaryRequest(
-        admissionId: widget.admissionId,
-        patientId: widget.patientId,
-        diagnosis: _diagnosisController.text,
-        treatmentSummary: _treatmentController.text,
-        medications: _medicationsController.text,
-        followUpInstructions: _followUpController.text,
-      );
-
-      final summary = await api.post(
-        '/api/v1/discharge/summaries',
-        request.toJson(),
-        fromJson: (json) =>
-            DischargeSummaryResponse.fromJson(json as Map<String, dynamic>),
-      );
-
-      setState(() => _summary = summary);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Discharge summary created')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+  Future<void> _create() async {
+    final admissionId = int.tryParse(_admissionCtrl.text.trim());
+    final patientId = int.tryParse(_patientCtrl.text.trim());
+    if (admissionId == null || patientId == null) {
+      setState(() => _error = 'Admission ID and patient ID are required');
+      return;
     }
+    await _send(
+      'POST',
+      '/api/v1/discharge/summaries',
+      {
+        'admissionId': admissionId,
+        'patientId': patientId,
+        'diagnosis': _diagnosisCtrl.text.trim(),
+        'treatmentSummary': _treatmentCtrl.text.trim(),
+        'medications': _medicationsCtrl.text.trim(),
+        'followUpInstructions': _followUpCtrl.text.trim(),
+        'dischargeType': _dischargeType,
+      },
+      'Draft created',
+    );
   }
 
-  Future<void> _updateSummary() async {
+  Future<void> _saveDraft() async {
+    final s = _summary;
+    if (s == null) return;
+    await _send(
+      'PUT',
+      '/api/v1/discharge/summaries/${s.id}',
+      {
+        'diagnosis': _diagnosisCtrl.text.trim(),
+        'treatmentSummary': _treatmentCtrl.text.trim(),
+        'medications': _medicationsCtrl.text.trim(),
+        'followUpInstructions': _followUpCtrl.text.trim(),
+      },
+      'Draft saved',
+    );
+  }
+
+  Future<void> _transition(String action, String successMsg) async {
+    final s = _summary;
+    if (s == null) return;
+    await _send('POST', '/api/v1/discharge/summaries/${s.id}/$action',
+        const {}, successMsg);
+  }
+
+  Future<void> _send(
+      String method, String path, Object body, String successMsg) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+    });
     try {
       final api = context.read<ApiClient>();
-      final request = UpdateDischargeSummaryRequest(
-        diagnosis: _diagnosisController.text,
-        treatmentSummary: _treatmentController.text,
-        medications: _medicationsController.text,
-        followUpInstructions: _followUpController.text,
-      );
-
-      final updated = await api.put(
-        '/api/v1/discharge/summaries/${_summary!.id}',
-        request.toJson(),
-        fromJson: (json) =>
-            DischargeSummaryResponse.fromJson(json as Map<String, dynamic>),
-      );
-
+      DischargeSummaryResponse parse(dynamic json) =>
+          DischargeSummaryResponse.fromJson(json as Map<String, dynamic>);
+      final summary = method == 'PUT'
+          ? await api.put<DischargeSummaryResponse>(path, body,
+              fromJson: parse)
+          : await api.post<DischargeSummaryResponse>(path, body,
+              fromJson: parse);
       setState(() {
-        _summary = updated;
-        _isEditing = false;
+        _summary = summary;
+        _notFound = false;
+        _success = successMsg;
+        _fillControllers(summary);
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Discharge summary updated')),
-        );
-      }
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
-  }
-
-  Future<void> _submitForApproval() async {
-    try {
-      final api = context.read<ApiClient>();
-      final updated = await api.post(
-        '/api/v1/discharge/summaries/${_summary!.id}/submit',
-        {},
-        fromJson: (json) =>
-            DischargeSummaryResponse.fromJson(json as Map<String, dynamic>),
-      );
-
-      setState(() => _summary = updated);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Discharge summary submitted for approval')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+      setState(() => _error = 'Action failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Discharge Summary'),
-        actions: [
-          if (!widget.isViewOnly &&
-              _summary != null &&
-              _summary!.dischargeStatus == 'DRAFT' &&
-              !_isEditing)
-            TextButton(
-              onPressed: () => setState(() => _isEditing = true),
-              child: const Text('Edit'),
-            ),
-          if (_isEditing)
-            TextButton(
-              onPressed: _updateSummary,
-              child: const Text('Save'),
-            ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : _summary == null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('No discharge summary yet'),
-                          const SizedBox(height: Space.md),
-                          if (!widget.isViewOnly)
-                            ElevatedButton(
-                              onPressed: () {
-                                setState(() => _isEditing = true);
-                                _createSummary();
-                              },
-                              child: const Text('Create Summary'),
-                            ),
-                        ],
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(Space.md),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildStatusCard(),
-                            const SizedBox(height: Space.lg),
-                            if (_isEditing)
-                              _buildEditForm()
-                            else
-                              _buildSummaryView(),
-                            if (!widget.isViewOnly &&
-                                _summary!.dischargeStatus == 'DRAFT' &&
-                                !_isEditing)
-                              Padding(
-                                padding: const EdgeInsets.only(top: Space.lg),
-                                child: ElevatedButton.icon(
-                                  onPressed: _submitForApproval,
-                                  icon: const Icon(Icons.upload),
-                                  label: const Text('Submit for Approval'),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-    );
-  }
+    final theme = Theme.of(context);
 
-  Widget _buildStatusCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Space.md),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Status', style: Theme.of(context).textTheme.labelMedium),
-                Text(_summary!.statusDisplay,
-                    style: Theme.of(context).textTheme.titleMedium),
-              ],
-            ),
-            Chip(
-              label: Text(_summary!.dischargeType),
-              backgroundColor: Colors.blue.shade100,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditForm() {
-    return Column(
-      children: [
-        _buildField('Diagnosis', _diagnosisController, maxLines: 4),
-        const SizedBox(height: Space.md),
-        _buildField('Treatment Summary', _treatmentController, maxLines: 4),
-        const SizedBox(height: Space.md),
-        _buildField('Medications', _medicationsController, maxLines: 3),
-        const SizedBox(height: Space.md),
-        _buildField('Follow-up Instructions', _followUpController, maxLines: 3),
-      ],
-    );
-  }
-
-  Widget _buildSummaryView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSection('Diagnosis', _summary!.diagnosis),
-        _buildSection('Treatment Summary', _summary!.treatmentSummary),
-        _buildSection('Medications', _summary!.medications),
-        _buildSection('Follow-up Instructions', _summary!.followUpInstructions),
-        if (_summary!.restrictions != null)
-          _buildSection('Restrictions', _summary!.restrictions),
-        if (_summary!.warningSymptoms != null)
-          _buildSection('Warning Symptoms', _summary!.warningSymptoms),
-      ],
-    );
-  }
-
-  Widget _buildField(
-    String label,
-    TextEditingController controller, {
-    int maxLines = 1,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-    );
-  }
-
-  Widget _buildSection(String title, String? content) {
-    if (content == null || content.isEmpty) return const SizedBox();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Space.lg),
+    return PageContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: Space.sm),
-          Container(
-            padding: const EdgeInsets.all(Space.md),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(Corners.sm),
-            ),
-            child: Text(content),
+          Text('Discharge Summary', style: theme.textTheme.titleLarge),
+          const SizedBox(height: Space.md),
+          if (_error != null) ...[
+            MessageBanner.error(_error!),
+            const SizedBox(height: Space.md),
+          ],
+          if (_success != null) ...[
+            MessageBanner.success(_success!),
+            const SizedBox(height: Space.md),
+          ],
+
+          // Admission lookup
+          Row(
+            children: [
+              SizedBox(
+                width: 220,
+                child: TextField(
+                  controller: _admissionCtrl,
+                  enabled: !_loading,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Admission ID',
+                    prefixIcon: Icon(Icons.search, size: 20),
+                  ),
+                  onSubmitted: (_) => _load(),
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              FilledButton(
+                onPressed: _loading ? null : _load,
+                child: const Text('Load'),
+              ),
+            ],
           ),
+
+          if (_summary != null || _notFound) ...[
+            const SizedBox(height: Space.md),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(Space.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          _summary == null
+                              ? 'New discharge summary'
+                              : 'Admission #${_summary!.admissionId} • Patient #${_summary!.patientId}',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        if (_summary != null)
+                          StatusChip.auto(_summary!.dischargeStatus),
+                      ],
+                    ),
+                    const SizedBox(height: Space.md),
+
+                    if (_notFound) ...[
+                      SizedBox(
+                        width: 220,
+                        child: TextField(
+                          controller: _patientCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Patient ID *'),
+                        ),
+                      ),
+                      const SizedBox(height: Space.md),
+                    ],
+
+                    // Discharge type — editable only while drafting/creating
+                    if (_notFound || _isDraft) ...[
+                      Wrap(
+                        spacing: Space.sm,
+                        children: [
+                          for (final t in _dischargeTypes)
+                            ChoiceChip(
+                              label: Text(t,
+                                  style: theme.textTheme.labelSmall),
+                              selected: _dischargeType == t,
+                              visualDensity: VisualDensity.compact,
+                              onSelected: _notFound
+                                  ? (_) => setState(() => _dischargeType = t)
+                                  : null,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: Space.md),
+                    ],
+
+                    _field('Diagnosis', _diagnosisCtrl, lines: 2),
+                    const SizedBox(height: Space.md),
+                    _field('Treatment summary', _treatmentCtrl, lines: 3),
+                    const SizedBox(height: Space.md),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                            child: _field('Medications', _medicationsCtrl,
+                                lines: 2)),
+                        const SizedBox(width: Space.md),
+                        Expanded(
+                            child: _field(
+                                'Follow-up instructions', _followUpCtrl,
+                                lines: 2)),
+                      ],
+                    ),
+                    const SizedBox(height: Space.md),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: _actions(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  List<Widget> _actions() {
+    if (_notFound) {
+      return [
+        FilledButton(
+          onPressed: _loading ? null : _create,
+          child: const Text('Create Draft'),
+        ),
+      ];
+    }
+    return switch (_summary?.dischargeStatus) {
+      'DRAFT' => [
+          TextButton(
+            onPressed: _loading ? null : _saveDraft,
+            child: const Text('Save Draft'),
+          ),
+          const SizedBox(width: Space.sm),
+          FilledButton(
+            onPressed: _loading
+                ? null
+                : () => _transition('submit', 'Submitted for approval'),
+            child: const Text('Submit for Approval'),
+          ),
+        ],
+      'PENDING_APPROVAL' => [
+          FilledButton(
+            onPressed: _loading
+                ? null
+                : () => _transition('approve', 'Summary approved'),
+            child: const Text('Approve'),
+          ),
+        ],
+      'APPROVED' => [
+          FilledButton(
+            onPressed: _loading
+                ? null
+                : () => _transition('finalize', 'Summary finalized'),
+            child: const Text('Finalize'),
+          ),
+        ],
+      _ => const [],
+    };
+  }
+
+  Widget _field(String label, TextEditingController ctrl, {int lines = 1}) {
+    final editable = _notFound || _isDraft;
+    return TextField(
+      controller: ctrl,
+      maxLines: lines,
+      readOnly: !editable,
+      decoration: InputDecoration(labelText: label),
     );
   }
 }

@@ -2,9 +2,9 @@ package com.katixo.hospital.staff;
 
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,15 +24,14 @@ public class StaffService {
 
     private final StaffRepository staffRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     public StaffResponse createStaff(CreateStaffRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
 
         staffRepository.findByTenantIdAndBranchIdAndEmail(ctx.getTenantId(), Long.parseLong(ctx.getBranchId()), request.email)
                 .ifPresent(s -> {
-                    throw new ApiException("EMAIL_ALREADY_EXISTS", "Email already registered");
+                    throw new BusinessException("EMAIL_ALREADY_EXISTS", "Email already registered");
                 });
 
         var staff = new Staff();
@@ -50,33 +51,25 @@ public class StaffService {
         staff.setCanApproveDischargeSummary(request.canApproveDischargeSummary);
         staff.setCanApproveLabReport(request.canApproveLabReport);
         staff.setNotes(request.notes);
-        staff.setCreatedBy(ctx.getCurrentUserId());
-        staff.setUpdatedBy(ctx.getCurrentUserId());
+        staff.setCreatedBy(Long.parseLong(ctx.getUserId()));
+        staff.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+        staff.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         staff = staffRepository.save(staff);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("CREATE_STAFF")
-                .entityType("Staff")
-                .entityId(staff.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("Staff", String.valueOf(staff.getId()), AuditLog.AuditAction.CREATE,
+                null,
+                Map.of("name", staff.getFullName(), "email", staff.getEmail(), "role", staff.getRole().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "staff.created",
-                "Staff",
-                staff.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("Staff", String.valueOf(staff.getId()), "staff.created",
+                Map.of("staffId", staff.getId(), "role", staff.getRole().name()));
 
         return toResponse(staff);
     }
 
     public List<StaffResponse> listActiveStaff() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var staff = staffRepository.findByTenantIdAndBranchIdAndIsActive(
                 ctx.getTenantId(),
                 Long.parseLong(ctx.getBranchId()),
@@ -86,7 +79,7 @@ public class StaffService {
     }
 
     public List<StaffResponse> listStaffByRole(String role) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var staffRole = Staff.StaffRole.valueOf(role);
         var staff = staffRepository.findByTenantIdAndBranchIdAndRole(
                 ctx.getTenantId(),
@@ -98,14 +91,14 @@ public class StaffService {
 
     public StaffResponse getStaffById(Long staffId) {
         var staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new ApiException("STAFF_NOT_FOUND", "Staff member not found"));
+                .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
         return toResponse(staff);
     }
 
     public StaffResponse updateStaff(Long staffId, UpdateStaffRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new ApiException("STAFF_NOT_FOUND", "Staff member not found"));
+                .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
 
         if (request.firstName != null) staff.setFirstName(request.firstName);
         if (request.lastName != null) staff.setLastName(request.lastName);
@@ -116,54 +109,36 @@ public class StaffService {
         if (request.canApproveDischargeSummary != null) staff.setCanApproveDischargeSummary(request.canApproveDischargeSummary);
         if (request.canApproveLabReport != null) staff.setCanApproveLabReport(request.canApproveLabReport);
 
-        staff.setUpdatedBy(ctx.getCurrentUserId());
+        staff.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         staff = staffRepository.save(staff);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("UPDATE_STAFF")
-                .entityType("Staff")
-                .entityId(staff.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("Staff", String.valueOf(staff.getId()), AuditLog.AuditAction.UPDATE,
+                null,
+                Map.of("name", staff.getFullName()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "staff.updated",
-                "Staff",
-                staff.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("Staff", String.valueOf(staff.getId()), "staff.updated",
+                Map.of("staffId", staff.getId()));
 
         return toResponse(staff);
     }
 
     public void deactivateStaff(Long staffId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var staff = staffRepository.findById(staffId)
-                .orElseThrow(() -> new ApiException("STAFF_NOT_FOUND", "Staff member not found"));
+                .orElseThrow(() -> new BusinessException("STAFF_NOT_FOUND", "Staff member not found"));
 
         staff.setIsActive(false);
-        staff.setUpdatedBy(ctx.getCurrentUserId());
+        staff.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         staffRepository.save(staff);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("DEACTIVATE_STAFF")
-                .entityType("Staff")
-                .entityId(staff.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("Staff", String.valueOf(staff.getId()), AuditLog.AuditAction.DELETE,
+                Map.of("isActive", true),
+                Map.of("isActive", false),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "staff.deactivated",
-                "Staff",
-                staff.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("Staff", String.valueOf(staff.getId()), "staff.deactivated",
+                Map.of("staffId", staff.getId()));
     }
 
     private StaffResponse toResponse(Staff staff) {

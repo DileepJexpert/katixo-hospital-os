@@ -3,9 +3,9 @@ package com.katixo.hospital.ot;
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.billing.HospitalCharge;
-import com.katixo.hospital.common.ApiException;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,18 +30,17 @@ public class OTService {
     private final SurgeryNoteRepository surgeryNoteRepository;
     private final AnesthesiaRecordRepository anesthesiaRecordRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     private static final String BOOKING_NUMBER_FORMAT = "OT-%d-%05d";
 
     public List<OTRoom> getAvailableRooms() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         return roomRepository.findByTenantIdAndBranchId(ctx.getTenantId(), Long.parseLong(ctx.getBranchId()));
     }
 
     public OTRoom createRoom(CreateRoomRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var room = new OTRoom();
         room.setTenantId(ctx.getTenantId());
         room.setHospitalGroupId(Long.parseLong(ctx.getHospitalGroupId()));
@@ -49,39 +50,40 @@ public class OTService {
         room.setRoomType(request.roomType);
         room.setCapacity(request.capacity);
         room.setEquipmentList(request.equipmentList);
-        room.setCreatedBy(ctx.getCurrentUserId());
-        room.setUpdatedBy(ctx.getCurrentUserId());
+        room.setCreatedBy(Long.parseLong(ctx.getUserId()));
+        room.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+        room.setStatus(BaseEntity.EntityStatus.ACTIVE);
         return roomRepository.save(room);
     }
 
     public OTRoom updateRoom(Long roomId, UpdateRoomRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new ApiException("ROOM_NOT_FOUND", "OT room not found"));
+                .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "OT room not found"));
 
         if (!room.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (request.roomName != null) room.setRoomName(request.roomName);
         if (request.roomType != null) room.setRoomType(request.roomType);
         if (request.capacity != null) room.setCapacity(request.capacity);
         if (request.equipmentList != null) room.setEquipmentList(request.equipmentList);
-        room.setUpdatedBy(ctx.getCurrentUserId());
+        room.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         return roomRepository.save(room);
     }
 
     public void deleteRoom(Long roomId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new ApiException("ROOM_NOT_FOUND", "OT room not found"));
+                .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "OT room not found"));
 
         if (!room.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         room.setStatus(BaseEntity.EntityStatus.DELETED);
-        room.setUpdatedBy(ctx.getCurrentUserId());
+        room.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         roomRepository.save(room);
     }
 
@@ -101,7 +103,7 @@ public class OTService {
     }
 
     public OTBookingResponse bookOT(BookOTRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var bookingNumber = generateBookingNumber();
 
         var booking = new OTBooking();
@@ -120,33 +122,28 @@ public class OTService {
         booking.setProcedureName(request.procedureName);
         booking.setProcedureCode(request.procedureCode);
         booking.setBookingStatus(OTBooking.BookingStatus.SCHEDULED);
-        booking.setCreatedBy(ctx.getCurrentUserId());
-        booking.setUpdatedBy(ctx.getCurrentUserId());
+        booking.setCreatedBy(Long.parseLong(ctx.getUserId()));
+        booking.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+        booking.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         booking = bookingRepository.save(booking);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("BOOK_OT")
-                .entityType("OTBooking")
-                .entityId(booking.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("OTBooking", String.valueOf(booking.getId()), AuditLog.AuditAction.CREATE,
+                null,
+                Map.of("bookingNumber", booking.getBookingNumber(),
+                        "bookingStatus", booking.getBookingStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "ot.booking.scheduled",
-                "OTBooking",
-                booking.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("OTBooking", String.valueOf(booking.getId()), "ot.booking.scheduled",
+                Map.of("bookingId", booking.getId(),
+                        "bookingNumber", booking.getBookingNumber(),
+                        "scheduledAt", String.valueOf(booking.getScheduledAt())));
 
         return toOTBookingResponse(booking);
     }
 
     public List<OTBookingResponse> getUpcomingBookings() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var now = LocalDateTime.now();
         var bookings = bookingRepository.findByTenantIdAndBranchIdAndScheduledAtBetween(
                 ctx.getTenantId(),
@@ -160,59 +157,51 @@ public class OTService {
     }
 
     public OTBookingResponse startProcedure(Long bookingId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ApiException("BOOKING_NOT_FOUND", "OT booking not found"));
+                .orElseThrow(() -> new BusinessException("BOOKING_NOT_FOUND", "OT booking not found"));
 
         if (!booking.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (booking.getBookingStatus() != OTBooking.BookingStatus.SCHEDULED) {
-            throw new ApiException("INVALID_STATUS", "Booking is not in SCHEDULED status");
+            throw new BusinessException("INVALID_STATUS", "Booking is not in SCHEDULED status");
         }
 
         booking.setBookingStatus(OTBooking.BookingStatus.IN_PROGRESS);
         booking.setStartedAt(LocalDateTime.now());
-        booking.setUpdatedBy(ctx.getCurrentUserId());
+        booking.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         booking = bookingRepository.save(booking);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("START_PROCEDURE")
-                .entityType("OTBooking")
-                .entityId(booking.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("OTBooking", String.valueOf(booking.getId()), AuditLog.AuditAction.UPDATE,
+                Map.of("bookingStatus", OTBooking.BookingStatus.SCHEDULED.name()),
+                Map.of("bookingStatus", booking.getBookingStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "ot.procedure.started",
-                "OTBooking",
-                booking.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("OTBooking", String.valueOf(booking.getId()), "ot.procedure.started",
+                Map.of("bookingId", booking.getId(),
+                        "bookingStatus", booking.getBookingStatus().name()));
 
         return toOTBookingResponse(booking);
     }
 
     public OTBookingResponse completeProcedure(Long bookingId, CompleteProcedureRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ApiException("BOOKING_NOT_FOUND", "OT booking not found"));
+                .orElseThrow(() -> new BusinessException("BOOKING_NOT_FOUND", "OT booking not found"));
 
         if (!booking.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (booking.getBookingStatus() != OTBooking.BookingStatus.IN_PROGRESS) {
-            throw new ApiException("INVALID_STATUS", "Booking is not in IN_PROGRESS status");
+            throw new BusinessException("INVALID_STATUS", "Booking is not in IN_PROGRESS status");
         }
 
         booking.setBookingStatus(OTBooking.BookingStatus.COMPLETED);
         booking.setCompletedAt(LocalDateTime.now());
-        booking.setUpdatedBy(ctx.getCurrentUserId());
+        booking.setUpdatedBy(Long.parseLong(ctx.getUserId()));
         booking = bookingRepository.save(booking);
 
         // Save surgery note if provided
@@ -227,29 +216,22 @@ public class OTService {
             note.setImplantsUsed(request.surgeryNote.implantsUsed);
             note.setComplications(request.surgeryNote.complications);
             note.setNotes(request.surgeryNote.notes);
-            note.setDocumentedBy(ctx.getCurrentUserId());
+            note.setDocumentedBy(Long.parseLong(ctx.getUserId()));
             note.setDocumentedAt(LocalDateTime.now());
-            note.setCreatedBy(ctx.getCurrentUserId());
-            note.setUpdatedBy(ctx.getCurrentUserId());
+            note.setCreatedBy(Long.parseLong(ctx.getUserId()));
+            note.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+            note.setStatus(BaseEntity.EntityStatus.ACTIVE);
             surgeryNoteRepository.save(note);
         }
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("COMPLETE_PROCEDURE")
-                .entityType("OTBooking")
-                .entityId(booking.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("OTBooking", String.valueOf(booking.getId()), AuditLog.AuditAction.UPDATE,
+                Map.of("bookingStatus", OTBooking.BookingStatus.IN_PROGRESS.name()),
+                Map.of("bookingStatus", booking.getBookingStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
-                "ot.procedure.completed",
-                "OTBooking",
-                booking.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("OTBooking", String.valueOf(booking.getId()), "ot.procedure.completed",
+                Map.of("bookingId", booking.getId(),
+                        "bookingStatus", booking.getBookingStatus().name()));
 
         return toOTBookingResponse(booking);
     }

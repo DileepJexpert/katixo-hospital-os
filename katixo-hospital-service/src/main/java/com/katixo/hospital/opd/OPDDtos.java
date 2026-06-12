@@ -51,6 +51,14 @@ public final class OPDDtos {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class CancelAppointmentRequest {
+        @NotNull
+        private String reason;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CompleteConsultationRequest {
         private String diagnosis;
         private String advice;

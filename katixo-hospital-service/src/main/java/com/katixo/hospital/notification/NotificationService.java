@@ -1,7 +1,8 @@
 package com.katixo.hospital.notification;
 
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,11 +21,10 @@ import java.util.stream.Collectors;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     public NotificationResponse sendNotification(SendNotificationRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
 
         var notification = new Notification();
         notification.setTenantId(ctx.getTenantId());
@@ -44,18 +45,19 @@ public class NotificationService {
         notification.setSourceId(request.sourceId);
         notification.setSourceType(request.sourceType);
         notification.setNotificationStatus(Notification.NotificationStatus.PENDING);
-        notification.setCreatedBy(ctx.getCurrentUserId());
-        notification.setUpdatedBy(ctx.getCurrentUserId());
+        notification.setCreatedBy(Long.parseLong(ctx.getUserId()));
+        notification.setUpdatedBy(Long.parseLong(ctx.getUserId()));
+        notification.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         notification = notificationRepository.save(notification);
 
-        outboxPublisher.publish(new OutboxEvent(
-                "notification.created",
-                "Notification",
-                notification.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+        outboxEventService.publish("Notification", String.valueOf(notification.getId()), "notification.created",
+                Map.of(
+                        "notificationId", notification.getId(),
+                        "recipientId", notification.getRecipientId(),
+                        "type", notification.getNotificationType().name(),
+                        "channel", notification.getDeliveryChannel().name()
+                ));
 
         return toResponse(notification);
     }
@@ -77,7 +79,7 @@ public class NotificationService {
 
     public void markAsRead(Long notificationId) {
         var notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setReadAt(LocalDateTime.now());
         notificationRepository.save(notification);
     }
@@ -90,36 +92,26 @@ public class NotificationService {
 
     public void markAsSent(Long notificationId, String externalReference) {
         var notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setNotificationStatus(Notification.NotificationStatus.SENT);
         notification.setSentAt(LocalDateTime.now());
         notification.setExternalReference(externalReference);
         notificationRepository.save(notification);
 
-        outboxPublisher.publish(new OutboxEvent(
-                "notification.sent",
-                "Notification",
-                notification.getId(),
-                notification.getTenantId(),
-                notification.getBranchId()
-        ));
+        outboxEventService.publish("Notification", String.valueOf(notification.getId()), "notification.sent",
+                Map.of("notificationId", notification.getId()));
     }
 
     public void markAsFailed(Long notificationId, String reason) {
         var notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Notification not found"));
         notification.setNotificationStatus(Notification.NotificationStatus.FAILED);
         notification.setFailureReason(reason);
         notification.setRetryCount((notification.getRetryCount() == null ? 0 : notification.getRetryCount()) + 1);
         notificationRepository.save(notification);
 
-        outboxPublisher.publish(new OutboxEvent(
-                "notification.failed",
-                "Notification",
-                notification.getId(),
-                notification.getTenantId(),
-                notification.getBranchId()
-        ));
+        outboxEventService.publish("Notification", String.valueOf(notification.getId()), "notification.failed",
+                Map.of("notificationId", notification.getId(), "reason", reason == null ? "" : reason));
     }
 
     public List<NotificationResponse> getPendingNotifications() {

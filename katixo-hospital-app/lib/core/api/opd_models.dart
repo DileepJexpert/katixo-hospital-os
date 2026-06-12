@@ -113,3 +113,52 @@ class QueueTokenResponse {
     );
   }
 }
+
+/// Appointment booked against a doctor's slot (OPD module).
+/// Statuses: BOOKED, CONFIRMED, CHECKED_IN, COMPLETED, CANCELLED, NO_SHOW.
+class OpdAppointment {
+  const OpdAppointment({
+    required this.id,
+    required this.patientId,
+    required this.doctorId,
+    required this.appointmentDate,
+    required this.slotStart,
+    required this.slotEnd,
+    required this.appointmentStatus,
+    this.visitId,
+    this.notes,
+  });
+
+  final int id;
+  final int patientId;
+  final int doctorId;
+  final String appointmentDate; // yyyy-MM-dd
+  final String slotStart; // HH:mm:ss
+  final String slotEnd; // HH:mm:ss
+  final String appointmentStatus;
+  final int? visitId;
+  final String? notes;
+
+  factory OpdAppointment.fromJson(Map<String, dynamic> json) {
+    return OpdAppointment(
+      id: json['id'] as int,
+      patientId: json['patientId'] as int,
+      doctorId: json['doctorId'] as int,
+      appointmentDate: json['appointmentDate'] as String,
+      slotStart: json['slotStart'] as String,
+      slotEnd: json['slotEnd'] as String,
+      appointmentStatus: json['appointmentStatus'] as String,
+      visitId: json['visitId'] as int?,
+      notes: json['notes'] as String?,
+    );
+  }
+
+  /// "HH:mm" display form of a backend "HH:mm:ss" time.
+  static String shortTime(String t) =>
+      t.length >= 5 ? t.substring(0, 5) : t;
+
+  bool get canCancel =>
+      appointmentStatus == 'BOOKED' || appointmentStatus == 'CONFIRMED';
+  bool get canCheckIn =>
+      appointmentStatus == 'BOOKED' || appointmentStatus == 'CONFIRMED';
+}

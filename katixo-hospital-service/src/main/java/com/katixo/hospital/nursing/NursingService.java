@@ -2,10 +2,9 @@ package com.katixo.hospital.nursing;
 
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
-import com.katixo.hospital.common.ApiException;
 import com.katixo.hospital.common.entity.BaseEntity;
-import com.katixo.hospital.outbox.OutboxEvent;
-import com.katixo.hospital.outbox.OutboxPublisher;
+import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.outbox.OutboxEventService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,13 +28,13 @@ public class NursingService {
     private final NursingIndentRepository indentRepository;
     private final NursingIndentItemRepository itemRepository;
     private final AuditService auditService;
-    private final OutboxPublisher outboxPublisher;
-    private final TenantContext tenantContext;
+    private final OutboxEventService outboxEventService;
 
     private static final String INDENT_NUMBER_FORMAT = "INDENT-%d-%05d";
 
     public NursingIndentWithItems createIndent(CreateIndentRequest request) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var indentNumber = generateIndentNumber();
 
         var indent = new NursingIndent();
@@ -44,12 +45,14 @@ public class NursingService {
         indent.setAdmissionId(request.admissionId);
         indent.setWardSection(request.wardSection);
         indent.setIndentStatus(NursingIndent.IndentStatus.PENDING);
-        indent.setRequestedBy(ctx.getCurrentUserId());
+        indent.setRequestedBy(userId);
         indent.setNotes(request.notes);
-        indent.setCreatedBy(ctx.getCurrentUserId());
-        indent.setUpdatedBy(ctx.getCurrentUserId());
+        indent.setCreatedBy(userId);
+        indent.setUpdatedBy(userId);
+        indent.setStatus(BaseEntity.EntityStatus.ACTIVE);
 
         indent = indentRepository.save(indent);
+        final var savedIndent = indent;
 
         List<NursingIndentItem> items = request.items.stream()
                 .map(itemReq -> {
@@ -57,7 +60,7 @@ public class NursingService {
                     item.setTenantId(ctx.getTenantId());
                     item.setHospitalGroupId(Long.parseLong(ctx.getHospitalGroupId()));
                     item.setBranchId(Long.parseLong(ctx.getBranchId()));
-                    item.setNursingIndentId(indent.getId());
+                    item.setNursingIndentId(savedIndent.getId());
                     item.setItemType(itemReq.itemType);
                     item.setItemCode(itemReq.itemCode);
                     item.setItemName(itemReq.itemName);
@@ -65,36 +68,33 @@ public class NursingService {
                     item.setUnit(itemReq.unit);
                     item.setReason(itemReq.reason);
                     item.setItemStatus(NursingIndentItem.ItemStatus.PENDING);
-                    item.setCreatedBy(ctx.getCurrentUserId());
-                    item.setUpdatedBy(ctx.getCurrentUserId());
+                    item.setCreatedBy(userId);
+                    item.setUpdatedBy(userId);
+                    item.setStatus(BaseEntity.EntityStatus.ACTIVE);
                     return item;
                 })
                 .collect(Collectors.toList());
 
         items = itemRepository.saveAll(items);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("CREATE_INDENT")
-                .entityType("NursingIndent")
-                .entityId(indent.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingIndent", String.valueOf(indent.getId()),
+                AuditLog.AuditAction.CREATE, null,
+                Map.of("indentNumber", indent.getIndentNumber(),
+                        "indentStatus", indent.getIndentStatus().name(),
+                        "itemCount", items.size()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("NursingIndent", String.valueOf(indent.getId()),
                 "indent.created",
-                "NursingIndent",
-                indent.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("indentId", indent.getId(),
+                        "indentNumber", indent.getIndentNumber(),
+                        "indentStatus", indent.getIndentStatus().name()));
 
         return new NursingIndentWithItems(indent, items);
     }
 
     public List<NursingIndentWithItems> getPendingIndents() {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
         var indents = indentRepository.findByTenantIdAndBranchIdAndIndentStatus(
                 ctx.getTenantId(),
                 Long.parseLong(ctx.getBranchId()),
@@ -109,116 +109,115 @@ public class NursingService {
     }
 
     public NursingIndentWithItems approveIndent(Long indentId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var indent = indentRepository.findById(indentId)
-                .orElseThrow(() -> new ApiException("INDENT_NOT_FOUND", "Indent not found"));
+                .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
 
         if (!indent.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (indent.getIndentStatus() != NursingIndent.IndentStatus.PENDING) {
-            throw new ApiException("INVALID_STATUS", "Indent is not in PENDING status");
+            throw new BusinessException("INVALID_STATUS", "Indent is not in PENDING status");
         }
 
+        var beforeStatus = indent.getIndentStatus().name();
+
         indent.setIndentStatus(NursingIndent.IndentStatus.APPROVED);
-        indent.setApprovedBy(ctx.getCurrentUserId());
+        indent.setApprovedBy(userId);
         indent.setApprovedAt(LocalDateTime.now());
-        indent.setUpdatedBy(ctx.getCurrentUserId());
+        indent.setUpdatedBy(userId);
         indent = indentRepository.save(indent);
 
         var items = itemRepository.findByNursingIndentId(indentId);
         items.forEach(item -> {
             item.setItemStatus(NursingIndentItem.ItemStatus.APPROVED);
-            item.setUpdatedBy(ctx.getCurrentUserId());
+            item.setUpdatedBy(userId);
         });
         itemRepository.saveAll(items);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("APPROVE_INDENT")
-                .entityType("NursingIndent")
-                .entityId(indent.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingIndent", String.valueOf(indent.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("indentStatus", beforeStatus),
+                Map.of("indentStatus", indent.getIndentStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("NursingIndent", String.valueOf(indent.getId()),
                 "indent.approved",
-                "NursingIndent",
-                indent.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("indentId", indent.getId(),
+                        "indentNumber", indent.getIndentNumber(),
+                        "indentStatus", indent.getIndentStatus().name()));
 
         return new NursingIndentWithItems(indent, items);
     }
 
     public NursingIndentWithItems rejectIndent(Long indentId, String reason) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var indent = indentRepository.findById(indentId)
-                .orElseThrow(() -> new ApiException("INDENT_NOT_FOUND", "Indent not found"));
+                .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
 
         if (!indent.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (indent.getIndentStatus() != NursingIndent.IndentStatus.PENDING) {
-            throw new ApiException("INVALID_STATUS", "Indent is not in PENDING status");
+            throw new BusinessException("INVALID_STATUS", "Indent is not in PENDING status");
         }
+
+        var beforeStatus = indent.getIndentStatus().name();
 
         indent.setIndentStatus(NursingIndent.IndentStatus.REJECTED);
         indent.setRejectionReason(reason);
-        indent.setUpdatedBy(ctx.getCurrentUserId());
+        indent.setUpdatedBy(userId);
         indent = indentRepository.save(indent);
 
         var items = itemRepository.findByNursingIndentId(indentId);
         items.forEach(item -> {
             item.setItemStatus(NursingIndentItem.ItemStatus.REJECTED);
             item.setRejectionReason(reason);
-            item.setUpdatedBy(ctx.getCurrentUserId());
+            item.setUpdatedBy(userId);
         });
         itemRepository.saveAll(items);
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("REJECT_INDENT")
-                .entityType("NursingIndent")
-                .entityId(indent.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingIndent", String.valueOf(indent.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("indentStatus", beforeStatus),
+                Map.of("indentStatus", indent.getIndentStatus().name()),
+                UUID.randomUUID().toString());
 
-        outboxPublisher.publish(new OutboxEvent(
+        outboxEventService.publish("NursingIndent", String.valueOf(indent.getId()),
                 "indent.rejected",
-                "NursingIndent",
-                indent.getId(),
-                ctx.getTenantId(),
-                Long.parseLong(ctx.getBranchId())
-        ));
+                Map.of("indentId", indent.getId(),
+                        "indentNumber", indent.getIndentNumber(),
+                        "indentStatus", indent.getIndentStatus().name()));
 
         return new NursingIndentWithItems(indent, items);
     }
 
     public NursingIndentWithItems markItemFulfilled(Long itemId) {
-        var ctx = tenantContext.current();
+        var ctx = TenantContext.get();
+        var userId = Long.parseLong(ctx.getUserId());
         var item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ApiException("ITEM_NOT_FOUND", "Item not found"));
+                .orElseThrow(() -> new BusinessException("ITEM_NOT_FOUND", "Item not found"));
 
         if (!item.getTenantId().equals(ctx.getTenantId())) {
-            throw new ApiException("FORBIDDEN", "Access denied");
+            throw new BusinessException("FORBIDDEN", "Access denied");
         }
 
         if (item.getItemStatus() != NursingIndentItem.ItemStatus.APPROVED) {
-            throw new ApiException("INVALID_STATUS", "Item is not in APPROVED status");
+            throw new BusinessException("INVALID_STATUS", "Item is not in APPROVED status");
         }
 
+        var beforeStatus = item.getItemStatus().name();
+
         item.setItemStatus(NursingIndentItem.ItemStatus.FULFILLED);
-        item.setUpdatedBy(ctx.getCurrentUserId());
+        item.setUpdatedBy(userId);
         itemRepository.save(item);
 
         var indent = indentRepository.findById(item.getNursingIndentId())
-                .orElseThrow(() -> new ApiException("INDENT_NOT_FOUND", "Indent not found"));
+                .orElseThrow(() -> new BusinessException("INDENT_NOT_FOUND", "Indent not found"));
 
         var allItems = itemRepository.findByNursingIndentId(indent.getId());
         boolean allFulfilled = allItems.stream()
@@ -229,14 +228,11 @@ public class NursingService {
             indentRepository.save(indent);
         }
 
-        auditService.log(AuditLog.builder()
-                .actorId(ctx.getCurrentUserId())
-                .action("FULFILL_ITEM")
-                .entityType("NursingIndentItem")
-                .entityId(item.getId())
-                .tenantId(ctx.getTenantId())
-                .branchId(Long.parseLong(ctx.getBranchId()))
-                .build());
+        auditService.audit("NursingIndentItem", String.valueOf(item.getId()),
+                AuditLog.AuditAction.UPDATE,
+                Map.of("itemStatus", beforeStatus),
+                Map.of("itemStatus", item.getItemStatus().name()),
+                UUID.randomUUID().toString());
 
         return new NursingIndentWithItems(indent, allItems);
     }

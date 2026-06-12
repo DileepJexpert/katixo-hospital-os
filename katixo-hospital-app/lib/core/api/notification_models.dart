@@ -42,7 +42,8 @@ class NotificationResponse {
       readAt:
           json['readAt'] != null ? DateTime.parse(json['readAt'] as String) : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      isRead: json['isRead'] as bool? ?? false,
+      // Lombok serializes `boolean isRead` as "read"; accept either key.
+      isRead: (json['isRead'] ?? json['read']) as bool? ?? false,
     );
   }
 

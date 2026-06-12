@@ -10,6 +10,7 @@ import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
+import '../discharge/discharge_summary_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../ipd/admissions_panel.dart';
 import 'lab_orders_panel.dart';
@@ -181,6 +182,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.king_bed_outlined,
           selectedIcon: Icons.king_bed,
         ),
+        ShellDestination(
+          label: 'Discharge',
+          icon: Icons.exit_to_app_outlined,
+          selectedIcon: Icons.exit_to_app,
+        ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
@@ -199,7 +205,9 @@ class _DoctorHomeState extends State<DoctorHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: _navIndex == 1
+      body: _navIndex == 2
+          ? const DischargeSummaryScreen()
+          : _navIndex == 1
           ? const PageContainer(
               scrollable: false,
               child: AdmissionsPanel(),

@@ -11,9 +11,10 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/kpi_tile.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../notifications/notification_center.dart';
 import 'ot_room_management.dart';
-import 'tpa_management.dart';
 import 'staff_management.dart';
+import 'tpa_management.dart';
 
 /// Owner/Admin dashboard: operational KPIs and metrics.
 class OwnerDashboard extends StatefulWidget {
@@ -109,6 +110,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   style: theme.textTheme.labelLarge),
             ),
           ),
+        const NotificationBell(),
         IconButton(
           tooltip: 'Sign out',
           icon: const Icon(Icons.logout_outlined),

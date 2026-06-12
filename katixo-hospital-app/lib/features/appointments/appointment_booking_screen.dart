@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/api/appointment_models.dart';
 import '../../core/api/http_client.dart';
+import '../../core/api/models.dart';
+import '../../core/api/opd_models.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/app_shell.dart';
+import '../../core/widgets/status_chip.dart';
+import '../front_desk/registration_screen.dart' show MessageBanner;
 
+/// Front-desk appointment desk (body only — lives inside FrontDeskHome shell):
+/// search patient by UHID, book a doctor slot, then cancel or check-in from
+/// the patient's appointment list. Check-in issues a queue token, merging the
+/// appointment into the doctor's walk-in worklist.
 class AppointmentBookingScreen extends StatefulWidget {
   const AppointmentBookingScreen({super.key});
 
@@ -14,418 +22,460 @@ class AppointmentBookingScreen extends StatefulWidget {
 }
 
 class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
-  int? _selectedDoctorId;
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
-  String _selectedType = 'CONSULTATION';
-  bool _isOnline = false;
-  late TextEditingController _reasonController;
-  late TextEditingController _notesController;
-  bool _isLoading = false;
-  List<AppointmentResponse> _upcomingAppointments = [];
+  final _uhidCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+
+  List<StaffMember> _doctors = [];
+  PatientResponse? _patient;
+  List<OpdAppointment> _appointments = [];
+
+  int? _doctorId;
+  DateTime? _date;
+  TimeOfDay? _slotStart;
+  int _durationMin = 15;
+
+  bool _searching = false;
+  bool _busy = false;
+  String? _error;
+  String? _success;
 
   @override
   void initState() {
     super.initState();
-    _reasonController = TextEditingController();
-    _notesController = TextEditingController();
-    _loadUpcomingAppointments();
+    _loadDoctors();
   }
 
   @override
   void dispose() {
-    _reasonController.dispose();
-    _notesController.dispose();
+    _uhidCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadUpcomingAppointments() async {
+  Future<void> _loadDoctors() async {
     try {
       final api = context.read<ApiClient>();
-      // Placeholder - in real app would load from API
-      // final appointments = await api.get(...);
-    } catch (e) {
-      // Handle error
+      final doctors = await api.get<List<StaffMember>>(
+        '/api/v1/staff?role=DOCTOR',
+        fromJson: (json) => (json as List)
+            .map((e) => StaffMember.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+      if (mounted) setState(() => _doctors = doctors);
+    } catch (_) {
+      // Doctor list failure surfaces when booking is attempted.
     }
   }
 
-  Future<void> _bookAppointment() async {
-    if (_selectedDoctorId == null ||
-        _selectedDate == null ||
-        _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields')),
-      );
+  Future<void> _searchPatient() async {
+    final uhid = _uhidCtrl.text.trim();
+    if (uhid.isEmpty) {
+      setState(() => _error = 'Enter a UHID to search');
       return;
     }
-
-    final appointmentDateTime = DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _selectedTime!.hour,
-      _selectedTime!.minute,
-    );
-
-    setState(() => _isLoading = true);
+    setState(() {
+      _searching = true;
+      _error = null;
+      _success = null;
+      _patient = null;
+      _appointments = [];
+    });
     try {
       final api = context.read<ApiClient>();
-      final request = BookAppointmentRequest(
-        patientId: 1, // In real app, get from AuthState
-        doctorId: _selectedDoctorId!,
-        appointmentDateTime: appointmentDateTime,
-        reason: _reasonController.text,
-        appointmentType: _selectedType,
-        isOnline: _isOnline,
-        notes: _notesController.text,
-      );
-
-      await api.post(
-        '/api/v1/appointments',
-        request.toJson(),
+      final patient = await api.get<PatientResponse>(
+        '/api/v1/patients/uhid/$uhid',
         fromJson: (json) =>
-            AppointmentResponse.fromJson(json as Map<String, dynamic>),
+            PatientResponse.fromJson(json as Map<String, dynamic>),
       );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Appointment booked successfully')),
-        );
-        _resetForm();
-      }
+      setState(() => _patient = patient);
+      await _loadAppointments();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+      setState(() => _error = 'Patient lookup failed: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _searching = false);
     }
-  }
-
-  void _resetForm() {
-    setState(() {
-      _selectedDoctorId = null;
-      _selectedDate = null;
-      _selectedTime = null;
-      _selectedType = 'CONSULTATION';
-      _isOnline = false;
-      _reasonController.clear();
-      _notesController.clear();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Book Appointment')),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(Space.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Select Doctor',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: Space.sm),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(Corners.sm),
-                ),
-                child: DropdownButton<int>(
-                  value: _selectedDoctorId,
-                  isExpanded: true,
-                  hint: const Text('Select a doctor'),
-                  items: const [
-                    DropdownMenuItem(value: 1, child: Text('Dr. John Smith')),
-                    DropdownMenuItem(value: 2, child: Text('Dr. Sarah Jones')),
-                    DropdownMenuItem(value: 3, child: Text('Dr. Mike Brown')),
-                  ],
-                  onChanged: (value) => setState(() => _selectedDoctorId = value),
-                ),
-              ),
-              const SizedBox(height: Space.lg),
-              Text('Select Date',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: Space.sm),
-              OutlinedButton(
-                onPressed: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 30)),
-                  );
-                  if (date != null) {
-                    setState(() => _selectedDate = date);
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(Space.md),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today),
-                      const SizedBox(width: Space.md),
-                      Text(_selectedDate == null
-                          ? 'Select Date'
-                          : _selectedDate.toString().split(' ')[0]),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: Space.lg),
-              Text('Select Time',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: Space.sm),
-              OutlinedButton(
-                onPressed: () async {
-                  final time = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.now(),
-                  );
-                  if (time != null) {
-                    setState(() => _selectedTime = time);
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(Space.md),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.access_time),
-                      const SizedBox(width: Space.md),
-                      Text(_selectedTime == null
-                          ? 'Select Time'
-                          : _selectedTime!.format(context)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: Space.lg),
-              Text('Appointment Type',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: Space.sm),
-              Wrap(
-                spacing: Space.sm,
-                children: ['CONSULTATION', 'FOLLOW_UP', 'CHECK_UP', 'PROCEDURE']
-                    .map((type) => FilterChip(
-                          label: Text(type),
-                          selected: _selectedType == type,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => _selectedType = type);
-                            }
-                          },
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: Space.lg),
-              CheckboxListTile(
-                title: const Text('Online Appointment'),
-                value: _isOnline,
-                onChanged: (value) => setState(() => _isOnline = value ?? false),
-              ),
-              const SizedBox(height: Space.lg),
-              TextField(
-                controller: _reasonController,
-                decoration: const InputDecoration(
-                  labelText: 'Reason for Visit',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: Space.md),
-              TextField(
-                controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Additional Notes (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: Space.lg),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _bookAppointment,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Book Appointment'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class AppointmentListScreen extends StatefulWidget {
-  final int patientId;
-
-  const AppointmentListScreen({required this.patientId, super.key});
-
-  @override
-  State<AppointmentListScreen> createState() => _AppointmentListScreenState();
-}
-
-class _AppointmentListScreenState extends State<AppointmentListScreen> {
-  List<AppointmentResponse> _appointments = [];
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAppointments();
   }
 
   Future<void> _loadAppointments() async {
-    setState(() => _loading = true);
+    final patient = _patient;
+    if (patient == null) return;
     try {
       final api = context.read<ApiClient>();
-      final appointments = await api.get<List<AppointmentResponse>>(
-        '/api/v1/appointments/patient/${widget.patientId}',
-        fromJson: (json) {
-          if (json is List) {
-            return json
-                .map((a) =>
-                    AppointmentResponse.fromJson(a as Map<String, dynamic>))
-                .toList();
-          }
-          return [];
-        },
+      final appointments = await api.get<List<OpdAppointment>>(
+        '/api/v1/opd/appointments/patient/${patient.id}',
+        fromJson: (json) => (json as List? ?? [])
+            .map((e) => OpdAppointment.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
-      setState(() => _appointments = appointments);
-    } catch (e) {
-      // Handle error
-    } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _appointments = appointments);
+    } catch (_) {
+      // List failure is non-blocking; booking still works.
     }
   }
 
-  Future<void> _cancelAppointment(int appointmentId) async {
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  String _fmtTime(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+
+  Future<void> _book() async {
+    final patient = _patient;
+    if (patient == null ||
+        _doctorId == null ||
+        _date == null ||
+        _slotStart == null) {
+      setState(() => _error = 'Patient, doctor, date and slot are required');
+      return;
+    }
+    final startMinutes = _slotStart!.hour * 60 + _slotStart!.minute;
+    final endMinutes = startMinutes + _durationMin;
+    final slotEnd =
+        TimeOfDay(hour: endMinutes ~/ 60 % 24, minute: endMinutes % 60);
+
+    setState(() {
+      _busy = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<OpdAppointment>(
+        '/api/v1/opd/appointments',
+        {
+          'patientId': patient.id,
+          'doctorId': _doctorId,
+          'appointmentDate': _fmtDate(_date!),
+          'slotStart': _fmtTime(_slotStart!),
+          'slotEnd': _fmtTime(slotEnd),
+          'notes':
+              _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        },
+        fromJson: (json) =>
+            OpdAppointment.fromJson(json as Map<String, dynamic>),
+      );
+      setState(() {
+        _success = 'Appointment booked for ${patient.fullName}';
+        _date = null;
+        _slotStart = null;
+        _notesCtrl.clear();
+      });
+      await _loadAppointments();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } catch (e) {
+      setState(() => _error = 'Booking failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _checkIn(OpdAppointment apt) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      final visit = await api.post<Map<String, dynamic>>(
+        '/api/v1/opd/appointments/${apt.id}/check-in',
+        const {},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() =>
+          _success = 'Checked in — visit ${visit['visitNumber'] ?? ''} queued');
+      await _loadAppointments();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } catch (e) {
+      setState(() => _error = 'Check-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancel(OpdAppointment apt) async {
+    final ctrl = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
-      builder: (context) {
-        String reason = '';
-        return AlertDialog(
-          title: const Text('Cancel Appointment'),
-          content: TextField(
-            onChanged: (value) => reason = value,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Appointment'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(
+            controller: ctrl,
+            autofocus: true,
             decoration:
-                const InputDecoration(labelText: 'Cancellation Reason'),
+                const InputDecoration(labelText: 'Cancellation reason *'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Keep'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, reason),
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Cancel Appointment'),
+          ),
+        ],
+      ),
     );
+    if (reason == null || reason.isEmpty) return;
 
-    if (reason != null && reason.isNotEmpty) {
-      try {
-        final api = context.read<ApiClient>();
-        await api.post(
-          '/api/v1/appointments/$appointmentId/cancel',
-          CancelAppointmentRequest(reason: reason).toJson(),
-          fromJson: (json) =>
-              AppointmentResponse.fromJson(json as Map<String, dynamic>),
-        );
-        _loadAppointments();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Appointment cancelled')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
+    setState(() {
+      _busy = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<OpdAppointment>(
+        '/api/v1/opd/appointments/${apt.id}/cancel',
+        {'reason': reason},
+        fromJson: (json) =>
+            OpdAppointment.fromJson(json as Map<String, dynamic>),
+      );
+      setState(() => _success = 'Appointment cancelled');
+      await _loadAppointments();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Appointments'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAppointments,
+    final theme = Theme.of(context);
+
+    return PageContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Appointments', style: theme.textTheme.titleLarge),
+          const SizedBox(height: Space.md),
+          if (_error != null) ...[
+            MessageBanner.error(_error!),
+            const SizedBox(height: Space.md),
+          ],
+          if (_success != null) ...[
+            MessageBanner.success(_success!),
+            const SizedBox(height: Space.md),
+          ],
+
+          // Patient lookup
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _uhidCtrl,
+                  enabled: !_searching,
+                  decoration: const InputDecoration(
+                    labelText: 'Patient UHID',
+                    prefixIcon: Icon(Icons.search, size: 20),
+                  ),
+                  onSubmitted: (_) => _searchPatient(),
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              FilledButton(
+                onPressed: _searching ? null : _searchPatient,
+                child: const Text('Search'),
+              ),
+            ],
           ),
+
+          if (_patient != null) ...[
+            const SizedBox(height: Space.md),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(Space.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(_patient!.fullName,
+                            style: theme.textTheme.titleMedium),
+                        const SizedBox(width: Space.sm),
+                        Text('${_patient!.uhid} • ${_patient!.mobile}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                    const SizedBox(height: Space.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<int>(
+                            value: _doctorId,
+                            decoration:
+                                const InputDecoration(labelText: 'Doctor *'),
+                            items: [
+                              for (final d in _doctors)
+                                DropdownMenuItem(
+                                  value: d.id,
+                                  child: Text(
+                                    d.specialisation == null
+                                        ? d.name
+                                        : '${d.name} (${d.specialisation})',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) => setState(() => _doctorId = v),
+                          ),
+                        ),
+                        const SizedBox(width: Space.md),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now()
+                                    .add(const Duration(days: 60)),
+                              );
+                              if (picked != null) {
+                                setState(() => _date = picked);
+                              }
+                            },
+                            icon: const Icon(Icons.calendar_today_outlined,
+                                size: 16),
+                            label:
+                                Text(_date == null ? 'Date *' : _fmtDate(_date!)),
+                          ),
+                        ),
+                        const SizedBox(width: Space.md),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.now(),
+                              );
+                              if (picked != null) {
+                                setState(() => _slotStart = picked);
+                              }
+                            },
+                            icon: const Icon(Icons.access_time, size: 16),
+                            label: Text(_slotStart == null
+                                ? 'Slot start *'
+                                : _slotStart!.format(context)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Space.md),
+                    Row(
+                      children: [
+                        Text('Duration', style: theme.textTheme.labelSmall),
+                        const SizedBox(width: Space.sm),
+                        for (final m in const [10, 15, 20, 30]) ...[
+                          ChoiceChip(
+                            label: Text('$m min',
+                                style: theme.textTheme.labelSmall),
+                            selected: _durationMin == m,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) =>
+                                setState(() => _durationMin = m),
+                          ),
+                          const SizedBox(width: Space.xs),
+                        ],
+                        const SizedBox(width: Space.sm),
+                        Expanded(
+                          child: TextField(
+                            controller: _notesCtrl,
+                            decoration: const InputDecoration(
+                                labelText: 'Notes (optional)'),
+                          ),
+                        ),
+                        const SizedBox(width: Space.md),
+                        FilledButton(
+                          onPressed: _busy ? null : _book,
+                          child: Text(_busy ? 'Working…' : 'Book Slot'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (_appointments.isNotEmpty) ...[
+              const SizedBox(height: Space.lg),
+              Text('Appointments for ${_patient!.fullName}',
+                  style: theme.textTheme.titleMedium),
+              const SizedBox(height: Space.sm),
+              Card(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _appointments.length; i++) ...[
+                      if (i > 0) const Divider(height: 1),
+                      _appointmentRow(_appointments[i], theme),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _appointments.isEmpty
-              ? const Center(child: Text('No appointments scheduled'))
-              : ListView.builder(
-                  itemCount: _appointments.length,
-                  itemBuilder: (context, index) {
-                    final apt = _appointments[index];
-                    return Card(
-                      margin: const EdgeInsets.all(Space.sm),
-                      child: ListTile(
-                        title: Text('${apt.appointmentDateTime.toLocal()}'
-                            .split('.')[0]),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: Space.xs),
-                            Text('Reason: ${apt.reason ?? 'General checkup'}'),
-                            Text('Type: ${apt.appointmentType}'),
-                            const SizedBox(height: Space.xs),
-                            Chip(
-                              label: Text(apt.statusDisplay),
-                              backgroundColor: apt.appointmentStatus == 'CONFIRMED'
-                                  ? Colors.green
-                                  : Colors.blue,
-                              labelStyle:
-                                  const TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                        trailing: apt.appointmentStatus == 'SCHEDULED' &&
-                                apt.isUpcoming
-                            ? PopupMenuButton(
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    child: const Text('Cancel'),
-                                    onTap: () =>
-                                        _cancelAppointment(apt.id),
-                                  ),
-                                ],
-                              )
-                            : null,
-                        isThreeLine: true,
-                      ),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const AppointmentBookingScreen(),
+    );
+  }
+
+  Widget _appointmentRow(OpdAppointment apt, ThemeData theme) {
+    String? doctor;
+    for (final d in _doctors) {
+      if (d.id == apt.doctorId) {
+        doctor = d.name;
+        break;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Space.md, vertical: Space.xs),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(
+              '${apt.appointmentDate}  ${OpdAppointment.shortTime(apt.slotStart)}–${OpdAppointment.shortTime(apt.slotEnd)}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
           ),
-        ).then((_) => _loadAppointments()),
-        child: const Icon(Icons.add),
+          const SizedBox(width: Space.md),
+          Expanded(
+            child: Text(
+              doctor == null ? 'Doctor #${apt.doctorId}' : doctor,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          StatusChip.auto(apt.appointmentStatus),
+          if (apt.canCheckIn) ...[
+            const SizedBox(width: Space.sm),
+            TextButton(
+              onPressed: _busy ? null : () => _checkIn(apt),
+              child: const Text('Check-in'),
+            ),
+          ],
+          if (apt.canCancel)
+            IconButton(
+              tooltip: 'Cancel appointment',
+              iconSize: 18,
+              icon: const Icon(Icons.close),
+              onPressed: _busy ? null : () => _cancel(apt),
+            ),
+        ],
       ),
     );
   }

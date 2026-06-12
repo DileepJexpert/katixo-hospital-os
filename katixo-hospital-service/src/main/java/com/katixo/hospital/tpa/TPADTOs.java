@@ -90,7 +90,7 @@ class SubmitDocumentRequest {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TPACaseResponse {
+class TPACaseResponse {
     public Long id;
     public String caseNumber;
     public Long admissionId;
@@ -121,7 +121,7 @@ public class TPACaseResponse {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TPADocumentResponse {
+class TPADocumentResponse {
     public Long id;
     public Long tpaCaseId;
     public String documentType;

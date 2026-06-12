@@ -41,7 +41,7 @@ class UpdateDischargeSummaryRequest {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DischargeSummaryResponse {
+class DischargeSummaryResponse {
     public Long id;
     public Long admissionId;
     public Long patientId;

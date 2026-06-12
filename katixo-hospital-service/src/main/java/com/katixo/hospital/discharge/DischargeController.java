@@ -1,6 +1,6 @@
 package com.katixo.hospital.discharge;
 
-import com.katixo.hospital.common.ApiResponse;
+import com.katixo.hospital.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/discharge")
@@ -23,8 +24,7 @@ public class DischargeController {
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> createDischargeSummary(
             @RequestBody CreateDischargeSummaryRequest request) {
         var response = dischargeService.createDischargeSummary(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Discharge summary created"));
+        return respond(response, "Discharge summary created", HttpStatus.CREATED);
     }
 
     @PutMapping("/summaries/{id}")
@@ -33,14 +33,14 @@ public class DischargeController {
             @PathVariable Long id,
             @RequestBody UpdateDischargeSummaryRequest request) {
         var response = dischargeService.updateDischargeSummary(id, request);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary updated"));
+        return respond(response, "Discharge summary updated", HttpStatus.OK);
     }
 
     @GetMapping("/summaries/{id}")
     @PreAuthorize("hasAnyRole('DOCTOR', 'PATIENT', 'ADMIN')")
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> getDischargeSummaryById(@PathVariable Long id) {
         var response = dischargeService.getDischargeSummaryById(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary retrieved"));
+        return respond(response, "Discharge summary retrieved", HttpStatus.OK);
     }
 
     @GetMapping("/admissions/{admissionId}")
@@ -48,34 +48,44 @@ public class DischargeController {
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> getDischargeSummaryByAdmission(
             @PathVariable Long admissionId) {
         var response = dischargeService.getDischargeSummaryByAdmission(admissionId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary retrieved"));
+        return respond(response, "Discharge summary retrieved", HttpStatus.OK);
     }
 
     @PostMapping("/summaries/{id}/submit")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> submitForApproval(@PathVariable Long id) {
         var response = dischargeService.submitForApproval(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary submitted for approval"));
+        return respond(response, "Discharge summary submitted for approval", HttpStatus.OK);
     }
 
     @PostMapping("/summaries/{id}/approve")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> approveDischargeSummary(@PathVariable Long id) {
         var response = dischargeService.approveDischargeSummary(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary approved"));
+        return respond(response, "Discharge summary approved", HttpStatus.OK);
     }
 
     @PostMapping("/summaries/{id}/finalize")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<DischargeSummaryResponse>> finalizeDischargeSummary(@PathVariable Long id) {
         var response = dischargeService.finalizeDischargeSummary(id);
-        return ResponseEntity.ok(ApiResponse.success(response, "Discharge summary finalized"));
+        return respond(response, "Discharge summary finalized", HttpStatus.OK);
     }
 
     @GetMapping("/summaries/pending-approval")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<DischargeSummaryResponse>>> getPendingApprovalSummaries() {
         var response = dischargeService.getPendingApprovalSummaries();
-        return ResponseEntity.ok(ApiResponse.success(response, "Pending approval summaries retrieved"));
+        return respond(response, "Pending approval summaries retrieved", HttpStatus.OK);
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {
+        return ResponseEntity.status(status).body(ApiResponse.<T>builder()
+                .success(true)
+                .status(status.value())
+                .message(message)
+                .correlationId(UUID.randomUUID())
+                .data(data)
+                .build());
     }
 }

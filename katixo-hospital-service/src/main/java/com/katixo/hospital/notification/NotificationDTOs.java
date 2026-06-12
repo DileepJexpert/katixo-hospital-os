@@ -28,7 +28,7 @@ class SendNotificationRequest {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class NotificationResponse {
+class NotificationResponse {
     public Long id;
     public Long recipientId;
     public String notificationType;
@@ -47,7 +47,7 @@ public class NotificationResponse {
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class NotificationStatsResponse {
+class NotificationStatsResponse {
     public int unreadCount;
     public int totalNotifications;
     public LocalDateTime lastNotificationTime;

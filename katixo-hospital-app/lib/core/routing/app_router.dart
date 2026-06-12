@@ -8,6 +8,7 @@ import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
 import '../../features/lab/lab_tech_home.dart';
 import '../../features/nurse/nurse_home.dart';
+import '../../features/patient_portal/patient_billing_portal.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
 import '../../features/radiology/radiologist_home.dart';
 import '../auth/auth_state.dart';
@@ -50,6 +51,7 @@ Widget _roleHome(AuthState authState) {
     'RADIOLOGIST' => const RadiologistHome(),
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
+    'PATIENT' => const PatientBillingPortal(),
     _ => const FrontDeskHome(),
   };
 }

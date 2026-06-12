@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -30,4 +31,13 @@ public interface PatientBillRepository extends BaseRepository<PatientBill> {
     long countByTenantIdAndBranchIdAndBillStatus(@Param("tenantId") String tenantId,
                                                  @Param("branchId") Long branchId,
                                                  @Param("billStatus") PatientBill.BillStatus billStatus);
+
+    // --- patient-portal queries (tenant-scoped) ---
+
+    Optional<PatientBill> findByIdAndTenantId(Long id, String tenantId);
+
+    List<PatientBill> findByTenantIdAndPatientIdOrderByCreatedAtDesc(String tenantId, Long patientId);
+
+    List<PatientBill> findByTenantIdAndPatientIdAndBillStatusOrderByCreatedAtDesc(
+            String tenantId, Long patientId, PatientBill.BillStatus billStatus);
 }

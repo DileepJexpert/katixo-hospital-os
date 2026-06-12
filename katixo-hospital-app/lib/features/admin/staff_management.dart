@@ -4,7 +4,12 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/api/staff_models.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/app_shell.dart';
+import '../../core/widgets/status_chip.dart';
+import '../front_desk/registration_screen.dart' show MessageBanner;
 
+/// Admin staff management (body only — lives inside OwnerDashboard shell).
+/// Dense directory list with inline expandable edit; no full-screen pushes.
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
 
@@ -16,6 +21,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   List<StaffResponse> _staff = [];
   bool _loading = false;
   String? _error;
+  String? _success;
 
   @override
   void initState() {
@@ -28,454 +34,454 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     try {
       final api = context.read<ApiClient>();
       final staff = await api.get<List<StaffResponse>>(
-        '/api/v1/staff',
-        fromJson: (json) {
-          if (json is List) {
-            return json
-                .map((s) => StaffResponse.fromJson(s as Map<String, dynamic>))
-                .toList();
-          }
-          return [];
-        },
+        '/api/v1/staff-management',
+        fromJson: (json) => (json as List? ?? [])
+            .map((e) => StaffResponse.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
-      setState(() {
-        _staff = staff;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _staff = staff;
+          _error = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
     } catch (e) {
-      setState(() => _error = 'Failed to load staff: $e');
+      if (mounted) setState(() => _error = 'Failed to load staff: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _showAddStaffDialog() {
+  Future<void> _saveStaff(StaffResponse member, UpdateStaffRequest req) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.put<StaffResponse>(
+        '/api/v1/staff-management/${member.id}',
+        req.toJson(),
+        fromJson: (json) =>
+            StaffResponse.fromJson(json as Map<String, dynamic>),
+      );
+      setState(() => _success = '${member.fullName} updated');
+      await _loadStaff();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } catch (e) {
+      setState(() => _error = 'Update failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _deactivate(StaffResponse member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Deactivate Staff'),
+        content: Text('Deactivate ${member.fullName}? '
+            'They will no longer appear in staff pickers.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.delete('/api/v1/staff-management/${member.id}',
+          fromJson: (_) => null);
+      setState(() => _success = '${member.fullName} deactivated');
+      await _loadStaff();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showAddDialog() {
     showDialog(
       context: context,
-      builder: (context) => _AddStaffDialog(
-        onAdd: (request) async {
-          try {
-            final api = context.read<ApiClient>();
-            await api.post(
-              '/api/v1/staff',
-              request.toJson(),
-              fromJson: (json) =>
-                  StaffResponse.fromJson(json as Map<String, dynamic>),
-            );
-            _loadStaff();
-            if (mounted) Navigator.pop(context);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Staff member added')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text('Error: $e')));
-            }
-          }
-        },
-      ),
+      builder: (context) => _AddStaffDialog(onSubmit: (req) async {
+        Navigator.pop(context);
+        setState(() {
+          _loading = true;
+          _error = null;
+          _success = null;
+        });
+        try {
+          final api = context.read<ApiClient>();
+          await api.post<StaffResponse>(
+            '/api/v1/staff-management',
+            req.toJson(),
+            fromJson: (json) =>
+                StaffResponse.fromJson(json as Map<String, dynamic>),
+          );
+          setState(() => _success = 'Staff member added');
+          await _loadStaff();
+        } on ApiException catch (e) {
+          setState(() => _error = e.error.message);
+        } catch (e) {
+          setState(() => _error = 'Add failed: $e');
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
+      }),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(Space.md),
+    final theme = Theme.of(context);
+
+    return PageContainer(
+      scrollable: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Staff Management',
-                  style: Theme.of(context).textTheme.titleLarge),
-              ElevatedButton.icon(
-                onPressed: _showAddStaffDialog,
-                icon: const Icon(Icons.add),
+              Text('Staff Directory', style: theme.textTheme.titleLarge),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _loading ? null : _loadStaff,
+                icon: const Icon(Icons.refresh),
+              ),
+              const SizedBox(width: Space.sm),
+              FilledButton.icon(
+                onPressed: _loading ? null : _showAddDialog,
+                icon: const Icon(Icons.person_add_outlined, size: 18),
                 label: const Text('Add Staff'),
               ),
             ],
           ),
           const SizedBox(height: Space.md),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: Space.md),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+          if (_error != null) ...[
+            MessageBanner.error(_error!),
+            const SizedBox(height: Space.md),
+          ],
+          if (_success != null) ...[
+            MessageBanner.success(_success!),
+            const SizedBox(height: Space.md),
+          ],
+          if (_staff.isEmpty && !_loading)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(Space.xl),
+                child: Center(
+                  child: Text('No staff members configured',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: Card(
+                child: ListView.separated(
+                  itemCount: _staff.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, i) => _staffRow(_staff[i], theme),
+                ),
+              ),
             ),
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _staff.isEmpty
-                    ? const Center(child: Text('No staff members'))
-                    : ListView.builder(
-                        itemCount: _staff.length,
-                        itemBuilder: (context, index) {
-                          final member = _staff[index];
-                          return _StaffCard(
-                            staff: member,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => _StaffDetailScreen(
-                                    staff: member,
-                                    onUpdate: _loadStaff,
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-          ),
         ],
       ),
     );
   }
-}
 
-class _StaffCard extends StatelessWidget {
-  final StaffResponse staff;
-  final VoidCallback onTap;
-
-  const _StaffCard({required this.staff, required this.onTap});
-
-  Color _getRoleColor(String role) {
-    switch (role) {
-      case 'DOCTOR':
-        return Colors.blue;
-      case 'NURSE':
-        return Colors.green;
-      case 'ADMIN':
-        return Colors.red;
-      case 'FRONT_DESK':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: Space.sm),
-      child: ListTile(
-        title: Text(staff.fullName),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: Space.xs),
-            Text(staff.email),
-            Text(staff.department),
-            const SizedBox(height: Space.xs),
-            Chip(
-              label: Text(staff.role),
-              backgroundColor: _getRoleColor(staff.role),
-              labelStyle: const TextStyle(color: Colors.white),
-            ),
-          ],
-        ),
-        isThreeLine: true,
-        trailing: Chip(
-          label: Text(staff.statusDisplay),
-          backgroundColor: staff.isActive ? Colors.green : Colors.grey,
-          labelStyle: const TextStyle(color: Colors.white),
-        ),
-        onTap: onTap,
+  Widget _staffRow(StaffResponse m, ThemeData theme) {
+    return ExpansionTile(
+      dense: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: Space.md),
+      childrenPadding:
+          const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
+      title: Row(
+        children: [
+          SizedBox(
+            width: 180,
+            child: Text(m.fullName,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: Space.md),
+          Expanded(
+            child: Text('${m.department} • ${m.email}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant),
+                overflow: TextOverflow.ellipsis),
+          ),
+          StatusChip(m.role.replaceAll('_', ' '), kind: StatusKind.info),
+          const SizedBox(width: Space.sm),
+          StatusChip.auto(m.isActive ? 'ACTIVE' : 'INACTIVE'),
+        ],
       ),
+      children: [_StaffEditor(member: m, onSave: _saveStaff, onDeactivate: _deactivate)],
     );
   }
 }
 
-class _StaffDetailScreen extends StatefulWidget {
-  final StaffResponse staff;
-  final VoidCallback onUpdate;
+/// Inline editor shown when a staff row expands: contact, department,
+/// approval permissions, save/deactivate.
+class _StaffEditor extends StatefulWidget {
+  const _StaffEditor({
+    required this.member,
+    required this.onSave,
+    required this.onDeactivate,
+  });
 
-  const _StaffDetailScreen({required this.staff, required this.onUpdate});
+  final StaffResponse member;
+  final Future<void> Function(StaffResponse, UpdateStaffRequest) onSave;
+  final Future<void> Function(StaffResponse) onDeactivate;
 
   @override
-  State<_StaffDetailScreen> createState() => _StaffDetailScreenState();
+  State<_StaffEditor> createState() => _StaffEditorState();
 }
 
-class _StaffDetailScreenState extends State<_StaffDetailScreen> {
-  late StaffResponse _staff;
-  bool _isLoading = false;
-  late TextEditingController _phoneController;
-  late TextEditingController _departmentController;
-  bool _canApproveDiscount = false;
-  bool _canApproveDischargeSummary = false;
-  bool _canApproveLabReport = false;
+class _StaffEditorState extends State<_StaffEditor> {
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _departmentCtrl;
+  late bool _canDiscount;
+  late bool _canDischarge;
+  late bool _canLab;
 
   @override
   void initState() {
     super.initState();
-    _staff = widget.staff;
-    _phoneController = TextEditingController(text: _staff.phone);
-    _departmentController =
-        TextEditingController(text: _staff.department);
-    _canApproveDiscount = _staff.canApproveDiscount;
-    _canApproveDischargeSummary = _staff.canApproveDischargeSummary;
-    _canApproveLabReport = _staff.canApproveLabReport;
+    _phoneCtrl = TextEditingController(text: widget.member.phone);
+    _departmentCtrl = TextEditingController(text: widget.member.department);
+    _canDiscount = widget.member.canApproveDiscount;
+    _canDischarge = widget.member.canApproveDischargeSummary;
+    _canLab = widget.member.canApproveLabReport;
   }
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _departmentController.dispose();
+    _phoneCtrl.dispose();
+    _departmentCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _updateStaff() async {
-    setState(() => _isLoading = true);
-    try {
-      final api = context.read<ApiClient>();
-      final updated = await api.put(
-        '/api/v1/staff/${_staff.id}',
-        UpdateStaffRequest(
-          phone: _phoneController.text,
-          department: _departmentController.text,
-          canApproveDiscount: _canApproveDiscount,
-          canApproveDischargeSummary: _canApproveDischargeSummary,
-          canApproveLabReport: _canApproveLabReport,
-        ).toJson(),
-        fromJson: (json) =>
-            StaffResponse.fromJson(json as Map<String, dynamic>),
-      );
-      setState(() => _staff = updated);
-      widget.onUpdate();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff updated')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _deactivateStaff() async {
-    setState(() => _isLoading = true);
-    try {
-      final api = context.read<ApiClient>();
-      await api.delete(
-        '/api/v1/staff/${_staff.id}',
-        fromJson: (_) => null,
-      );
-      widget.onUpdate();
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff deactivated')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  Widget _permission(String label, bool value, ValueChanged<bool> onChanged) {
+    return FilterChip(
+      label: Text(label, style: Theme.of(context).textTheme.labelSmall),
+      selected: value,
+      visualDensity: VisualDensity.compact,
+      onSelected: onChanged,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_staff.fullName)),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(Space.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(Space.md),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildRow('Email', _staff.email),
-                            _buildRow('Role', _staff.role),
-                            _buildRow('Status', _staff.statusDisplay),
-                            const Divider(),
-                            TextField(
-                              controller: _phoneController,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone',
-                              ),
-                            ),
-                            const SizedBox(height: Space.md),
-                            TextField(
-                              controller: _departmentController,
-                              decoration: const InputDecoration(
-                                labelText: 'Department',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: Space.md),
-                    Text('Permissions',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: Space.md),
-                    CheckboxListTile(
-                      title: const Text('Can Approve Discount'),
-                      value: _canApproveDiscount,
-                      onChanged: (value) {
-                        setState(() => _canApproveDiscount = value ?? false);
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Can Approve Discharge Summary'),
-                      value: _canApproveDischargeSummary,
-                      onChanged: (value) {
-                        setState(
-                            () => _canApproveDischargeSummary = value ?? false);
-                      },
-                    ),
-                    CheckboxListTile(
-                      title: const Text('Can Approve Lab Report'),
-                      value: _canApproveLabReport,
-                      onChanged: (value) {
-                        setState(() => _canApproveLabReport = value ?? false);
-                      },
-                    ),
-                    const SizedBox(height: Space.lg),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _updateStaff,
-                          child: const Text('Save Changes'),
-                        ),
-                        ElevatedButton(
-                          onPressed: _deactivateStaff,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                          child: const Text('Deactivate'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(labelText: 'Phone'),
               ),
             ),
-    );
-  }
-
-  Widget _buildRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Space.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(value),
-        ],
-      ),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: TextField(
+                controller: _departmentCtrl,
+                decoration: const InputDecoration(labelText: 'Department'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Space.md),
+        Wrap(
+          spacing: Space.sm,
+          children: [
+            _permission('Approve discount', _canDiscount,
+                (v) => setState(() => _canDiscount = v)),
+            _permission('Approve discharge', _canDischarge,
+                (v) => setState(() => _canDischarge = v)),
+            _permission('Approve lab report', _canLab,
+                (v) => setState(() => _canLab = v)),
+          ],
+        ),
+        const SizedBox(height: Space.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => widget.onDeactivate(widget.member),
+              style:
+                  TextButton.styleFrom(foregroundColor: StatusColors.danger),
+              child: const Text('Deactivate'),
+            ),
+            const SizedBox(width: Space.sm),
+            FilledButton(
+              onPressed: () => widget.onSave(
+                widget.member,
+                UpdateStaffRequest(
+                  phone: _phoneCtrl.text.trim(),
+                  department: _departmentCtrl.text.trim(),
+                  canApproveDiscount: _canDiscount,
+                  canApproveDischargeSummary: _canDischarge,
+                  canApproveLabReport: _canLab,
+                ),
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
+/// Compact add-staff dialog: two-column rows to stay short.
 class _AddStaffDialog extends StatefulWidget {
-  final Function(CreateStaffRequest) onAdd;
+  const _AddStaffDialog({required this.onSubmit});
 
-  const _AddStaffDialog({required this.onAdd});
+  final void Function(CreateStaffRequest) onSubmit;
 
   @override
   State<_AddStaffDialog> createState() => _AddStaffDialogState();
 }
 
 class _AddStaffDialogState extends State<_AddStaffDialog> {
-  late TextEditingController _firstNameController;
-  late TextEditingController _lastNameController;
-  late TextEditingController _emailController;
-  late TextEditingController _phoneController;
-  late TextEditingController _departmentController;
-  String _selectedRole = 'NURSE';
+  final _firstCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _departmentCtrl = TextEditingController();
+  String _role = 'NURSE';
+  String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    _firstNameController = TextEditingController();
-    _lastNameController = TextEditingController();
-    _emailController = TextEditingController();
-    _phoneController = TextEditingController();
-    _departmentController = TextEditingController();
-  }
+  static const _roles = [
+    'DOCTOR',
+    'NURSE',
+    'NURSE_SUPERVISOR',
+    'LAB_TECHNICIAN',
+    'RADIOLOGIST',
+    'PHARMACIST',
+    'FRONT_DESK',
+  ];
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _departmentController.dispose();
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _departmentCtrl.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    if (_firstCtrl.text.trim().isEmpty ||
+        _lastCtrl.text.trim().isEmpty ||
+        _emailCtrl.text.trim().isEmpty ||
+        _phoneCtrl.text.trim().isEmpty ||
+        _departmentCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'All fields are required');
+      return;
+    }
+    widget.onSubmit(CreateStaffRequest(
+      firstName: _firstCtrl.text.trim(),
+      lastName: _lastCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      role: _role,
+      department: _departmentCtrl.text.trim(),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Add Staff Member'),
-      content: SingleChildScrollView(
+      content: SizedBox(
+        width: 420,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: _firstNameController,
-              decoration: const InputDecoration(labelText: 'First Name'),
+            if (_error != null) ...[
+              MessageBanner.error(_error!),
+              const SizedBox(height: Space.md),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _firstCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'First name *'),
+                  ),
+                ),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: TextField(
+                    controller: _lastCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Last name *'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: Space.md),
             TextField(
-              controller: _lastNameController,
-              decoration: const InputDecoration(labelText: 'Last Name'),
-            ),
-            const SizedBox(height: Space.md),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
+              controller: _emailCtrl,
               keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email *'),
             ),
             const SizedBox(height: Space.md),
-            TextField(
-              controller: _phoneController,
-              decoration: const InputDecoration(labelText: 'Phone'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _phoneCtrl,
+                    decoration: const InputDecoration(labelText: 'Phone *'),
+                  ),
+                ),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: TextField(
+                    controller: _departmentCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Department *'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: Space.md),
-            TextField(
-              controller: _departmentController,
-              decoration: const InputDecoration(labelText: 'Department'),
-            ),
-            const SizedBox(height: Space.md),
-            DropdownButton<String>(
-              value: _selectedRole,
-              isExpanded: true,
-              items: const [
-                'DOCTOR',
-                'NURSE',
-                'LAB_TECHNICIAN',
-                'RADIOLOGIST',
-                'PHARMACIST',
-                'FRONT_DESK',
-              ]
-                  .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedRole = value);
-              },
+            DropdownButtonFormField<String>(
+              value: _role,
+              decoration: const InputDecoration(labelText: 'Role *'),
+              items: [
+                for (final r in _roles)
+                  DropdownMenuItem(
+                      value: r, child: Text(r.replaceAll('_', ' '))),
+              ],
+              onChanged: (v) => setState(() => _role = v ?? 'NURSE'),
             ),
           ],
         ),
@@ -485,21 +491,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: () {
-            widget.onAdd(
-              CreateStaffRequest(
-                firstName: _firstNameController.text,
-                lastName: _lastNameController.text,
-                email: _emailController.text,
-                phone: _phoneController.text,
-                role: _selectedRole,
-                department: _departmentController.text,
-              ),
-            );
-          },
-          child: const Text('Add'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Add')),
       ],
     );
   }

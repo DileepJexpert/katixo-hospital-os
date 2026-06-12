@@ -31,4 +31,7 @@ public interface AppointmentRepository extends BaseRepository<Appointment> {
                           @Param("date") LocalDate date,
                           @Param("slotStart") LocalTime slotStart,
                           @Param("slotEnd") LocalTime slotEnd);
+
+    List<Appointment> findByTenantIdAndBranchIdAndPatientIdOrderByAppointmentDateDescSlotStartDesc(
+            String tenantId, Long branchId, Long patientId);
 }

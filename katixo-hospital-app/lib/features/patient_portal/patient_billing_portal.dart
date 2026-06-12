@@ -3,9 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
 import '../../core/api/patient_portal_models.dart';
+import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../../core/widgets/kpi_tile.dart';
+import '../../core/widgets/status_chip.dart';
+import '../front_desk/registration_screen.dart' show MessageBanner;
 
+/// Patient role home: self-service view of own bills and payments.
 class PatientBillingPortal extends StatefulWidget {
   const PatientBillingPortal({super.key});
 
@@ -16,6 +21,7 @@ class PatientBillingPortal extends StatefulWidget {
 class _PatientBillingPortalState extends State<PatientBillingPortal> {
   PatientDashboardResponse? _dashboard;
   bool _loading = false;
+  bool _attempted = false;
   String? _error;
   int _navIndex = 0;
 
@@ -34,180 +40,167 @@ class _PatientBillingPortalState extends State<PatientBillingPortal> {
         fromJson: (json) =>
             PatientDashboardResponse.fromJson(json as Map<String, dynamic>),
       );
-      setState(() {
-        _dashboard = data;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _dashboard = data;
+          _error = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
     } catch (e) {
-      setState(() => _error = 'Failed to load dashboard: $e');
+      if (mounted) setState(() => _error = 'Failed to load dashboard: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _attempted = true;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthState>();
     final theme = Theme.of(context);
 
     return AppShell(
-      title: 'My Billing',
+      title: 'My Hospital',
       destinations: const [
         ShellDestination(
-          label: 'Dashboard',
+          label: 'Overview',
           icon: Icons.dashboard_outlined,
           selectedIcon: Icons.dashboard,
         ),
         ShellDestination(
-          label: 'Bills',
-          icon: Icons.receipt_outlined,
-          selectedIcon: Icons.receipt,
-        ),
-        ShellDestination(
-          label: 'Payments',
-          icon: Icons.payment_outlined,
-          selectedIcon: Icons.payment,
+          label: 'My Bills',
+          icon: Icons.receipt_long_outlined,
+          selectedIcon: Icons.receipt_long,
         ),
       ],
       selectedIndex: _navIndex,
       onDestinationSelected: (i) => setState(() => _navIndex = i),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _ErrorWidget(error: _error!, onRetry: _loadDashboard)
-              : _dashboard == null
-                  ? const SizedBox()
-                  : _navIndex == 0
-                      ? _DashboardTab(dashboard: _dashboard!)
-                      : _navIndex == 1
-                          ? _BillsTab(patientId: _dashboard!.patientId)
-                          : _PaymentsTab(patientId: _dashboard!.patientId),
-    );
-  }
-}
-
-class _DashboardTab extends StatelessWidget {
-  final PatientDashboardResponse dashboard;
-
-  const _DashboardTab({required this.dashboard});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(Space.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Welcome back, ${dashboard.patientName}',
-                style: theme.textTheme.titleLarge),
-            const SizedBox(height: Space.md),
-            _buildKPIRow(
-              [
-                _KPICard(
-                  label: 'Outstanding',
-                  value:
-                      '₹${dashboard.totalOutstanding.toStringAsFixed(0)}',
-                  icon: Icons.warning_amber_outlined,
-                  color: Colors.orange,
-                ),
-                _KPICard(
-                  label: 'Active Bills',
-                  value: dashboard.activeBills.toString(),
-                  icon: Icons.receipt_outlined,
-                  color: Colors.blue,
-                ),
-                _KPICard(
-                  label: 'Paid Bills',
-                  value: dashboard.paidBills.toString(),
-                  icon: Icons.check_circle_outline,
-                  color: Colors.green,
-                ),
-              ],
+      actions: [
+        if (authState.currentUser != null)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: Space.sm),
+              child: Text(authState.currentUser!.name,
+                  style: theme.textTheme.labelLarge),
             ),
-            const SizedBox(height: Space.xl),
-            Text('Recent Bills', style: theme.textTheme.titleMedium),
-            const SizedBox(height: Space.md),
-            if (dashboard.recentBills.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(Space.lg),
-                  child: Text('No bills yet'),
-                ),
-              )
-            else
-              ...dashboard.recentBills
-                  .map((bill) => _BillListTile(bill: bill))
-                  .toList(),
-          ],
+          ),
+        IconButton(
+          tooltip: 'Sign out',
+          icon: const Icon(Icons.logout_outlined),
+          onPressed: () => authState.logout(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildKPIRow(List<Widget> cards) {
-    return Wrap(
-      spacing: Space.md,
-      runSpacing: Space.md,
-      children: cards,
+      ],
+      body: _navIndex == 1
+          ? const _BillsTab()
+          : PageContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('Billing Overview',
+                          style: theme.textTheme.titleLarge),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: _loading ? null : _loadDashboard,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.md),
+                  if (_error != null) ...[
+                    MessageBanner.error(_error!),
+                    const SizedBox(height: Space.md),
+                  ],
+                  if (_dashboard == null && !_attempted)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(Space.xl),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_dashboard != null) ...[
+                    Wrap(
+                      spacing: Space.md,
+                      runSpacing: Space.md,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          child: KpiTile(
+                            label: 'Outstanding',
+                            value: _dashboard!.totalOutstanding
+                                .toStringAsFixed(0),
+                            icon: Icons.account_balance_wallet_outlined,
+                            unit: '₹',
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220,
+                          child: KpiTile(
+                            label: 'Bills',
+                            value: _dashboard!.activeBills.toString(),
+                            icon: Icons.receipt_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Space.xl),
+                    Text('Recent Bills', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: Space.sm),
+                    if (_dashboard!.recentBills.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(Space.xl),
+                          child: Center(
+                            child: Text('No bills yet',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme
+                                        .colorScheme.onSurfaceVariant)),
+                          ),
+                        ),
+                      )
+                    else
+                      Card(
+                        child: Column(
+                          children: [
+                            for (var i = 0;
+                                i < _dashboard!.recentBills.length;
+                                i++) ...[
+                              if (i > 0) const Divider(height: 1),
+                              _BillRow(bill: _dashboard!.recentBills[i]),
+                            ],
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
     );
   }
 }
 
-class _KPICard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _KPICard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Container(
-        width: 150,
-        padding: const EdgeInsets.all(Space.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: Space.md),
-            Text(value,
-                style: Theme.of(context).textTheme.headlineSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: Space.xs),
-            Text(label,
-                style: Theme.of(context).textTheme.bodySmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// Bills tab: status filter + dense list with inline expandable charges.
 class _BillsTab extends StatefulWidget {
-  final int patientId;
-
-  const _BillsTab({required this.patientId});
+  const _BillsTab();
 
   @override
   State<_BillsTab> createState() => _BillsTabState();
 }
 
 class _BillsTabState extends State<_BillsTab> {
+  static const _statuses = ['FINAL', 'DRAFT', 'CANCELLED'];
+
   List<PatientBillResponse> _bills = [];
   bool _loading = false;
-  String _selectedStatus = 'ACTIVE';
+  String _status = 'FINAL';
   String? _error;
 
   @override
@@ -221,383 +214,190 @@ class _BillsTabState extends State<_BillsTab> {
     try {
       final api = context.read<ApiClient>();
       final bills = await api.get<List<PatientBillResponse>>(
-        '/api/v1/patient-portal/billing/bills?status=$_selectedStatus',
-        fromJson: (json) {
-          if (json is List) {
-            return json
-                .map((b) =>
-                    PatientBillResponse.fromJson(b as Map<String, dynamic>))
-                .toList();
-          }
-          return [];
-        },
+        '/api/v1/patient-portal/billing/bills?status=$_status',
+        fromJson: (json) => (json as List? ?? [])
+            .map((e) =>
+                PatientBillResponse.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
-      setState(() {
-        _bills = bills;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _bills = bills;
+          _error = null;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
     } catch (e) {
-      setState(() => _error = 'Failed to load bills: $e');
+      if (mounted) setState(() => _error = 'Failed to load bills: $e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(Space.md),
-          child: DropdownButton<String>(
-            value: _selectedStatus,
-            isExpanded: true,
-            items: const ['ACTIVE', 'PAID', 'PARTIALLY_PAID', 'CANCELLED']
-                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _selectedStatus = value);
-                _loadBills();
-              }
-            },
-          ),
-        ),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(Space.md),
-            child: Text(_error!, style: const TextStyle(color: Colors.red)),
-          ),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _bills.isEmpty
-                  ? const Center(child: Text('No bills found'))
-                  : ListView.builder(
-                      itemCount: _bills.length,
-                      itemBuilder: (context, index) =>
-                          _BillListTile(bill: _bills[index]),
-                    ),
-        ),
-      ],
-    );
-  }
-}
+    final theme = Theme.of(context);
 
-class _BillListTile extends StatelessWidget {
-  final PatientBillResponse bill;
-
-  const _BillListTile({required this.bill});
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'ACTIVE':
-        return Colors.orange;
-      case 'PAID':
-        return Colors.green;
-      case 'PARTIALLY_PAID':
-        return Colors.blue;
-      case 'CANCELLED':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(Space.sm),
-      child: ListTile(
-        title: Text(bill.billNumber),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: Space.xs),
-            Text('₹${bill.grandTotal.toStringAsFixed(2)}'),
-            const SizedBox(height: Space.xs),
-            Chip(
-              label: Text(bill.statusDisplay),
-              backgroundColor: _getStatusColor(bill.billStatus),
-              labelStyle: const TextStyle(color: Colors.white),
-            ),
-          ],
-        ),
-        isThreeLine: true,
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => _BillDetailScreen(billId: bill.id),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _BillDetailScreen extends StatefulWidget {
-  final int billId;
-
-  const _BillDetailScreen({required this.billId});
-
-  @override
-  State<_BillDetailScreen> createState() => _BillDetailScreenState();
-}
-
-class _BillDetailScreenState extends State<_BillDetailScreen> {
-  PatientBillResponse? _bill;
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBill();
-  }
-
-  Future<void> _loadBill() async {
-    try {
-      final api = context.read<ApiClient>();
-      final bill = await api.get<PatientBillResponse>(
-        '/api/v1/patient-portal/billing/bills/${widget.billId}',
-        fromJson: (json) =>
-            PatientBillResponse.fromJson(json as Map<String, dynamic>),
-      );
-      setState(() {
-        _bill = bill;
-        _error = null;
-      });
-    } catch (e) {
-      setState(() => _error = 'Failed to load bill: $e');
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_bill?.billNumber ?? 'Bill Details')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _ErrorWidget(error: _error!, onRetry: _loadBill)
-              : _bill == null
-                  ? const SizedBox()
-                  : SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(Space.md),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Card(
-                              child: Padding(
-                                padding: const EdgeInsets.all(Space.md),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(_bill!.billNumber,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium),
-                                        Chip(
-                                          label: Text(_bill!.statusDisplay),
-                                          backgroundColor: _bill!.billStatus ==
-                                                  'PAID'
-                                              ? Colors.green
-                                              : Colors.orange,
-                                          labelStyle: const TextStyle(
-                                              color: Colors.white),
-                                        ),
-                                      ],
-                                    ),
-                                    const Divider(),
-                                    _buildRow('Hospital Charges',
-                                        '₹${_bill!.hospitalChargesTotal.toStringAsFixed(2)}'),
-                                    _buildRow('Pharmacy Charges',
-                                        '₹${_bill!.erpInvoicesTotal.toStringAsFixed(2)}'),
-                                    if (_bill!.discountAmount > 0)
-                                      _buildRow('Discount',
-                                          '-₹${_bill!.discountAmount.toStringAsFixed(2)}'),
-                                    const Divider(),
-                                    _buildRow(
-                                      'Total Due',
-                                      '₹${_bill!.grandTotal.toStringAsFixed(2)}',
-                                      isBold: true,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: Space.md),
-                            Text('Itemized Charges',
-                                style:
-                                    Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: Space.md),
-                            ..._bill!.charges
-                                .map((charge) => _buildChargeItem(charge))
-                                .toList(),
-                          ],
-                        ),
-                      ),
-                    ),
-    );
-  }
-
-  Widget _buildRow(String label, String value, {bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.xs),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return PageContainer(
+      scrollable: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              )),
-          Text(value,
-              style: TextStyle(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              )),
+          Row(
+            children: [
+              Text('My Bills', style: theme.textTheme.titleLarge),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _loading ? null : _loadBills,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          Wrap(
+            spacing: Space.sm,
+            children: [
+              for (final s in _statuses)
+                ChoiceChip(
+                  label: Text(s.replaceAll('_', ' '),
+                      style: theme.textTheme.labelSmall),
+                  selected: _status == s,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) {
+                    setState(() => _status = s);
+                    _loadBills();
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          if (_error != null) ...[
+            MessageBanner.error(_error!),
+            const SizedBox(height: Space.md),
+          ],
+          if (_bills.isEmpty && !_loading)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(Space.xl),
+                child: Center(
+                  child: Text(
+                      'No ${_status.replaceAll('_', ' ').toLowerCase()} bills',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: Card(
+                child: ListView.separated(
+                  itemCount: _bills.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, i) =>
+                      _BillRow(bill: _bills[i], expandable: true),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildChargeItem(ChargeLineItem charge) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: Space.sm),
-      child: Padding(
-        padding: const EdgeInsets.all(Space.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(charge.serviceName,
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: Space.xs),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('${charge.quantity} × ₹${charge.unitRate.toStringAsFixed(2)}'),
-                Text('₹${charge.totalAmount.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ],
+/// One dense bill row; optionally expands to show the charge breakdown.
+class _BillRow extends StatelessWidget {
+  const _BillRow({required this.bill, this.expandable = false});
+
+  final PatientBillResponse bill;
+  final bool expandable;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final title = Row(
+      children: [
+        SizedBox(
+          width: 150,
+          child: Text(bill.billNumber,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
         ),
-      ),
+        Expanded(
+          child: Text(
+            '${bill.generatedAt.year}-${bill.generatedAt.month.toString().padLeft(2, '0')}-${bill.generatedAt.day.toString().padLeft(2, '0')}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        Text('₹${bill.grandTotal.toStringAsFixed(2)}',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(width: Space.md),
+        StatusChip.auto(bill.billStatus),
+      ],
+    );
+
+    if (!expandable) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: Space.md, vertical: Space.sm),
+        child: title,
+      );
+    }
+
+    return ExpansionTile(
+      dense: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: Space.md),
+      childrenPadding:
+          const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
+      title: title,
+      children: [
+        _amountRow(theme, 'Hospital charges',
+            '₹${bill.hospitalChargesTotal.toStringAsFixed(2)}'),
+        _amountRow(theme, 'Pharmacy (GST invoices)',
+            '₹${bill.erpInvoicesTotal.toStringAsFixed(2)}'),
+        if (bill.discountAmount > 0)
+          _amountRow(theme, 'Discount',
+              '-₹${bill.discountAmount.toStringAsFixed(2)}'),
+        const Divider(height: Space.md),
+        _amountRow(theme, 'Total', '₹${bill.grandTotal.toStringAsFixed(2)}',
+            bold: true),
+        if (bill.charges.isNotEmpty) ...[
+          const SizedBox(height: Space.sm),
+          for (final c in bill.charges)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Space.xxs),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('${c.serviceName} × ${c.quantity}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+                  ),
+                  Text('₹${c.totalAmount.toStringAsFixed(2)}',
+                      style: theme.textTheme.labelSmall),
+                ],
+              ),
+            ),
+        ],
+      ],
     );
   }
-}
 
-class _PaymentsTab extends StatefulWidget {
-  final int patientId;
-
-  const _PaymentsTab({required this.patientId});
-
-  @override
-  State<_PaymentsTab> createState() => _PaymentsTabState();
-}
-
-class _PaymentsTabState extends State<_PaymentsTab> {
-  List<PaymentHistoryResponse> _payments = [];
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPayments();
-  }
-
-  Future<void> _loadPayments() async {
-    setState(() => _loading = true);
-    try {
-      final api = context.read<ApiClient>();
-      final payments = await api.get<List<PaymentHistoryResponse>>(
-        '/api/v1/patient-portal/billing/payments',
-        fromJson: (json) {
-          if (json is List) {
-            return json
-                .map((p) =>
-                    PaymentHistoryResponse.fromJson(p as Map<String, dynamic>))
-                .toList();
-          }
-          return [];
-        },
-      );
-      setState(() => _payments = payments);
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _loading
-        ? const Center(child: CircularProgressIndicator())
-        : _payments.isEmpty
-            ? const Center(child: Text('No payments yet'))
-            : ListView.builder(
-                itemCount: _payments.length,
-                itemBuilder: (context, index) {
-                  final payment = _payments[index];
-                  return Card(
-                    margin: const EdgeInsets.all(Space.sm),
-                    child: ListTile(
-                      title: Text(payment.billNumber),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: Space.xs),
-                          Text(
-                              'Amount: ₹${payment.amount.toStringAsFixed(2)}'),
-                          Text('Method: ${payment.paymentMethod}'),
-                        ],
-                      ),
-                      trailing: Chip(
-                        label: Text(payment.status),
-                        backgroundColor: payment.status == 'SUCCESS'
-                            ? Colors.green
-                            : Colors.orange,
-                        labelStyle: const TextStyle(color: Colors.white),
-                      ),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
-              );
-  }
-}
-
-class _ErrorWidget extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-
-  const _ErrorWidget({required this.error, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _amountRow(ThemeData theme, String label, String amount,
+      {bool bold = false}) {
+    final style = bold
+        ? theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)
+        : theme.textTheme.bodySmall;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.xxs),
+      child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
-          const SizedBox(height: Space.md),
-          Text(error, textAlign: TextAlign.center),
-          const SizedBox(height: Space.md),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('Retry'),
-          ),
+          Expanded(child: Text(label, style: style)),
+          Text(amount, style: style),
         ],
       ),
     );
