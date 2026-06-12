@@ -59,3 +59,10 @@ SELECT pg_catalog.setval('hospital_policy_id_seq', 24, true);
 
 -- The seed rows carry explicit ids; realign the sequence so runtime inserts don't collide.
 SELECT setval(pg_get_serial_sequence('hospital_policy','id'), (SELECT COALESCE(MAX(id),1) FROM hospital_policy));
+
+-- IPD indent approval: item categories that require a doctor/admin approval
+-- before pharmacy can dispense. Other categories are auto-approved.
+INSERT INTO hospital_policy (tenant_id, hospital_group_id, branch_id, policy_code, policy_value,
+                             description, version, effective_from, created_by, updated_by)
+VALUES ('${tenantId}', 1, 1, 'ipd.indent.approval.required_categories', 'IMPLANT,NARCOTIC',
+        'CSV of indent item categories that need approval before dispense', 1, NOW(), 1, 1);

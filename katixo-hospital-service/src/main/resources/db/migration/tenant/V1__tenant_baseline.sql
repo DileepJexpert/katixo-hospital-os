@@ -3654,3 +3654,70 @@ ALTER TABLE ONLY staff_user_ref
 --
 
 
+
+-- ============================================================
+-- NURSING INDENTS (IPD ward medicine/consumable requests)
+-- Lifecycle: REQUESTED -> APPROVED/REJECTED -> DISPENSED (or CANCELLED).
+-- Approval requirement is per item category via policy
+-- ipd.indent.approval.required_categories. On dispense the pharmacy
+-- creates a Katasticho SALES INVOICE (AR — IPD is settled at discharge,
+-- unlike OPD's cash receipt); the ERP owns GST/stock/journal.
+-- ============================================================
+
+CREATE SEQUENCE nursing_indent_seq START WITH 100001 INCREMENT BY 1;
+
+CREATE TABLE nursing_indent (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)   NOT NULL,
+    hospital_group_id   BIGINT        NOT NULL,
+    branch_id           BIGINT        NOT NULL,
+    indent_number       VARCHAR(30)   NOT NULL,
+    admission_id        BIGINT        NOT NULL,
+    patient_id          BIGINT        NOT NULL,
+    indent_status       VARCHAR(20)   NOT NULL DEFAULT 'REQUESTED',
+    notes               VARCHAR(500),
+    total_items         INTEGER       NOT NULL DEFAULT 0,
+    requested_by        BIGINT,
+    approved_by         BIGINT,
+    rejection_reason    VARCHAR(300),
+    dispensed_at        TIMESTAMP,
+    dispensed_by        BIGINT,
+    -- ERP sales-invoice linkage (idempotency key generated once, reused on retry)
+    erp_sync_status     VARCHAR(20)   NOT NULL DEFAULT 'NOT_SYNCED',
+    erp_idempotency_key VARCHAR(100),
+    erp_invoice_id      VARCHAR(50),
+    erp_invoice_number  VARCHAR(50),
+    erp_invoice_total   NUMERIC(14,2),
+    erp_sync_error      TEXT,
+    erp_synced_at       TIMESTAMP,
+    status              VARCHAR(20)   DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, indent_number)
+);
+
+CREATE INDEX idx_nursing_indent_tenant_branch ON nursing_indent(tenant_id, branch_id);
+CREATE INDEX idx_nursing_indent_admission ON nursing_indent(admission_id);
+CREATE INDEX idx_nursing_indent_status ON nursing_indent(indent_status);
+CREATE INDEX idx_nursing_indent_erp_sync ON nursing_indent(erp_sync_status);
+
+CREATE TABLE nursing_indent_item (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)   NOT NULL,
+    hospital_group_id   BIGINT        NOT NULL,
+    branch_id           BIGINT        NOT NULL,
+    indent_id           BIGINT        NOT NULL REFERENCES nursing_indent(id),
+    medicine_code       VARCHAR(50)   NOT NULL,
+    medicine_name       VARCHAR(255)  NOT NULL,
+    quantity            INTEGER       NOT NULL,
+    item_category       VARCHAR(30)   NOT NULL DEFAULT 'MEDICINE',
+    status              VARCHAR(20)   DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_nursing_indent_item_indent ON nursing_indent_item(indent_id);

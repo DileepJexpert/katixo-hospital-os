@@ -174,7 +174,17 @@ katixo-hospital-service/
 ### IPD
 - Three bed charging models simultaneously: daily (general), hourly (ICU), package
 - Bed transfer recalculates tariff at exact timestamp
-- Indent approval per item category from policy engine (not binary high/low)
+- Indent approval per item category from policy engine (not binary high/low).
+  **IMPLEMENTED:** `NursingIndentService` @ `/api/v1/nursing/indents` — categories in policy
+  `ipd.indent.approval.required_categories` (default IMPLANT,NARCOTIC) need DOCTOR/ADMIN
+  approval; others auto-approve. Lifecycle REQUESTED→APPROVED/REJECTED→DISPENSED/CANCELLED.
+- **IPD pharmacy = ERP SALES INVOICE (AR), not a cash receipt** (settled at discharge):
+  `ErpIndentSyncService` on dispense (after commit) mirrors the patient as an ERP CUSTOMER
+  contact (matched by UHID, key `HOSP-CONTACT-<tenant>-<patientId>`), back-computes taxable
+  price from GST-inclusive MRP, creates+sends the invoice (keys `HOSP-INDENT[-SEND]-<tenant>-<id>`;
+  send = GST journal + stock deduction). FAILED→retry via `POST /indents/{id}/sync-erp`.
+  `generateBill` auto-attaches SYNCED indent invoices (IPD: indent.admissionId == bill.sourceId).
+  OPEN ITEM: discharge payment does not yet settle the ERP invoices' AR (needs ERP payment allocation).
 - Discharge types: Normal, LAMA, Death
 - Discharge checklist: some items block, others warn (from policy engine)
 

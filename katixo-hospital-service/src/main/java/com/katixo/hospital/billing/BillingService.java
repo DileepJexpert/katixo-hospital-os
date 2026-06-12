@@ -44,6 +44,7 @@ public class BillingService {
     private final BedAllocationRepository allocationRepository;
     private final com.katixo.hospital.patient.PatientRepository patientRepository;
     private final com.katixo.hospital.pharmacy.PrescriptionDispenseRepository dispenseRepository;
+    private final com.katixo.hospital.nursing.NursingIndentRepository indentRepository;
     private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
@@ -398,33 +399,41 @@ public class BillingService {
     // ------------------------------------------------------------
 
     /**
-     * Pulls the ERP pharmacy receipts already created at dispense time onto the
-     * bill (OPD: dispense.visitId == bill.sourceId), so the consolidated bill
-     * shows hospital charges + pharmacy invoices without manual entry.
+     * Pulls the ERP pharmacy documents already created at dispense time onto
+     * the bill, so the consolidated bill shows hospital charges + pharmacy
+     * invoices without manual entry:
+     * OPD → POS receipts from prescription dispenses (dispense.visitId == sourceId);
+     * IPD → AR invoices from dispensed nursing indents (indent.admissionId == sourceId).
      */
     private void autoAttachPharmacyReceipts(PatientBill bill) {
-        if (bill.getSourceType() != HospitalCharge.SourceType.OPD_VISIT) {
-            return; // IPD pharmacy goes through nursing indents — separate flow.
-        }
         var ctx = TenantContext.get();
         var alreadyAttached = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
                 .stream().map(BillErpInvoiceRef::getErpInvoiceNumber).collect(java.util.stream.Collectors.toSet());
 
-        dispenseRepository.findByTenantIdAndVisitIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
-                        com.katixo.hospital.pharmacy.PrescriptionDispense.ErpSyncStatus.SYNCED).stream()
-                .filter(d -> d.getErpReceiptNumber() != null && !alreadyAttached.contains(d.getErpReceiptNumber()))
-                .forEach(d -> {
-                    BillErpInvoiceRef ref = new BillErpInvoiceRef();
-                    ref.setTenantId(bill.getTenantId());
-                    ref.setHospitalGroupId(bill.getHospitalGroupId());
-                    ref.setBranchId(bill.getBranchId());
-                    ref.setBillId(bill.getId());
-                    ref.setErpInvoiceNumber(d.getErpReceiptNumber());
-                    ref.setErpInvoiceAmount(d.getErpReceiptTotal() == null ? BigDecimal.ZERO : d.getErpReceiptTotal());
-                    ref.setInvoiceType("PHARMACY");
-                    ref.setCreatedBy(userId());
-                    erpRefRepository.save(ref);
-                });
+        if (bill.getSourceType() == HospitalCharge.SourceType.OPD_VISIT) {
+            dispenseRepository.findByTenantIdAndVisitIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
+                            com.katixo.hospital.pharmacy.PrescriptionDispense.ErpSyncStatus.SYNCED).stream()
+                    .filter(d -> d.getErpReceiptNumber() != null && !alreadyAttached.contains(d.getErpReceiptNumber()))
+                    .forEach(d -> attachErpRef(bill, d.getErpReceiptNumber(), d.getErpReceiptTotal()));
+        } else {
+            indentRepository.findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
+                            com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED).stream()
+                    .filter(i -> i.getErpInvoiceNumber() != null && !alreadyAttached.contains(i.getErpInvoiceNumber()))
+                    .forEach(i -> attachErpRef(bill, i.getErpInvoiceNumber(), i.getErpInvoiceTotal()));
+        }
+    }
+
+    private void attachErpRef(PatientBill bill, String invoiceNumber, BigDecimal amount) {
+        BillErpInvoiceRef ref = new BillErpInvoiceRef();
+        ref.setTenantId(bill.getTenantId());
+        ref.setHospitalGroupId(bill.getHospitalGroupId());
+        ref.setBranchId(bill.getBranchId());
+        ref.setBillId(bill.getId());
+        ref.setErpInvoiceNumber(invoiceNumber);
+        ref.setErpInvoiceAmount(amount == null ? BigDecimal.ZERO : amount);
+        ref.setInvoiceType("PHARMACY");
+        ref.setCreatedBy(userId());
+        erpRefRepository.save(ref);
     }
 
     /** Runs after the surrounding transaction commits (immediately if none, e.g. in unit tests). */

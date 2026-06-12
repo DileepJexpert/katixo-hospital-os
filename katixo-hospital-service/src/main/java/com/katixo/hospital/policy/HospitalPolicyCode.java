@@ -12,6 +12,8 @@ public enum HospitalPolicyCode {
     IPD_GENERAL_BED_DAILY_RATE("ipd.general_bed.daily_rate", "General bed daily charging rate"),
     IPD_ICU_HOURLY_RATE("ipd.icu.hourly_rate", "ICU bed hourly charging rate"),
     IPD_INDENT_APPROVAL_REQUIRED("ipd.indent.approval_required", "Require approval for indent items"),
+    IPD_INDENT_APPROVAL_CATEGORIES("ipd.indent.approval.required_categories",
+            "CSV of indent item categories that need approval before dispense"),
     IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS("ipd.discharge.checklist_blocking_items", "Items that block discharge"),
     IPD_BED_ISOLATION_DEFAULT_HOURS("ipd.bed.isolation_default_hours", "Default bed isolation duration in hours"),
 
