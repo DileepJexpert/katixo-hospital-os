@@ -26,7 +26,20 @@ public class TenantContext {
         return context;
     }
 
+    /** Like {@link #get()} but returns null when no context is bound (startup, login). */
+    public static TenantContext getOrNull() {
+        return CONTEXT.get();
+    }
+
     public static void clear() {
         CONTEXT.remove();
+    }
+
+    /**
+     * Minimal context used before a user is authenticated (login lookup) or by
+     * system jobs (seeding, migrations) that must run inside a tenant's schema.
+     */
+    public static TenantContext systemContext(String tenantId) {
+        return new TenantContext(tenantId, "0", "0", "0", "system");
     }
 }

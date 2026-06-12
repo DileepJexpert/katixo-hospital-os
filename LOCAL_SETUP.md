@@ -62,9 +62,10 @@ Service will start on **http://localhost:8081**
 ### Apply Migrations
 Migrations are automatically applied on startup (Flyway).
 
-Schemas:
-- `hospital` — transactional tables (patients, visits, prescriptions, etc.)
-- `audit` — immutable audit logs
+Schemas (schema-per-tenant SaaS isolation):
+- `platform` — control plane: `tenant_registry` (tenant → schema + per-tenant ERP credentials)
+- `t_<tenant_id>` — one schema per hospital tenant with ALL business tables (incl. `audit_log`).
+  Dev auto-provisions `t_demo_tenant` on startup.
 
 ### Sample Database Queries
 ```sql
@@ -74,11 +75,11 @@ psql -h localhost -U katixo -d katixo_hospital
 -- Check schemas
 \dn
 
--- List hospital schema tables
-\dt hospital.*
+-- Registered tenants
+SELECT tenant_id, schema_name, status FROM platform.tenant_registry;
 
--- List audit schema tables
-\dt audit.*
+-- List a tenant's tables
+\dt t_demo_tenant.*
 ```
 
 ## Development Workflow
@@ -161,7 +162,7 @@ curl http://localhost:9200/_cluster/health
 mvn spring-boot:run 2>&1 | tail -50
 
 # Ensure DB migrations ran
-psql -h localhost -U katixo -d katixo_hospital -c "SELECT version, description FROM flyway_schema_history;"
+psql -h localhost -U katixo -d katixo_hospital -c "SELECT version, description FROM t_demo_tenant.flyway_schema_history;"
 
 # Ensure all environment variables set
 cat .env

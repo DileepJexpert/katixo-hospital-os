@@ -2,12 +2,14 @@ package com.katixo.hospital.auth;
 
 import com.katixo.hospital.common.dto.ApiResponse;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.tenant.TenantContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +32,9 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
+    @Value("${katixo.tenant.demo.tenant-id:demo-tenant}")
+    private String defaultTenantId;
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -38,10 +43,22 @@ public class AuthController {
         private String username;
         @NotBlank
         private String password;
+        /**
+         * Which hospital tenant to log into. Required for multi-tenant SaaS —
+         * each tenant lives in its own schema, so the user lookup can't happen
+         * until we know the tenant. Falls back to the demo tenant in dev.
+         */
+        private String tenantId;
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> login(@Valid @RequestBody LoginRequest req) {
+        String tenantId = (req.getTenantId() == null || req.getTenantId().isBlank())
+                ? defaultTenantId : req.getTenantId().trim();
+        // No JWT yet, so bind a minimal context to route the user lookup to the
+        // tenant's schema. Cleared by JwtAuthenticationFilter's finally block.
+        TenantContext.set(TenantContext.systemContext(tenantId));
+
         StaffUser user = staffUserRepository.findByUsernameAndStatus(req.getUsername(), "ACTIVE")
                 .orElseThrow(() -> new BusinessException("INVALID_CREDENTIALS", "Invalid username or password"));
 

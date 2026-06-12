@@ -10,7 +10,6 @@
 -- Rationale: Required before any patient records are created; audit trail via audit_log
 -- ============================================================
 
-SET search_path = hospital;
 
 -- Add consent columns to patient table
 ALTER TABLE patient

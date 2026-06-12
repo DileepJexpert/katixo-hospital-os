@@ -10,18 +10,22 @@ spring:
       minimum-idle: 5
       connection-timeout: 30000
   jpa:
+    # OSIV would open the Hibernate session (and pin its tenant schema) before
+    # the controller/filter binds TenantContext. Sessions must open inside the
+    # transaction, after the tenant is known.
+    open-in-view: false
     hibernate:
-      ddl-auto: validate
+      # Schema is selected per request (schema-per-tenant); validation/DDL is
+      # handled by Flyway per tenant schema, never by Hibernate.
+      ddl-auto: none
     properties:
       hibernate:
-        default_schema: hospital
         format_sql: true
         use_sql_comments: true
   flyway:
-    enabled: true
-    schemas: hospital,audit
-    locations: classpath:db/migration
-    out-of-order: false
+    # Disabled: migrations run programmatically (TenantMigrationService) —
+    # platform schema once, then every tenant schema.
+    enabled: false
   data:
     redis:
       host: localhost
@@ -70,3 +74,10 @@ katixo:
     jwt-expiration: 86400000
   tenant:
     default-branch-id: ${DEFAULT_BRANCH_ID:1}
+    demo:
+      # Auto-provisions a demo tenant schema on startup (local dev only —
+      # disable in prod; real tenants come via POST /api/v1/platform/tenants).
+      enabled: ${DEMO_TENANT_ENABLED:true}
+      tenant-id: demo-tenant
+      # Katasticho org-scoped API key (kat_...) for the demo tenant's books.
+      erp-api-key: ${DEMO_TENANT_ERP_API_KEY:}

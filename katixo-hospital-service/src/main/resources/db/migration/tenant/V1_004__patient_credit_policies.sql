@@ -8,7 +8,6 @@
 --   * billing.patient.credit.limit_block_action — Action when limit exceeded: WARN, BLOCK, ALLOW
 -- ============================================================
 
-SET search_path = hospital;
 
 INSERT INTO hospital_policy (
     tenant_id, hospital_group_id, branch_id, policy_code, policy_value,

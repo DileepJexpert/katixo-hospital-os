@@ -4,10 +4,7 @@
 -- ============================================================
 
 -- Create schemas
-CREATE SCHEMA IF NOT EXISTS hospital;
-CREATE SCHEMA IF NOT EXISTS audit;
 
-SET search_path = hospital;
 
 -- ============================================================
 -- TENANT / ORGANISATION HIERARCHY
@@ -179,7 +176,7 @@ CREATE INDEX idx_outbox_status ON outbox_event(status, created_at) WHERE status 
 -- AUDIT LOG
 -- ============================================================
 
-CREATE TABLE audit.audit_log (
+CREATE TABLE audit_log (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,
     hospital_group_id   BIGINT,
@@ -198,10 +195,10 @@ CREATE TABLE audit.audit_log (
     created_at          TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_entity     ON audit.audit_log(entity_type, entity_id);
-CREATE INDEX idx_audit_actor      ON audit.audit_log(actor_id, created_at);
-CREATE INDEX idx_audit_tenant     ON audit.audit_log(tenant_id, created_at);
-CREATE INDEX idx_audit_correlation ON audit.audit_log(correlation_id);
+CREATE INDEX idx_audit_entity     ON audit_log(entity_type, entity_id);
+CREATE INDEX idx_audit_actor      ON audit_log(actor_id, created_at);
+CREATE INDEX idx_audit_tenant     ON audit_log(tenant_id, created_at);
+CREATE INDEX idx_audit_correlation ON audit_log(correlation_id);
 
 -- ============================================================
 -- INDEXES ON FOUNDATION TABLES

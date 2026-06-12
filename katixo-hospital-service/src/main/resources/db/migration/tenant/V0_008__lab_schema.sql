@@ -3,7 +3,6 @@
 -- V0_008__lab_schema.sql
 -- ============================================================
 
-SET search_path = hospital;
 
 CREATE SEQUENCE lab_order_seq START WITH 1;
 CREATE SEQUENCE lab_sample_seq START WITH 1;

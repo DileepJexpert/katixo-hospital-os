@@ -3,7 +3,6 @@
 -- V0_004__opd_schema.sql
 -- ============================================================
 
-SET search_path = hospital;
 
 -- ============================================================
 -- SEQUENCES (UHID + visit number; DB-backed, survives restarts)

@@ -10,7 +10,6 @@
 -- Default: 25% to referral doctor, 75% to primary doctor.
 -- ============================================================
 
-SET search_path = hospital;
 
 INSERT INTO hospital_policy (
     tenant_id, hospital_group_id, branch_id, policy_code, policy_value,

@@ -10,7 +10,6 @@
 -- credit limits to prevent bad debt. All transactions are logged for audit.
 -- ============================================================
 
-SET search_path = hospital;
 
 -- ============================================================
 -- PATIENT CREDIT ACCOUNT (One per patient per branch)
