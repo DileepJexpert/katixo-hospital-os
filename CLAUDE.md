@@ -177,7 +177,14 @@ katixo-hospital-service/
 - Discharge checklist: some items block, others warn (from policy engine)
 
 ### Pharmacy
-- OPD dispense: hospital calls ERP, ERP creates invoice atomically
+- OPD dispense: hospital calls ERP, ERP creates invoice atomically.
+  **IMPLEMENTED:** `ErpDispenseSyncService` — on FULLY_DISPENSED (after commit), resolves
+  medicine codes to ERP items by SKU (`GET /api/v1/items?search=`), creates a POS sales
+  receipt (`POST /api/v1/sales-receipts`, CASH, MRP tax-inclusive, ERP does FEFO/stock/GST/journal).
+  Idempotency key `HOSP-DISP-<tenant>-<dispenseId>` persisted on prescription_dispense (V1_011);
+  ERP failure marks erp_sync_status=FAILED, never blocks the dispense. Retry:
+  `POST /api/v1/pharmacy/dispenses/{id}/sync-erp`. Katasticho replays duplicates via its
+  IdempotencyFilter (V67).
 - OTC sales: no UHID required, separate Quick Sale flow
 - Queue: default FIFO with priority override (logged for audit)
 - Substitution: record original item, dispensed item, reason
