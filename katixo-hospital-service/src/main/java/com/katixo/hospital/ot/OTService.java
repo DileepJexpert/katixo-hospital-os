@@ -245,7 +245,7 @@ public class OTService {
 
     private String generateBookingNumber() {
         var now = YearMonth.now();
-        long nextSeq = 1;
+        long nextSeq = bookingRepository.nextBookingSequence();
         return String.format(BOOKING_NUMBER_FORMAT, now.getYear() * 100 + now.getMonthValue(), nextSeq);
     }
 

@@ -1,7 +1,10 @@
 package com.katixo.hospital.ot;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.katixo.hospital.common.repository.BaseRepository;
 
-public interface AnesthesiaRecordRepository extends JpaRepository<AnesthesiaRecord, Long> {
-    AnesthesiaRecord findByOtBookingId(Long otBookingId);
+import java.util.Optional;
+
+public interface AnesthesiaRecordRepository extends BaseRepository<AnesthesiaRecord> {
+    Optional<AnesthesiaRecord> findByTenantIdAndBranchIdAndOtBookingId(
+            String tenantId, Long branchId, Long otBookingId);
 }

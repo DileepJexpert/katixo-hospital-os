@@ -445,7 +445,7 @@ public class TPAService {
 
     private String generateCaseNumber() {
         var month = YearMonth.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"));
-        var sequence = 1;
+        long sequence = caseRepository.nextCaseSequence();
         return String.format(CASE_NUMBER_FORMAT, Long.parseLong(month), sequence);
     }
 

@@ -235,7 +235,7 @@ public class NursingService {
 
     private String generateIndentNumber() {
         var now = YearMonth.now();
-        long nextSeq = 1; // In production, would use a sequence or database counter
+        long nextSeq = indentRepository.nextIndentSequence();
         return String.format(INDENT_NUMBER_FORMAT, now.getYear() * 100 + now.getMonthValue(), nextSeq);
     }
 

@@ -1,7 +1,10 @@
 package com.katixo.hospital.ot;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.katixo.hospital.common.repository.BaseRepository;
 
-public interface SurgeryNoteRepository extends JpaRepository<SurgeryNote, Long> {
-    SurgeryNote findByOtBookingId(Long otBookingId);
+import java.util.Optional;
+
+public interface SurgeryNoteRepository extends BaseRepository<SurgeryNote> {
+    Optional<SurgeryNote> findByTenantIdAndBranchIdAndOtBookingId(
+            String tenantId, Long branchId, Long otBookingId);
 }

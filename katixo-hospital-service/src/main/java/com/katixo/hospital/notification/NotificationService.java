@@ -3,6 +3,8 @@ package com.katixo.hospital.notification;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.outbox.OutboxEventService;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,9 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final OutboxEventService outboxEventService;
+    private final PolicyService policyService;
+
+    private static final int DEFAULT_MAX_RETRY = 5;
 
     public NotificationResponse sendNotification(SendNotificationRequest request) {
         var ctx = TenantContext.get();
@@ -129,7 +134,7 @@ public class NotificationService {
     public List<NotificationResponse> getPendingNotifications() {
         var pending = notificationRepository.findByNotificationStatusAndRetryCountLessThan(
                 Notification.NotificationStatus.PENDING,
-                5
+                policyService.getPolicyAsInteger(HospitalPolicyCode.NOTIFICATION_MAX_RETRY, DEFAULT_MAX_RETRY)
         );
         return pending.stream()
                 .map(this::toResponse)
