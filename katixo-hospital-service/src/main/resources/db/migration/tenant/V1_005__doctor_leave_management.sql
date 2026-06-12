@@ -9,7 +9,6 @@
 -- Each leave record is immutable once approved (status = APPROVED).
 -- ============================================================
 
-SET search_path = hospital;
 
 -- ============================================================
 -- DOCTOR LEAVE (Leave records per doctor per period)

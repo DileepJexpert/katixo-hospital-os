@@ -22,6 +22,7 @@ import java.util.UUID;
 public class PharmacyController {
 
     private final PharmacyQueueService pharmacyQueueService;
+    private final ErpDispenseSyncService erpDispenseSyncService;
 
     @Getter
     @NoArgsConstructor
@@ -104,6 +105,25 @@ public class PharmacyController {
         return respond(mapQueueItemToView(item), "Item rejected", HttpStatus.OK);
     }
 
+    /**
+     * Retries ERP pharmacy receipt creation for a dispense whose automatic sync
+     * failed (ERP down, missing item). Safe to call repeatedly — the persisted
+     * idempotency key guarantees the ERP creates at most one receipt.
+     */
+    @PostMapping("/dispenses/{dispenseId}/sync-erp")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> syncDispenseToErp(@PathVariable Long dispenseId) {
+        PrescriptionDispense dispense = erpDispenseSyncService.syncDispense(dispenseId);
+        return respond(mapDispenseToView(dispense), "ERP receipt created", HttpStatus.OK);
+    }
+
+    @GetMapping("/dispenses/{dispenseId}/erp-status")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> getDispenseErpStatus(@PathVariable Long dispenseId) {
+        PrescriptionDispense dispense = pharmacyQueueService.getDispense(dispenseId);
+        return respond(mapDispenseToView(dispense), "Dispense ERP status", HttpStatus.OK);
+    }
+
     @GetMapping("/dispensed-history")
     @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<Map<String, Object>>>> getDispensedHistory(
@@ -111,6 +131,19 @@ public class PharmacyController {
             @RequestParam(defaultValue = "20") int size) {
         Page<Map<String, Object>> history = pharmacyQueueService.getDispensedHistory(page, size);
         return respond(history, "Dispensed items history", HttpStatus.OK);
+    }
+
+    private Map<String, Object> mapDispenseToView(PrescriptionDispense dispense) {
+        Map<String, Object> view = new java.util.LinkedHashMap<>();
+        view.put("dispenseId", dispense.getId());
+        view.put("prescriptionId", dispense.getPrescriptionId());
+        view.put("dispenseStatus", dispense.getDispenseStatus().name());
+        view.put("erpSyncStatus", dispense.getErpSyncStatus().name());
+        view.put("erpReceiptNumber", dispense.getErpReceiptNumber());
+        view.put("erpReceiptTotal", dispense.getErpReceiptTotal());
+        view.put("erpSyncError", dispense.getErpSyncError());
+        view.put("erpSyncedAt", dispense.getErpSyncedAt() == null ? null : dispense.getErpSyncedAt().toString());
+        return view;
     }
 
     private Map<String, Object> mapQueueItemToView(PharmacyQueueItem item) {

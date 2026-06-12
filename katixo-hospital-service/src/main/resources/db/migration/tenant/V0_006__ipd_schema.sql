@@ -3,7 +3,6 @@
 -- V0_006__ipd_schema.sql
 -- ============================================================
 
-SET search_path = hospital;
 
 CREATE SEQUENCE ipd_admission_seq START WITH 1;
 

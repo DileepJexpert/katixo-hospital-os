@@ -3,7 +3,6 @@
 -- V0_005__prescription_schema.sql
 -- ============================================================
 
-SET search_path = hospital;
 
 CREATE SEQUENCE prescription_seq START WITH 1;
 

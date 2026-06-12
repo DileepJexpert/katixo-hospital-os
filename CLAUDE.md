@@ -20,10 +20,14 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 - **Final bill**: hospital service assembles its own charge records + ERP invoice references into one consolidated view.
 - **Payment flow**: hospital service sends payment request to ERP payment API → ERP updates unified ledger.
 
-### Tenant Isolation (MANDATORY)
-- Every business table MUST have `tenant_id`, `hospital_group_id`, `branch_id` columns.
-- Every query MUST filter by tenant context from JWT/security context.
-- Every API response MUST be scoped to the caller's tenant/branch.
+### Tenant Isolation (MANDATORY) — schema-per-tenant
+- **DB isolation model: one shared PostgreSQL database, one schema per hospital tenant** (`t_<tenant_id>`), plus a `platform` control schema holding `tenant_registry` (tenant → schema + per-tenant Katasticho ERP credentials).
+- Hibernate SCHEMA multi-tenancy routes every JPA query: `TenantSchemaResolver` (TenantContext → schema via `TenantDirectory` cache) + `SchemaMultiTenantConnectionProvider` (sets/resets `search_path` per pooled connection). Wired in `HibernateMultiTenancyConfig`.
+- Flyway runs programmatically (`TenantMigrationService`): `db/migration/platform` → platform schema once; `db/migration/tenant` → EVERY tenant schema (startup sweep in `TenantBootstrap`, and at provisioning). Spring's auto-Flyway is disabled.
+- **Tenant migration SQL must be schema-agnostic:** no `CREATE SCHEMA`, no `SET search_path`, no schema-qualified names (`audit_log` lives inside each tenant schema now).
+- Provisioning: `POST /api/v1/platform/tenants` (`TenantProvisioningService`) = registry row + schema + migrations. Suspend/activate/update ERP config endpoints alongside. Demo tenant auto-provisions in dev (`katixo.tenant.demo.*`).
+- Login is tenant-scoped: `LoginRequest.tenantId` (falls back to demo tenant in dev) binds a system TenantContext before the staff lookup.
+- Every business table STILL has `tenant_id`, `hospital_group_id`, `branch_id` columns and every query still filters by TenantContext — defense in depth on top of schema isolation.
 - Cross-tenant data access is PROHIBITED.
 
 ### Policy Engine (NO hardcoded if-else)
@@ -50,15 +54,19 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 
 ### ERP Internal API Headers (MANDATORY for every call)
 ```
-Authorization: Bearer <service-token>
+X-API-Key: kat_...  (per-tenant Katasticho org-scoped API key from tenant_registry;
+                     fallback: Authorization: Bearer <service-token>)
 X-Correlation-Id: <uuid>
-Idempotency-Key: <uuid> (for command APIs)
+Idempotency-Key: <stable-key> (for command APIs — generated ONCE by the caller and
+                               persisted with the business record, reused on retry)
 X-Tenant-Id: <tenant_id>
 X-Group-Id: <group_id>
 X-Branch-Id: <branch_id>
 X-Source-System: HOSPITAL
 X-Source-Reference-Id: <prescription_id/indent_id/visit_id/admission_id>
 ```
+- ERP mapping: **one Katasticho org per hospital tenant**, authenticated by that org's API key (Katasticho's `ApiKeyAuthenticationFilter` resolves org+role from the key; the X-* headers are tracing only).
+- `ErpApiClient` resolves credentials per tenant from the registry; ERP is used for ACCOUNTING ONLY (journal entries, invoices, payments) — see Billing Ownership above.
 
 ## Tech Stack
 
@@ -169,7 +177,14 @@ katixo-hospital-service/
 - Discharge checklist: some items block, others warn (from policy engine)
 
 ### Pharmacy
-- OPD dispense: hospital calls ERP, ERP creates invoice atomically
+- OPD dispense: hospital calls ERP, ERP creates invoice atomically.
+  **IMPLEMENTED:** `ErpDispenseSyncService` — on FULLY_DISPENSED (after commit), resolves
+  medicine codes to ERP items by SKU (`GET /api/v1/items?search=`), creates a POS sales
+  receipt (`POST /api/v1/sales-receipts`, CASH, MRP tax-inclusive, ERP does FEFO/stock/GST/journal).
+  Idempotency key `HOSP-DISP-<tenant>-<dispenseId>` persisted on prescription_dispense (V1_011);
+  ERP failure marks erp_sync_status=FAILED, never blocks the dispense. Retry:
+  `POST /api/v1/pharmacy/dispenses/{id}/sync-erp`. Katasticho replays duplicates via its
+  IdempotencyFilter (V67).
 - OTC sales: no UHID required, separate Quick Sale flow
 - Queue: default FIFO with priority override (logged for audit)
 - Substitution: record original item, dispensed item, reason

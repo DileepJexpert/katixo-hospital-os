@@ -14,6 +14,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -27,6 +29,7 @@ public class PharmacyQueueService {
     private final PharmacyQueueItemRepository queueItemRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final AuditService auditService;
+    private final ErpDispenseSyncService erpDispenseSyncService;
 
     public PrescriptionDispense sendToPharmaQueue(Long prescriptionId) {
         TenantContext tenantContext = TenantContext.get();
@@ -234,6 +237,14 @@ public class PharmacyQueueService {
         return items.map(this::mapToQueueItemView);
     }
 
+    @Transactional(readOnly = true)
+    public PrescriptionDispense getDispense(Long dispenseId) {
+        TenantContext tenantContext = TenantContext.get();
+        return prescriptionDispenseRepository.findById(dispenseId)
+                .filter(d -> d.getTenantId().equals(tenantContext.getTenantId()))
+                .orElseThrow(() -> new BusinessException("DISPENSE_NOT_FOUND", "Dispense not found: " + dispenseId));
+    }
+
     private void updateDispenseStatus(Long dispenseId) {
         TenantContext tenantContext = TenantContext.get();
         String tenantId = tenantContext.getTenantId();
@@ -252,7 +263,9 @@ public class PharmacyQueueService {
                 .filter(i -> i.getQueueStatus() == PharmacyQueueItem.QueueStatus.DISPENSED)
                 .count();
 
+        boolean becameFullyDispensed = false;
         if (dispensedCount == items.size()) {
+            becameFullyDispensed = dispense.getDispenseStatus() != PrescriptionDispense.DispenseStatus.FULLY_DISPENSED;
             dispense.setDispenseStatus(PrescriptionDispense.DispenseStatus.FULLY_DISPENSED);
             dispense.setDispensedAt(LocalDateTime.now());
         } else if (dispensedCount > 0) {
@@ -261,6 +274,19 @@ public class PharmacyQueueService {
 
         dispense.setUpdatedBy(Long.parseLong(tenantContext.getUserId()));
         prescriptionDispenseRepository.save(dispense);
+
+        if (becameFullyDispensed) {
+            // ERP receipt creation runs AFTER this transaction commits: the sync
+            // opens its own transaction and must see FULLY_DISPENSED, and an ERP
+            // failure must never roll back the physical dispense.
+            Long completedDispenseId = dispense.getId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    erpDispenseSyncService.syncDispenseQuietly(completedDispenseId);
+                }
+            });
+        }
     }
 
     private Map<String, Object> mapToQueueItemView(PharmacyQueueItem item) {

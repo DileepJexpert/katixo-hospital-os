@@ -5,7 +5,6 @@
 -- GST/pharmacy invoicing is OWNED BY ERP — never calculated here (CLAUDE.md).
 -- ============================================================
 
-SET search_path = hospital;
 
 CREATE SEQUENCE bill_seq START WITH 1;
 

@@ -11,7 +11,6 @@
 -- isolation record is ACTIVE.
 -- ============================================================
 
-SET search_path = hospital;
 
 CREATE TABLE bed_isolation (
     id                  BIGSERIAL PRIMARY KEY,

@@ -6,7 +6,6 @@
 --   * opd.doctor.leave_requires_approval — Require admin approval before leave becomes active
 -- ============================================================
 
-SET search_path = hospital;
 
 INSERT INTO hospital_policy (
     tenant_id, hospital_group_id, branch_id, policy_code, policy_value,

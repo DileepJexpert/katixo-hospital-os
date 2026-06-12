@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(schema = "audit", name = "audit_log", indexes = {
+// audit_log lives inside each tenant's schema (schema-per-tenant isolation),
+// so no fixed schema qualifier here.
+@Table(name = "audit_log", indexes = {
         @Index(name = "idx_audit_entity", columnList = "entity_type,entity_id"),
         @Index(name = "idx_audit_actor", columnList = "actor_id,created_at"),
         @Index(name = "idx_audit_tenant", columnList = "tenant_id,created_at"),
