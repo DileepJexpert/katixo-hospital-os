@@ -26,6 +26,7 @@ public class AbdmExchangeController {
 
     private final CareContextService careContextService;
     private final ConsentService consentService;
+    private final FhirExportService fhirExportService;
 
     // ------------------------------------------------------------
     // Care contexts
@@ -75,6 +76,18 @@ public class AbdmExchangeController {
                 .map(ConsentResponse::from)
                 .toList();
         return respond(response, "Consents retrieved", HttpStatus.OK);
+    }
+
+    // ------------------------------------------------------------
+    // FHIR R4 export (ABDM NRCeS profiles)
+    // ------------------------------------------------------------
+
+    /** Returns the prescription as an ABDM PrescriptionRecord document bundle (raw FHIR JSON). */
+    @GetMapping(value = "/fhir/prescription/{prescriptionId}", produces = "application/fhir+json")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> exportPrescription(
+            @PathVariable Long prescriptionId) {
+        return ResponseEntity.ok(fhirExportService.exportPrescription(prescriptionId));
     }
 
     private <T> ResponseEntity<ApiResponse<T>> respond(T data, String message, HttpStatus status) {

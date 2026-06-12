@@ -49,11 +49,17 @@
       `POST .../consents/{id}/revoke`, `GET .../consents/patient/{id}` with RBAC.
 - [x] 2.5 Flyway `V2_002__abdm_care_context_consent.sql`.
 
-## Phase 3 — FHIR R4 export (NEXT+1)
+## Phase 3 — FHIR R4 export 🟡 PARTIAL (PrescriptionRecord done)
 
-- [ ] 3.1 `FhirBundleService` — build ABDM `PrescriptionRecord` DocumentBundle from a `Prescription`.
-- [ ] 3.2 `OPConsultRecord` + `DiagnosticReportRecord` profiles.
-- [ ] 3.3 `GET /api/v1/abdm/fhir/prescription/{id}` returning the FHIR JSON bundle.
+- [T] 3.1 `FhirBundleBuilder` (pure, unit-tested) — ABDM `PrescriptionRecord` DocumentBundle:
+      Composition (SNOMED 440545006) first, Patient with ABHA + UHID identifiers,
+      Practitioner, one MedicationRequest per item, section refs resolving in-bundle.
+      Status maps ACTIVE→active, DISPENSED→completed. 5-case shape test green.
+- [x] 3.2 `FhirExportService` — tenant-scoped lookups, ABHA/abdm.enabled gate, cancelled-Rx
+      guard, audit action EXPORT. Consent gating deliberately left to the transfer path.
+- [x] 3.3 `GET /api/v1/abdm/fhir/prescription/{id}` returning `application/fhir+json`.
+- [ ] 3.4 `OPConsultRecord` + `DiagnosticReportRecord` profiles (lab/OPD export) — NEXT.
+- [ ] 3.5 Swap hand-built JSON for HAPI FHIR validation before Phase-4 certification.
 
 ## Phase 4 — Gateway integration (integration-service, LATER)
 
@@ -72,3 +78,7 @@
   registration via outbox) + consent artifacts (grant/revoke lifecycle, `hasActiveConsent` transfer
   gate). Migration V2_002. ConsentArtifactTest 5/5 green; all 11 ABDM tests passing.
   Next: Phase 3 (FHIR R4 PrescriptionRecord export).
+- 2026-06-12: Phase 3 PrescriptionRecord export done — pure FhirBundleBuilder (NRCeS profiles,
+  SNOMED-typed Composition, ABHA-identified Patient, MedicationRequest per item) + audited
+  export endpoint. 16 ABDM tests green. Remaining: OPConsult/DiagnosticReport profiles, HAPI
+  validation pre-certification.
