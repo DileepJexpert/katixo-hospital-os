@@ -38,6 +38,11 @@ public enum HospitalPolicyCode {
     PATIENT_UHID_FORMAT("patient.uhid_format", "UHID format pattern (e.g., HOS-{branch}-{seq})"),
     PATIENT_UHID_SEQ_START("patient.uhid_seq_start", "Starting sequence number for UHID generation"),
 
+    // ABDM (Ayushman Bharat Digital Mission) Policies
+    ABDM_ENABLED("abdm.enabled", "Enable ABDM/ABHA features for this hospital (default false)"),
+    ABDM_HIP_ID("abdm.hip_id", "Health Facility Registry (HFR) id used as Health Information Provider"),
+    ABDM_ABHA_LINK_VERIFICATION("abdm.abha.link_verification", "Required ABHA link verification: AADHAAR_OTP, MOBILE_OTP, DEMOGRAPHICS"),
+
     // General Policies
     ENABLE_PATIENT_PORTAL("general.enable_patient_portal", "Enable patient self-service portal"),
     ENABLE_SMS_NOTIFICATION("general.enable_sms_notification", "Enable SMS notifications"),
