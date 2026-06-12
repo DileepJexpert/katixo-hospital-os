@@ -51,4 +51,90 @@ public final class AbdmDtos {
                     .build();
         }
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCareContextRequest {
+        @NotNull
+        private CareContext.SourceType sourceType;
+        @NotNull
+        private Long sourceId;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CareContextResponse {
+        private Long id;
+        private Long patientId;
+        private String careContextReference;
+        private String displayName;
+        private String sourceType;
+        private Long sourceId;
+        private String linkStatus;
+
+        public static CareContextResponse from(CareContext ctx) {
+            return CareContextResponse.builder()
+                    .id(ctx.getId())
+                    .patientId(ctx.getPatientId())
+                    .careContextReference(ctx.getCareContextReference())
+                    .displayName(ctx.getDisplayName())
+                    .sourceType(ctx.getSourceType().name())
+                    .sourceId(ctx.getSourceId())
+                    .linkStatus(ctx.getLinkStatus().name())
+                    .build();
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecordConsentRequest {
+        @NotNull
+        private Long patientId;
+        /** ABDM purpose-of-use code; defaults to CAREMGT when absent. */
+        private String purposeCode;
+        @NotNull
+        private java.util.List<String> hiTypes;
+        @NotNull
+        private LocalDateTime dataFrom;
+        @NotNull
+        private LocalDateTime dataTo;
+        @NotNull
+        private LocalDateTime expiresAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ConsentResponse {
+        private Long id;
+        private String artifactId;
+        private Long patientId;
+        private String purposeCode;
+        private String hiTypes;
+        private LocalDateTime dataFrom;
+        private LocalDateTime dataTo;
+        private LocalDateTime expiresAt;
+        private String consentStatus;
+        private LocalDateTime grantedAt;
+
+        public static ConsentResponse from(ConsentArtifact artifact) {
+            return ConsentResponse.builder()
+                    .id(artifact.getId())
+                    .artifactId(artifact.getArtifactId())
+                    .patientId(artifact.getPatientId())
+                    .purposeCode(artifact.getPurposeCode())
+                    .hiTypes(artifact.getHiTypes())
+                    .dataFrom(artifact.getDataFrom())
+                    .dataTo(artifact.getDataTo())
+                    .expiresAt(artifact.getExpiresAt())
+                    .consentStatus(artifact.getConsentStatus().name())
+                    .grantedAt(artifact.getGrantedAt())
+                    .build();
+        }
+    }
 }

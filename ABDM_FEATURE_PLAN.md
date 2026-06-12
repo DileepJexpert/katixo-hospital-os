@@ -35,11 +35,19 @@
 - [T] 1.9 `AbhaNumberValidatorTest` — 6 cases (valid, length, non-digit, bad checksum, transposition, address). All green.
 - [x] 1.10 `mvn compile` clean + validator test 6/6 passing.
 
-## Phase 2 — Care-context + consent (NEXT)
+## Phase 2 — Care-context + consent ✅ COMPLETE
 
-- [ ] 2.1 `CareContext` entity — created per OPD visit / IPD admission, linked to ABHA.
-- [ ] 2.2 Consent artifact storage (HIE-CM consent grant/expiry per ABHA).
-- [ ] 2.3 Outbox events that a future `katixo-integration-service` poller pushes to the ABDM gateway.
+- [x] 2.1 `CareContext` entity + repository — one per OPD visit / IPD admission, requires active
+      ABHA link, unique `care_context_reference` (OPD-{id}/IPD-{id}), `linkStatus` tracks async
+      gateway registration. `CareContextService` validates the source episode in-tenant.
+- [T] 2.2 `ConsentArtifact` entity + `ConsentService` — HIE-CM grant storage with purpose code,
+      HI types (CSV), data period, expiry; revoke flips status (never deleted);
+      `hasActiveConsent(patient, hiType)` is the single transfer gate. Unit-tested (5 cases).
+- [x] 2.3 Outbox events on every mutation: `CareContextCreated`, `ConsentGranted`, `ConsentRevoked`
+      — ready for the integration-service gateway poller.
+- [x] 2.4 `AbdmExchangeController` — `POST/GET /api/v1/abdm/care-contexts`, `POST /api/v1/abdm/consents`,
+      `POST .../consents/{id}/revoke`, `GET .../consents/patient/{id}` with RBAC.
+- [x] 2.5 Flyway `V2_002__abdm_care_context_consent.sql`.
 
 ## Phase 3 — FHIR R4 export (NEXT+1)
 
@@ -60,3 +68,7 @@
 - 2026-06-12: Phase 1 complete — ABHA linkage module (`com.katixo.hospital.abdm`) with
   Verhoeff validation, tenant/audit/outbox/policy integration, migration V2_001, and a
   6-case validator unit test (all passing). `mvn compile` clean. Next: Phase 2 (care-context + consent).
+- 2026-06-12: Phase 2 complete — care contexts (per OPD/IPD episode, ABHA-gated, async gateway
+  registration via outbox) + consent artifacts (grant/revoke lifecycle, `hasActiveConsent` transfer
+  gate). Migration V2_002. ConsentArtifactTest 5/5 green; all 11 ABDM tests passing.
+  Next: Phase 3 (FHIR R4 PrescriptionRecord export).
