@@ -18,6 +18,6 @@ public interface PrescriptionDispenseRepository extends JpaRepository<Prescripti
            "AND pd.patientId = ?3 ORDER BY pd.createdAt DESC")
     List<PrescriptionDispense> findByPatientId(String tenantId, Long branchId, Long patientId);
 
-    List<PrescriptionDispense> findByTenantIdAndVisitIdAndErpSyncStatus(
-            String tenantId, Long visitId, PrescriptionDispense.ErpSyncStatus erpSyncStatus);
+    /** Fully-dispensed prescriptions for a visit that produced a pharmacy sale. */
+    List<PrescriptionDispense> findByTenantIdAndVisitIdAndSaleIdNotNull(String tenantId, Long visitId);
 }

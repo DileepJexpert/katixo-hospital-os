@@ -1652,13 +1652,9 @@ CREATE TABLE prescription_dispense (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_by bigint,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    erp_sync_status character varying(20) DEFAULT 'NOT_SYNCED'::character varying NOT NULL,
-    erp_idempotency_key character varying(100),
-    erp_receipt_id character varying(50),
-    erp_receipt_number character varying(50),
-    erp_receipt_total numeric(14,2),
-    erp_sync_error text,
-    erp_synced_at timestamp without time zone
+    sale_id bigint,
+    sale_number character varying(30),
+    sale_total numeric(14,2)
 );
 
 
@@ -3190,13 +3186,6 @@ CREATE INDEX idx_pharmacy_queue_item_tenant_branch ON pharmacy_queue_item USING 
 --
 
 CREATE INDEX idx_policy_lookup ON hospital_policy USING btree (tenant_id, branch_id, policy_code);
-
-
---
--- Name: idx_prescription_dispense_erp_sync; Type: INDEX; Schema: t_demo_tenant; Owner: -
---
-
-CREATE INDEX idx_prescription_dispense_erp_sync ON prescription_dispense USING btree (erp_sync_status);
 
 
 --

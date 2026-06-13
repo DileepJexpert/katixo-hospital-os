@@ -14,8 +14,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -29,7 +27,7 @@ public class PharmacyQueueService {
     private final PharmacyQueueItemRepository queueItemRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final AuditService auditService;
-    private final ErpDispenseSyncService erpDispenseSyncService;
+    private final com.katixo.hospital.inventory.PharmacySaleService pharmacySaleService;
 
     public PrescriptionDispense sendToPharmaQueue(Long prescriptionId) {
         TenantContext tenantContext = TenantContext.get();
@@ -276,17 +274,32 @@ public class PharmacyQueueService {
         prescriptionDispenseRepository.save(dispense);
 
         if (becameFullyDispensed) {
-            // ERP receipt creation runs AFTER this transaction commits: the sync
-            // opens its own transaction and must see FULLY_DISPENSED, and an ERP
-            // failure must never roll back the physical dispense.
-            Long completedDispenseId = dispense.getId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    erpDispenseSyncService.syncDispenseQuietly(completedDispenseId);
-                }
-            });
+            createPharmacySale(dispense, items);
         }
+    }
+
+    /**
+     * On full dispense, raise the OPD pharmacy sale in the hospital's own books:
+     * a CASH sale that FEFO-issues the dispensed stock, computes GST and posts
+     * the revenue/GST/COGS journal — all in this same transaction. If an item
+     * is not in the pharmacy master or stock is short, the whole completion
+     * rolls back: you cannot record dispensing medicine you do not have.
+     */
+    private void createPharmacySale(PrescriptionDispense dispense, List<PharmacyQueueItem> items) {
+        List<com.katixo.hospital.inventory.PharmacySaleService.SaleLineInput> lines = items.stream()
+                .filter(i -> i.getQueueStatus() == PharmacyQueueItem.QueueStatus.DISPENSED)
+                .map(i -> new com.katixo.hospital.inventory.PharmacySaleService.SaleLineInput(
+                        i.getMedicineCode(), java.math.BigDecimal.valueOf(i.getQuantity())))
+                .toList();
+
+        var sale = pharmacySaleService.createSale(new com.katixo.hospital.inventory.PharmacySaleService.SaleRequest(
+                com.katixo.hospital.inventory.PharmacySale.SaleType.CASH,
+                dispense.getPatientId(), "DISPENSE", "DISPENSE-" + dispense.getId(), "CASH", false, lines));
+
+        dispense.setSaleId(sale.getId());
+        dispense.setSaleNumber(sale.getSaleNumber());
+        dispense.setSaleTotal(sale.getGrandTotal());
+        prescriptionDispenseRepository.save(dispense);
     }
 
     private Map<String, Object> mapToQueueItemView(PharmacyQueueItem item) {

@@ -22,7 +22,6 @@ import java.util.UUID;
 public class PharmacyController {
 
     private final PharmacyQueueService pharmacyQueueService;
-    private final ErpDispenseSyncService erpDispenseSyncService;
 
     @Getter
     @NoArgsConstructor
@@ -105,23 +104,12 @@ public class PharmacyController {
         return respond(mapQueueItemToView(item), "Item rejected", HttpStatus.OK);
     }
 
-    /**
-     * Retries ERP pharmacy receipt creation for a dispense whose automatic sync
-     * failed (ERP down, missing item). Safe to call repeatedly — the persisted
-     * idempotency key guarantees the ERP creates at most one receipt.
-     */
-    @PostMapping("/dispenses/{dispenseId}/sync-erp")
-    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> syncDispenseToErp(@PathVariable Long dispenseId) {
-        PrescriptionDispense dispense = erpDispenseSyncService.syncDispense(dispenseId);
-        return respond(mapDispenseToView(dispense), "ERP receipt created", HttpStatus.OK);
-    }
-
-    @GetMapping("/dispenses/{dispenseId}/erp-status")
+    /** Sale + stock state for a dispense (the pharmacy sale raised on full dispense). */
+    @GetMapping("/dispenses/{dispenseId}")
     @PreAuthorize("hasAnyRole('PHARMACIST', 'BILLING', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> getDispenseErpStatus(@PathVariable Long dispenseId) {
+    public ResponseEntity<ApiResponse<Object>> getDispense(@PathVariable Long dispenseId) {
         PrescriptionDispense dispense = pharmacyQueueService.getDispense(dispenseId);
-        return respond(mapDispenseToView(dispense), "Dispense ERP status", HttpStatus.OK);
+        return respond(mapDispenseToView(dispense), "Dispense", HttpStatus.OK);
     }
 
     @GetMapping("/dispensed-history")
@@ -138,11 +126,8 @@ public class PharmacyController {
         view.put("dispenseId", dispense.getId());
         view.put("prescriptionId", dispense.getPrescriptionId());
         view.put("dispenseStatus", dispense.getDispenseStatus().name());
-        view.put("erpSyncStatus", dispense.getErpSyncStatus().name());
-        view.put("erpReceiptNumber", dispense.getErpReceiptNumber());
-        view.put("erpReceiptTotal", dispense.getErpReceiptTotal());
-        view.put("erpSyncError", dispense.getErpSyncError());
-        view.put("erpSyncedAt", dispense.getErpSyncedAt() == null ? null : dispense.getErpSyncedAt().toString());
+        view.put("saleNumber", dispense.getSaleNumber());
+        view.put("saleTotal", dispense.getSaleTotal());
         return view;
     }
 

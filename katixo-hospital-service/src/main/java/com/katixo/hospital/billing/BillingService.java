@@ -439,11 +439,11 @@ public class BillingService {
     // ------------------------------------------------------------
 
     /**
-     * Pulls the ERP pharmacy documents already created at dispense time onto
-     * the bill, so the consolidated bill shows hospital charges + pharmacy
-     * invoices without manual entry:
-     * OPD → POS receipts from prescription dispenses (dispense.visitId == sourceId);
-     * IPD → AR invoices from dispensed nursing indents (indent.admissionId == sourceId).
+     * Pulls the (local) pharmacy sales already raised at dispense time onto the
+     * bill, so the consolidated bill shows hospital charges + pharmacy sales
+     * without manual entry:
+     * OPD → CASH sales from prescription dispenses (dispense.visitId == sourceId);
+     * IPD → CREDIT sales from dispensed nursing indents (indent.admissionId == sourceId).
      */
     private void autoAttachPharmacyReceipts(PatientBill bill) {
         var ctx = TenantContext.get();
@@ -451,25 +451,24 @@ public class BillingService {
                 .stream().map(BillErpInvoiceRef::getErpInvoiceNumber).collect(java.util.stream.Collectors.toSet());
 
         if (bill.getSourceType() == HospitalCharge.SourceType.OPD_VISIT) {
-            dispenseRepository.findByTenantIdAndVisitIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
-                            com.katixo.hospital.pharmacy.PrescriptionDispense.ErpSyncStatus.SYNCED).stream()
-                    .filter(d -> d.getErpReceiptNumber() != null && !alreadyAttached.contains(d.getErpReceiptNumber()))
-                    .forEach(d -> attachErpRef(bill, d.getErpReceiptNumber(), d.getErpReceiptTotal()));
+            dispenseRepository.findByTenantIdAndVisitIdAndSaleIdNotNull(ctx.getTenantId(), bill.getSourceId()).stream()
+                    .filter(d -> d.getSaleNumber() != null && !alreadyAttached.contains(d.getSaleNumber()))
+                    .forEach(d -> attachPharmacyRef(bill, d.getSaleNumber(), d.getSaleTotal()));
         } else {
             indentRepository.findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
                             com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED).stream()
                     .filter(i -> i.getErpInvoiceNumber() != null && !alreadyAttached.contains(i.getErpInvoiceNumber()))
-                    .forEach(i -> attachErpRef(bill, i.getErpInvoiceNumber(), i.getErpInvoiceTotal()));
+                    .forEach(i -> attachPharmacyRef(bill, i.getErpInvoiceNumber(), i.getErpInvoiceTotal()));
         }
     }
 
-    private void attachErpRef(PatientBill bill, String invoiceNumber, BigDecimal amount) {
+    private void attachPharmacyRef(PatientBill bill, String saleNumber, BigDecimal amount) {
         BillErpInvoiceRef ref = new BillErpInvoiceRef();
         ref.setTenantId(bill.getTenantId());
         ref.setHospitalGroupId(bill.getHospitalGroupId());
         ref.setBranchId(bill.getBranchId());
         ref.setBillId(bill.getId());
-        ref.setErpInvoiceNumber(invoiceNumber);
+        ref.setErpInvoiceNumber(saleNumber);
         ref.setErpInvoiceAmount(amount == null ? BigDecimal.ZERO : amount);
         ref.setInvoiceType("PHARMACY");
         ref.setCreatedBy(userId());

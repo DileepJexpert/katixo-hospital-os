@@ -40,36 +40,20 @@ public class PrescriptionDispense extends BaseEntity {
     @Column(nullable = false)
     private Integer totalItems;
 
-    // --- ERP pharmacy receipt linkage (Katasticho owns medicine GST/stock/journal) ---
-
-    @Column(nullable = false, length = 20)
-    @Enumerated(EnumType.STRING)
-    private ErpSyncStatus erpSyncStatus = ErpSyncStatus.NOT_SYNCED;
-
-    /** Generated ONCE per dispense and reused on every retry (idempotency contract). */
-    @Column(length = 100)
-    private String erpIdempotencyKey;
-
-    @Column(length = 50)
-    private String erpReceiptId;
-
-    @Column(length = 50)
-    private String erpReceiptNumber;
-
-    @Column(precision = 14, scale = 2)
-    private java.math.BigDecimal erpReceiptTotal;
-
-    @Column(columnDefinition = "TEXT")
-    private String erpSyncError;
+    // --- Local pharmacy sale linkage (hospital owns its own books) ---
+    // On FULLY_DISPENSED a CASH pharmacy sale is created in-process; the
+    // dispense records which sale it produced.
 
     @Column
-    private LocalDateTime erpSyncedAt;
+    private Long saleId;
+
+    @Column(length = 30)
+    private String saleNumber;
+
+    @Column(precision = 14, scale = 2)
+    private java.math.BigDecimal saleTotal;
 
     public enum DispenseStatus {
         QUEUED, IN_PROGRESS, PARTIALLY_DISPENSED, FULLY_DISPENSED, FAILED, CANCELLED
-    }
-
-    public enum ErpSyncStatus {
-        NOT_SYNCED, SYNCED, FAILED
     }
 }
