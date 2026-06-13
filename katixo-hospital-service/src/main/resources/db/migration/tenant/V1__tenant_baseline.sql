@@ -3725,3 +3725,68 @@ CREATE TABLE nursing_indent_item (
 );
 
 CREATE INDEX idx_nursing_indent_item_indent ON nursing_indent_item(indent_id);
+
+-- ============================================================
+-- ACCOUNTING (hospital owns its own double-entry books — no ERP dependency)
+-- account = chart of accounts; journal_entry/journal_line = balanced vouchers.
+-- ============================================================
+
+CREATE SEQUENCE journal_entry_seq START WITH 100001 INCREMENT BY 1;
+
+CREATE TABLE account (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(20)  NOT NULL,
+    name                VARCHAR(150) NOT NULL,
+    account_type        VARCHAR(20)  NOT NULL,
+    system_account      BOOLEAN      NOT NULL DEFAULT FALSE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_account_tenant_branch ON account(tenant_id, branch_id);
+
+CREATE TABLE journal_entry (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    entry_number        VARCHAR(30)  NOT NULL,
+    entry_date          DATE         NOT NULL,
+    description         VARCHAR(300) NOT NULL,
+    source_module       VARCHAR(30)  NOT NULL,
+    source_reference    VARCHAR(60),
+    entry_status        VARCHAR(20)  NOT NULL DEFAULT 'POSTED',
+    reversal_of_id      BIGINT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_journal_entry_tenant_branch ON journal_entry(tenant_id, branch_id);
+CREATE INDEX idx_journal_entry_source ON journal_entry(tenant_id, source_module, source_reference);
+
+CREATE TABLE journal_line (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    journal_entry_id    BIGINT       NOT NULL REFERENCES journal_entry(id),
+    account_code        VARCHAR(20)  NOT NULL,
+    debit               NUMERIC(14,2) NOT NULL DEFAULT 0,
+    credit              NUMERIC(14,2) NOT NULL DEFAULT 0,
+    line_description    VARCHAR(300),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_journal_line_entry ON journal_line(journal_entry_id);
+CREATE INDEX idx_journal_line_account ON journal_line(tenant_id, account_code);

@@ -66,3 +66,22 @@ INSERT INTO hospital_policy (tenant_id, hospital_group_id, branch_id, policy_cod
                              description, version, effective_from, created_by, updated_by)
 VALUES ('${tenantId}', 1, 1, 'ipd.indent.approval.required_categories', 'IMPLANT,NARCOTIC',
         'CSV of indent item categories that need approval before dispense', 1, NOW(), 1, 1);
+
+-- ============================================================
+-- Default hospital chart of accounts (seeded per tenant).
+-- Hospital owns its own books; these system accounts back the postings
+-- for pharmacy sales, service bills and patient payments.
+-- ============================================================
+INSERT INTO account (tenant_id, hospital_group_id, branch_id, code, name, account_type, system_account,
+                     status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, '1010', 'Cash',                       'ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '1020', 'Bank',                       'ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '1100', 'Patient Accounts Receivable','ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '1200', 'Pharmacy Inventory',         'ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2110', 'CGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2120', 'SGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2130', 'IGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '4010', 'Pharmacy Sales',             'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '4020', 'Hospital Service Income',    'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5010', 'Cost of Goods Sold',         'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW());
