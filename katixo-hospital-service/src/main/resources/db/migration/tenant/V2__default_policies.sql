@@ -86,3 +86,20 @@ VALUES
   ('${tenantId}', 1, 1, '4010', 'Pharmacy Sales',             'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '4020', 'Hospital Service Income',    'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '5010', 'Cost of Goods Sold',         'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW());
+
+-- Payroll + expense chart of accounts (HR / expense modules)
+INSERT INTO account (tenant_id, hospital_group_id, branch_id, code, name, account_type, system_account,
+                     status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, '2040', 'Salary Payable',             'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2050', 'PF Payable',                 'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2051', 'ESI Payable',                'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2052', 'Professional Tax Payable',   'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2053', 'TDS Payable',                'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5100', 'Salaries & Wages',           'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5110', 'Employer Statutory Contributions', 'EXPENSE', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5200', 'Rent',                       'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5210', 'Utilities',                  'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5220', 'Supplies',                   'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5230', 'Repairs & Maintenance',      'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5290', 'Miscellaneous Expense',      'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW());

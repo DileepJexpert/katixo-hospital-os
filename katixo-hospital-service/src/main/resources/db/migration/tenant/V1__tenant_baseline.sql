@@ -3848,3 +3848,117 @@ CREATE TABLE bill_pharmacy_ref (
     UNIQUE (tenant_id, bill_id, sale_number)
 );
 CREATE INDEX idx_bill_pharmacy_ref_bill ON bill_pharmacy_ref(bill_id);
+
+-- ============================================================
+-- EXPENSE (hospital operating expenses — posts to own books)
+-- ============================================================
+CREATE SEQUENCE expense_seq START WITH 100001 INCREMENT BY 1;
+
+CREATE TABLE expense (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    expense_number      VARCHAR(30)  NOT NULL,
+    expense_date        DATE         NOT NULL,
+    category            VARCHAR(30)  NOT NULL,
+    payee_name          VARCHAR(150),
+    amount              NUMERIC(14,2) NOT NULL,
+    payment_mode        VARCHAR(20)  NOT NULL,
+    reference           VARCHAR(100),
+    notes               VARCHAR(300),
+    journal_entry_id    BIGINT,
+    journal_number      VARCHAR(30),
+    reversed            BOOLEAN      NOT NULL DEFAULT FALSE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_expense_tenant_branch ON expense(tenant_id, branch_id);
+CREATE INDEX idx_expense_date ON expense(tenant_id, expense_date);
+
+-- ============================================================
+-- HR / PAYROLL (hospital-owned; posts to own books)
+-- ============================================================
+CREATE SEQUENCE employee_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE employee (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    employee_code       VARCHAR(30)  NOT NULL,
+    name                VARCHAR(150) NOT NULL,
+    designation         VARCHAR(100),
+    department          VARCHAR(100),
+    joining_date        DATE,
+    basic_salary        NUMERIC(12,2) NOT NULL DEFAULT 0,
+    hra                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    other_allowances    NUMERIC(12,2) NOT NULL DEFAULT 0,
+    pf_applicable       BOOLEAN      NOT NULL DEFAULT TRUE,
+    esi_applicable      BOOLEAN      NOT NULL DEFAULT TRUE,
+    professional_tax    NUMERIC(10,2) NOT NULL DEFAULT 0,
+    monthly_tds         NUMERIC(12,2) NOT NULL DEFAULT 0,
+    bank_account        VARCHAR(50),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, employee_code)
+);
+CREATE INDEX idx_employee_tenant_branch ON employee(tenant_id, branch_id);
+
+CREATE TABLE payroll_run (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    period_year         INTEGER      NOT NULL,
+    period_month        INTEGER      NOT NULL,
+    run_status          VARCHAR(20)  NOT NULL DEFAULT 'DRAFT',
+    employee_count      INTEGER      NOT NULL DEFAULT 0,
+    total_gross         NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total_deductions    NUMERIC(14,2) NOT NULL DEFAULT 0,
+    total_net           NUMERIC(14,2) NOT NULL DEFAULT 0,
+    journal_entry_id    BIGINT,
+    payment_journal_entry_id BIGINT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, period_year, period_month)
+);
+CREATE INDEX idx_payroll_run_tenant_branch ON payroll_run(tenant_id, branch_id);
+
+CREATE TABLE payslip (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    payroll_run_id      BIGINT       NOT NULL REFERENCES payroll_run(id),
+    employee_id         BIGINT       NOT NULL,
+    employee_name       VARCHAR(150) NOT NULL,
+    basic               NUMERIC(12,2) NOT NULL DEFAULT 0,
+    hra                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    allowances          NUMERIC(12,2) NOT NULL DEFAULT 0,
+    gross               NUMERIC(12,2) NOT NULL DEFAULT 0,
+    pf_employee         NUMERIC(12,2) NOT NULL DEFAULT 0,
+    pf_employer         NUMERIC(12,2) NOT NULL DEFAULT 0,
+    esi_employee        NUMERIC(12,2) NOT NULL DEFAULT 0,
+    esi_employer        NUMERIC(12,2) NOT NULL DEFAULT 0,
+    professional_tax    NUMERIC(12,2) NOT NULL DEFAULT 0,
+    tds                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    total_deductions    NUMERIC(12,2) NOT NULL DEFAULT 0,
+    net_pay             NUMERIC(12,2) NOT NULL DEFAULT 0,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_payslip_run ON payslip(payroll_run_id);

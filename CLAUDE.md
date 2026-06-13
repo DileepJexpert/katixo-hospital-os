@@ -9,7 +9,7 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 ## Architecture Rules (NEVER violate these)
 
 ### Single self-contained service
-- `katixo-hospital-service` owns the whole product: patient, OPD, IPD, clinical, lab, radiology, OT, TPA, discharge, dashboard, consent, certificates, NABH, policy engine — **plus its own accounting, pharmacy inventory and GST** (`accounting/`, `inventory/`).
+- `katixo-hospital-service` owns the whole product: patient, OPD, IPD, clinical, lab, radiology, OT, TPA, discharge, dashboard, consent, certificates, NABH, policy engine — **plus its own accounting, pharmacy inventory, GST, HR/payroll and expense tracking** (`accounting/`, `inventory/`, `payroll/`, `expense/`).
 - **NEVER split into microservices. NEVER add a runtime dependency on Katasticho (or any ERP).** Cross-cutting capabilities (accounting, etc.) are in-process modules called directly, not remote services.
 - Internal modules use package boundaries, not service boundaries.
 - (Historical: there was a `katixo-erp-service` integration and a planned `katixo-integration-service`; the ERP integration was removed in Phase 3.)
@@ -206,6 +206,19 @@ katixo-hospital-service/
 - Patient credit account: balance, configurable limit, warn/block action
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
+
+### HR / Payroll (hospital-owned — `payroll/`)
+- Employee master (inline salary structure: basic/HRA/allowances, PF/ESI flags, PT, monthly TDS).
+- Monthly `PayrollRun` DRAFT → APPROVED → PAID. Statutory: PF 12% of basic (employee+employer),
+  ESI 0.75% employee / 3.25% employer of gross when gross ≤ ₹21,000, PT + TDS fixed per employee.
+- Approve posts DR Salaries & Wages (5100) + Employer Contributions (5110) / CR Salary Payable (2040)
+  + PF/ESI/PT/TDS Payable (2050/2051/2052/2053). Pay posts DR Salary Payable / CR Bank (1020).
+  `/api/v1/payroll`.
+
+### Expense tracking (hospital-owned — `expense/`)
+- Operating expenses by category (RENT 5200 / UTILITIES 5210 / SUPPLIES 5220 / MAINTENANCE 5230 /
+  MISCELLANEOUS 5290). Record posts DR category expense / CR Cash (1010)|Bank (1020)|Trade Payables (2010).
+  Reversible. `/api/v1/expenses`.
 
 ### TPA
 - Full lifecycle: preauth → query → enhance → claim → settle
