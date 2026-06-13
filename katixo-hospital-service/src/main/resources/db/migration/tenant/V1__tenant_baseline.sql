@@ -3862,3 +3862,64 @@ CREATE TABLE stock_movement (
 CREATE INDEX idx_stock_movement_item ON stock_movement(tenant_id, item_id);
 CREATE INDEX idx_stock_movement_batch ON stock_movement(batch_id);
 CREATE INDEX idx_stock_movement_ref ON stock_movement(tenant_id, reference_type, reference_id);
+
+-- ============================================================
+-- PHARMACY SALE (hospital's own GST document — replaces ERP receipt/invoice)
+-- ============================================================
+
+CREATE SEQUENCE pharmacy_sale_seq START WITH 100001 INCREMENT BY 1;
+
+CREATE TABLE pharmacy_sale (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    sale_number         VARCHAR(30)  NOT NULL,
+    sale_date           DATE         NOT NULL,
+    sale_type           VARCHAR(10)  NOT NULL,
+    patient_id          BIGINT,
+    reference_type      VARCHAR(30),
+    reference_id        VARCHAR(60),
+    payment_mode        VARCHAR(20),
+    taxable_total       NUMERIC(14,2) NOT NULL DEFAULT 0,
+    cgst_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    sgst_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    igst_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    grand_total         NUMERIC(14,2) NOT NULL DEFAULT 0,
+    cost_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    journal_entry_id    BIGINT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_pharmacy_sale_tenant_branch ON pharmacy_sale(tenant_id, branch_id);
+CREATE INDEX idx_pharmacy_sale_ref ON pharmacy_sale(tenant_id, reference_type, reference_id);
+
+CREATE TABLE pharmacy_sale_line (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    sale_id             BIGINT       NOT NULL REFERENCES pharmacy_sale(id),
+    item_id             BIGINT       NOT NULL,
+    item_code           VARCHAR(50)  NOT NULL,
+    item_name           VARCHAR(255) NOT NULL,
+    hsn_code            VARCHAR(10),
+    quantity            NUMERIC(14,2) NOT NULL,
+    mrp                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    gst_rate            NUMERIC(5,2)  NOT NULL DEFAULT 0,
+    taxable_value       NUMERIC(14,2) NOT NULL DEFAULT 0,
+    cgst                NUMERIC(14,2) NOT NULL DEFAULT 0,
+    sgst                NUMERIC(14,2) NOT NULL DEFAULT 0,
+    igst                NUMERIC(14,2) NOT NULL DEFAULT 0,
+    line_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    cost_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_pharmacy_sale_line_sale ON pharmacy_sale_line(sale_id);
