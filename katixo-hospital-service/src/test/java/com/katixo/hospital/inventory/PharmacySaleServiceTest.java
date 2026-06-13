@@ -135,6 +135,28 @@ class PharmacySaleServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void otcSaleHasNoPatientAndPostsCashJournal() {
+        item("PARA-500", "25.00", "12");
+        when(inventoryService.issueFefo(eq(10L), any(), anyString(), anyString()))
+                .thenReturn(new InventoryService.IssueResult(new BigDecimal("9.00"), List.of()));
+
+        PharmacySaleService.SaleRequest req = new PharmacySaleService.SaleRequest(
+                PharmacySale.SaleType.CASH, null, "OTC", null, "CASH", false,
+                List.of(new PharmacySaleService.SaleLineInput("PARA-500", new BigDecimal("4"))));
+
+        PharmacySale sale = service.createSale(req);
+
+        assertEquals(null, sale.getPatientId());
+        assertEquals("OTC", sale.getReferenceType());
+        assertEquals(new BigDecimal("100.00"), sale.getGrandTotal());
+
+        ArgumentCaptor<List<JournalService.Line>> captor = ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(journalService).post(any(), anyString(), eq("PHARMACY"), anyString(), captor.capture());
+        assertEquals("1010", captor.getValue().get(0).accountCode()); // cash leg
+    }
+
+    @Test
     void emptySaleRejected() {
         PharmacySaleService.SaleRequest req = new PharmacySaleService.SaleRequest(
                 PharmacySale.SaleType.CASH, null, "OTC", null, "CASH", false, List.of());
