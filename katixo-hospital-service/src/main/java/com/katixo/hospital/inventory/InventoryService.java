@@ -186,6 +186,30 @@ public class InventoryService {
         return batchRepository.totalAvailable(TenantContext.get().getTenantId(), itemId);
     }
 
+    /**
+     * Restores stock issued for a sale back to the exact batches it came from,
+     * writing REVERSAL movements (append-only — the ISSUE rows stay). Used when
+     * a pharmacy sale is returned/reversed.
+     */
+    public void reverseSaleStock(String saleNumber) {
+        var ctx = TenantContext.get();
+        List<StockMovement> movements = movementRepository
+                .findByTenantIdAndReferenceTypeAndReferenceId(ctx.getTenantId(), "PHARMACY_SALE", saleNumber);
+        for (StockMovement m : movements) {
+            if (m.getMovementType() != StockMovement.MovementType.ISSUE) {
+                continue;
+            }
+            StockBatch batch = batchRepository.findByIdAndTenantId(m.getBatchId(), ctx.getTenantId())
+                    .orElseThrow(() -> new BusinessException("BATCH_NOT_FOUND",
+                            "Batch not found for reversal: " + m.getBatchId()));
+            batch.setQuantityAvailable(batch.getQuantityAvailable().add(m.getQuantity()));
+            batch.setUpdatedBy(userId());
+            batchRepository.save(batch);
+            recordMovement(m.getItemId(), m.getBatchId(), StockMovement.MovementType.REVERSAL,
+                    m.getQuantity(), m.getUnitCost(), "PHARMACY_SALE_REVERSAL", saleNumber);
+        }
+    }
+
     private void recordMovement(Long itemId, Long batchId, StockMovement.MovementType type,
                                 BigDecimal quantity, BigDecimal unitCost, String refType, String refId) {
         StockMovement movement = new StockMovement();

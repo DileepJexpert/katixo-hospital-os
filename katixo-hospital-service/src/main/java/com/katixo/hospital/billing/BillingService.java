@@ -354,6 +354,59 @@ public class BillingService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /** Voids a payment: reverses its Cash|Bank/AR journal and reduces the bill's paid amount. */
+    public PatientBillPayment voidPayment(Long paymentId, String reason) {
+        var ctx = TenantContext.get();
+        PatientBillPayment payment = paymentRepository.findByIdAndTenantId(paymentId, ctx.getTenantId())
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found: " + paymentId));
+        if (payment.isReversed()) {
+            throw new BusinessException("PAYMENT_ALREADY_VOIDED", "Payment is already voided");
+        }
+        if (payment.getJournalEntryId() != null) {
+            journalService.reverse(payment.getJournalEntryId(), reason);
+        }
+        payment.setReversed(true);
+        payment.setUpdatedBy(userId());
+        paymentRepository.save(payment);
+
+        PatientBill bill = getOwnedBill(payment.getBillId());
+        bill.setAmountPaid(bill.getAmountPaid().subtract(payment.getAmount()));
+        bill.setUpdatedBy(userId());
+        billRepository.save(bill);
+
+        auditService.audit("PatientBillPayment", String.valueOf(paymentId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("voided", true, "amount", payment.getAmount(), "reason", reason == null ? "" : reason),
+                UUID.randomUUID().toString());
+        return payment;
+    }
+
+    /**
+     * Cancels a finalized bill: reverses its AR/income journal. Requires the
+     * bill to be fully unpaid (void payments first) — the hospital-charge
+     * journal is reversed; any pharmacy sales are returned separately.
+     */
+    public PatientBill cancelBill(Long billId, String reason) {
+        PatientBill bill = getOwnedBill(billId);
+        if (bill.getBillStatus() == PatientBill.BillStatus.CANCELLED) {
+            throw new BusinessException("ALREADY_CANCELLED", "Bill is already cancelled");
+        }
+        if (bill.getBillStatus() == PatientBill.BillStatus.FINAL
+                && bill.getAmountPaid().signum() != 0) {
+            throw new BusinessException("BILL_HAS_PAYMENTS",
+                    "Void the payments before cancelling bill " + bill.getBillNumber());
+        }
+        if (bill.getJournalEntryId() != null) {
+            journalService.reverse(bill.getJournalEntryId(), reason);
+        }
+        bill.setBillStatus(PatientBill.BillStatus.CANCELLED);
+        bill.setUpdatedBy(userId());
+        PatientBill saved = billRepository.save(bill);
+        auditService.audit("PatientBill", String.valueOf(billId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("cancelled", true, "reason", reason == null ? "" : reason),
+                UUID.randomUUID().toString());
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public List<PatientBillPayment> listPayments(Long billId) {
         var ctx = TenantContext.get();

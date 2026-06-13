@@ -72,6 +72,23 @@ public class PharmacySaleController {
         return respond(saleView(sale, pharmacySaleService.getLines(id)), "Sale", HttpStatus.OK);
     }
 
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReasonRequest {
+        private String reason;
+    }
+
+    /** Return/reverse a sale: restores stock to its batches and reverses the journal. */
+    @PostMapping("/{id}/reverse")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> reverseSale(@PathVariable Long id,
+                                                           @RequestBody(required = false) ReasonRequest req) {
+        String reason = req == null ? null : req.getReason();
+        PharmacySale sale = pharmacySaleService.reverseSale(id, reason);
+        return respond(saleView(sale, pharmacySaleService.getLines(id)), "Sale reversed", HttpStatus.OK);
+    }
+
     private Map<String, Object> saleView(PharmacySale s, List<PharmacySaleLine> lines) {
         Map<String, Object> view = new java.util.LinkedHashMap<>();
         view.put("id", s.getId());

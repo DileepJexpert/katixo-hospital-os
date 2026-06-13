@@ -153,6 +153,35 @@ public class PharmacySaleService {
         return finalSale;
     }
 
+    /**
+     * Returns/reverses a pharmacy sale: restores the issued stock to its batches
+     * and posts a balanced reversal of the sale journal. Idempotent guard so a
+     * sale can't be reversed twice.
+     */
+    public PharmacySale reverseSale(Long saleId, String reason) {
+        var ctx = TenantContext.get();
+        PharmacySale sale = saleRepository.findByIdAndTenantIdAndBranchId(saleId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("SALE_NOT_FOUND", "Sale not found: " + saleId));
+        if (sale.isReversed()) {
+            throw new BusinessException("SALE_ALREADY_REVERSED", "Sale " + sale.getSaleNumber() + " is already reversed");
+        }
+
+        inventoryService.reverseSaleStock(sale.getSaleNumber());
+        if (sale.getJournalEntryId() != null) {
+            var reversal = journalService.reverse(sale.getJournalEntryId(), reason);
+            sale.setReversalJournalEntryId(reversal.getId());
+        }
+        sale.setReversed(true);
+        sale.setUpdatedBy(userId());
+        PharmacySale saved = saleRepository.save(sale);
+
+        auditService.audit("PharmacySale", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
+                null, Map.of("saleNumber", saved.getSaleNumber(), "reversed", true,
+                        "reason", reason == null ? "" : reason), UUID.randomUUID().toString());
+        log.info("Pharmacy sale {} reversed ({})", saved.getSaleNumber(), reason);
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public PharmacySale getSale(Long saleId) {
         var ctx = TenantContext.get();

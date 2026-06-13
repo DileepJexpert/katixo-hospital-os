@@ -205,6 +205,31 @@ public class BillingController {
         return respond(paymentView(payment), "Payment recorded", HttpStatus.CREATED);
     }
 
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReasonRequest {
+        private String reason;
+    }
+
+    /** Void a recorded payment (reverses its ledger journal). */
+    @PostMapping("/payments/{paymentId}/void")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> voidPayment(@PathVariable Long paymentId,
+                                                           @RequestBody(required = false) ReasonRequest req) {
+        String reason = req == null ? null : req.getReason();
+        return respond(paymentView(billingService.voidPayment(paymentId, reason)), "Payment voided", HttpStatus.OK);
+    }
+
+    /** Cancel a bill (reverses its AR/income journal; void payments first). */
+    @PostMapping("/bills/{id}/cancel")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> cancelBill(@PathVariable Long id,
+                                                          @RequestBody(required = false) ReasonRequest req) {
+        String reason = req == null ? null : req.getReason();
+        return respond(view(billingService.cancelBill(id, reason)), "Bill cancelled", HttpStatus.OK);
+    }
+
     @GetMapping("/bills/{id}/payments")
     @PreAuthorize("hasAnyRole('BILLING', 'FRONT_DESK', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> listPayments(@PathVariable Long id) {

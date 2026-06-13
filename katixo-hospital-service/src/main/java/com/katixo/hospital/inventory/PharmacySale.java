@@ -78,6 +78,12 @@ public class PharmacySale extends BaseEntity {
     @Column
     private Long journalEntryId;
 
+    @Column(nullable = false)
+    private boolean reversed = false;
+
+    @Column
+    private Long reversalJournalEntryId;
+
     public enum SaleType {
         CASH, CREDIT
     }

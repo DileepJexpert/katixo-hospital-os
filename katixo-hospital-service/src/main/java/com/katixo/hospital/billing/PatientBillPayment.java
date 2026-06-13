@@ -55,6 +55,9 @@ public class PatientBillPayment extends BaseEntity {
     @Column(length = 30)
     private String journalNumber;
 
+    @Column(nullable = false)
+    private boolean reversed = false;
+
     public enum PaymentMode {
         CASH, CARD, UPI, CHEQUE, BANK_TRANSFER
     }
