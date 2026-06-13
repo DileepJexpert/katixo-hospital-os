@@ -20,7 +20,7 @@ class TenantDirectoryTest {
     private TenantDirectory directory;
 
     private static TenantRecord tenant(String status) {
-        return new TenantRecord("apollo", "t_apollo", "Apollo", status, null, "kat_abc", null);
+        return new TenantRecord("apollo", "t_apollo", "Apollo", status);
     }
 
     @BeforeEach

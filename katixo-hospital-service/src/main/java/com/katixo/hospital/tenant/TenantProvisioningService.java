@@ -22,8 +22,7 @@ public class TenantProvisioningService {
     private final TenantMigrationService migrationService;
     private final TenantDirectory tenantDirectory;
 
-    public TenantRecord provision(String tenantId, String displayName,
-                                  String erpBaseUrl, String erpApiKey, String erpOrgCode) {
+    public TenantRecord provision(String tenantId, String displayName) {
         String schemaName = TenantSchemas.schemaNameFor(tenantId);
 
         TenantRecord existing = registryDao.findByTenantId(tenantId).orElse(null);
@@ -34,7 +33,7 @@ public class TenantProvisioningService {
 
         if (existing == null) {
             registryDao.insert(new TenantRecord(tenantId, schemaName, displayName,
-                    TenantRecord.STATUS_PROVISIONING, erpBaseUrl, erpApiKey, erpOrgCode));
+                    TenantRecord.STATUS_PROVISIONING));
         }
 
         // Creates the schema if missing and applies all tenant migrations.
@@ -79,10 +78,4 @@ public class TenantProvisioningService {
         tenantDirectory.invalidate(tenantId);
     }
 
-    public void updateErpConfig(String tenantId, String erpBaseUrl, String erpApiKey, String erpOrgCode) {
-        registryDao.findByTenantId(tenantId)
-                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found: " + tenantId));
-        registryDao.updateErpConfig(tenantId, erpBaseUrl, erpApiKey, erpOrgCode);
-        tenantDirectory.invalidate(tenantId);
-    }
 }

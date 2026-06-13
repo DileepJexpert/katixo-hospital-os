@@ -64,11 +64,6 @@ springdoc:
     enabled: true
 
 katixo:
-  erp:
-    base-url: http://localhost:8080
-    service-token: ${ERP_SERVICE_TOKEN:dev-token}
-    connect-timeout: 5000
-    read-timeout: 10000
   security:
     jwt-secret: ${JWT_SECRET:dev-secret-key-min-256-bits-long-for-testing}
     jwt-expiration: 86400000
@@ -79,5 +74,3 @@ katixo:
       # disable in prod; real tenants come via POST /api/v1/platform/tenants).
       enabled: ${DEMO_TENANT_ENABLED:true}
       tenant-id: demo-tenant
-      # Katasticho org-scoped API key (kat_...) for the demo tenant's books.
-      erp-api-key: ${DEMO_TENANT_ERP_API_KEY:}
