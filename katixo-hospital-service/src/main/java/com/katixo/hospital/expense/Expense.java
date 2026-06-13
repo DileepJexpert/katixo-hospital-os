@@ -66,6 +66,26 @@ public class Expense extends BaseEntity {
     @Column(nullable = false)
     private boolean reversed = false;
 
+    /** CASH/BANK expenses are paid on record; CREDIT expenses are paid later (clears Trade Payables). */
+    @Column(nullable = false)
+    private boolean paid = false;
+
+    @Column
+    private LocalDate paidDate;
+
+    @Column(length = 20)
+    @Enumerated(EnumType.STRING)
+    private PaymentMode paidMode;
+
+    @Column(length = 100)
+    private String paidReference;
+
+    @Column
+    private Long paidJournalEntryId;
+
+    @Column(length = 30)
+    private String paidJournalNumber;
+
     /** Category → expense account in the chart of accounts. */
     public enum ExpenseCategory {
         RENT("5200"),

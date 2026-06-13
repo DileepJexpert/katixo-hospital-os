@@ -54,6 +54,7 @@ class ExpenseServiceTest {
         ReflectionTestUtils.setField(je, "id", 700L);
         ReflectionTestUtils.setField(je, "entryNumber", "JE-700");
         lenient().when(journalService.post(any(), anyString(), eq("EXPENSE"), anyString(), any())).thenReturn(je);
+        lenient().when(journalService.post(any(), anyString(), eq("EXPENSE_PAYMENT"), anyString(), any())).thenReturn(je);
     }
 
     @AfterEach
@@ -86,6 +87,47 @@ class ExpenseServiceTest {
         verify(journalService).post(any(), anyString(), eq("EXPENSE"), anyString(), captor.capture());
         assertEquals("5220", captor.getValue().get(0).accountCode());
         assertEquals("2010", captor.getValue().get(1).accountCode()); // Trade Payables
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void payCreditExpenseDebitsTradePayablesCreditsBank() {
+        Expense credit = new Expense();
+        credit.setExpenseNumber("EXP-100001");
+        credit.setCategory(Expense.ExpenseCategory.SUPPLIES);
+        credit.setAmount(new BigDecimal("1200.00"));
+        credit.setPaymentMode(Expense.PaymentMode.CREDIT);
+        credit.setPaid(false);
+        ReflectionTestUtils.setField(credit, "id", 1L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(1L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(credit));
+
+        Expense paid = service.pay(1L, Expense.PaymentMode.BANK, LocalDate.of(2026, 6, 20), "NEFT-9");
+
+        assertEquals(true, paid.isPaid());
+        ArgumentCaptor<List<JournalService.Line>> captor = ArgumentCaptor.forClass(List.class);
+        verify(journalService).post(any(), anyString(), eq("EXPENSE_PAYMENT"), anyString(), captor.capture());
+        List<JournalService.Line> lines = captor.getValue();
+        assertEquals("2010", lines.get(0).accountCode());                 // Trade Payables (DR)
+        assertEquals(new BigDecimal("1200.00"), lines.get(0).debit());
+        assertEquals("1020", lines.get(1).accountCode());                 // Bank (CR)
+        assertEquals(new BigDecimal("1200.00"), lines.get(1).credit());
+    }
+
+    @Test
+    void rejectsPayingNonCreditExpense() {
+        Expense cash = new Expense();
+        cash.setExpenseNumber("EXP-100002");
+        cash.setAmount(new BigDecimal("500.00"));
+        cash.setPaymentMode(Expense.PaymentMode.CASH);
+        cash.setPaid(true);
+        ReflectionTestUtils.setField(cash, "id", 2L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(2L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(cash));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.pay(2L, Expense.PaymentMode.BANK, null, null));
+        assertEquals("EXPENSE_NOT_CREDIT", ex.getCode());
     }
 
     @Test

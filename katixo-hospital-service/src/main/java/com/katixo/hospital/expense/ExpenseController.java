@@ -25,6 +25,7 @@ import java.util.UUID;
 public class ExpenseController {
 
     private final ExpenseService expenseService;
+    private final ExpenseVoucherPdfService voucherPdfService;
 
     @Getter
     @NoArgsConstructor
@@ -61,6 +62,34 @@ public class ExpenseController {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class PayExpenseRequest {
+        @NotNull
+        private Expense.PaymentMode mode;
+        private LocalDate paidDate;
+        private String reference;
+    }
+
+    @PostMapping("/{id}/pay")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> pay(@PathVariable Long id,
+                                                   @Valid @RequestBody PayExpenseRequest req) {
+        return respond(view(expenseService.pay(id, req.getMode(), req.getPaidDate(), req.getReference())),
+                "Expense paid", HttpStatus.OK);
+    }
+
+    @GetMapping("/{id}/voucher.pdf")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<byte[]> voucherPdf(@PathVariable Long id) {
+        byte[] pdf = voucherPdfService.renderVoucherPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=expense-voucher-" + id + ".pdf")
+                .body(pdf);
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ReasonRequest {
         private String reason;
     }
@@ -83,6 +112,10 @@ public class ExpenseController {
         view.put("amount", e.getAmount());
         view.put("paymentMode", e.getPaymentMode().name());
         view.put("journalNumber", e.getJournalNumber());
+        view.put("paid", e.isPaid());
+        view.put("paidDate", e.getPaidDate() == null ? null : e.getPaidDate().toString());
+        view.put("paidMode", e.getPaidMode() == null ? null : e.getPaidMode().name());
+        view.put("paidJournalNumber", e.getPaidJournalNumber());
         view.put("reversed", e.isReversed());
         return view;
     }

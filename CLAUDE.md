@@ -218,7 +218,14 @@ katixo-hospital-service/
 ### Expense tracking (hospital-owned — `expense/`)
 - Operating expenses by category (RENT 5200 / UTILITIES 5210 / SUPPLIES 5220 / MAINTENANCE 5230 /
   MISCELLANEOUS 5290). Record posts DR category expense / CR Cash (1010)|Bank (1020)|Trade Payables (2010).
-  Reversible. `/api/v1/expenses`.
+  CASH/BANK expenses are marked `paid` on record; CREDIT expenses stay unpaid in Trade Payables.
+- **AP loop:** `POST /api/v1/expenses/{id}/pay` settles a CREDIT expense — DR Trade Payables (2010) /
+  CR Cash|Bank, marks it paid. Only CREDIT-mode, unpaid, non-reversed expenses can be paid. Reverse
+  undoes BOTH the payment journal and the original expense journal.
+- **No GST input credit:** hospital expenses are booked **gross (inclusive of GST)** — under GST law ITC
+  is not available against GST-exempt healthcare supplies, so expenses carry no input-credit split.
+- **Printable voucher:** `GET /api/v1/expenses/{id}/voucher.pdf` (A4 via openhtmltopdf, `ExpenseVoucherPdfService`).
+- `/api/v1/expenses` (record/list/pay/reverse/voucher.pdf). Reversible.
 
 ### TPA
 - Full lifecycle: preauth → query → enhance → claim → settle

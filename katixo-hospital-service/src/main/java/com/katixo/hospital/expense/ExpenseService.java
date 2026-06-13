@@ -57,6 +57,8 @@ public class ExpenseService {
         expense.setPaymentMode(paymentMode);
         expense.setReference(reference);
         expense.setNotes(notes);
+        // CASH/BANK expenses are settled the moment they are recorded; CREDIT stays unpaid in Trade Payables.
+        expense.setPaid(paymentMode != Expense.PaymentMode.CREDIT);
         stamp(expense);
         Expense saved = expenseRepository.save(expense);
 
@@ -82,11 +84,56 @@ public class ExpenseService {
         return finalExpense;
     }
 
-    /** Reverses an expense's journal (correction). Idempotent. */
+    /**
+     * Settles a CREDIT expense that is sitting in Trade Payables: posts
+     * DR Trade Payables (2010) / CR Cash (1010) | Bank (1020) and marks it paid.
+     * CASH/BANK expenses are already settled at record time and cannot be re-paid.
+     */
+    public Expense pay(Long expenseId, Expense.PaymentMode mode, LocalDate paidDate, String reference) {
+        Expense expense = getOwned(expenseId);
+        if (expense.isReversed()) {
+            throw new BusinessException("EXPENSE_REVERSED", "Cannot pay a reversed expense");
+        }
+        if (expense.getPaymentMode() != Expense.PaymentMode.CREDIT) {
+            throw new BusinessException("EXPENSE_NOT_CREDIT", "Only credit expenses can be paid later");
+        }
+        if (expense.isPaid()) {
+            throw new BusinessException("EXPENSE_ALREADY_PAID", "Expense is already paid");
+        }
+        if (mode == null || mode == Expense.PaymentMode.CREDIT) {
+            throw new BusinessException("INVALID_PAYMENT_MODE", "Payment mode must be CASH or BANK");
+        }
+        LocalDate when = paidDate == null ? LocalDate.now() : paidDate;
+        String creditAccount = mode == Expense.PaymentMode.CASH ? CASH_ACCOUNT : BANK_ACCOUNT;
+        var entry = journalService.post(when,
+                "Payment of " + expense.getExpenseNumber()
+                        + (expense.getPayeeName() == null ? "" : " (" + expense.getPayeeName() + ")"),
+                "EXPENSE_PAYMENT", expense.getExpenseNumber(), List.of(
+                        JournalService.Line.debit(TRADE_PAYABLES_ACCOUNT, expense.getAmount(), "Trade Payables"),
+                        JournalService.Line.credit(creditAccount, expense.getAmount(), mode.name())));
+        expense.setPaid(true);
+        expense.setPaidDate(when);
+        expense.setPaidMode(mode);
+        expense.setPaidReference(reference);
+        expense.setPaidJournalEntryId(entry.getId());
+        expense.setPaidJournalNumber(entry.getEntryNumber());
+        expense.setUpdatedBy(userId());
+        Expense saved = expenseRepository.save(expense);
+        auditService.audit("Expense", String.valueOf(expenseId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("paid", true, "mode", mode.name(), "amount", expense.getAmount()),
+                UUID.randomUUID().toString());
+        log.info("Expense {} paid: {} via {}", expense.getExpenseNumber(), expense.getAmount(), mode);
+        return saved;
+    }
+
+    /** Reverses an expense's journal (correction). Also undoes the payment journal if it was paid on credit. Idempotent. */
     public Expense reverse(Long expenseId, String reason) {
         Expense expense = getOwned(expenseId);
         if (expense.isReversed()) {
             throw new BusinessException("EXPENSE_ALREADY_REVERSED", "Expense is already reversed");
+        }
+        if (expense.getPaidJournalEntryId() != null) {
+            journalService.reverse(expense.getPaidJournalEntryId(), reason);
         }
         if (expense.getJournalEntryId() != null) {
             journalService.reverse(expense.getJournalEntryId(), reason);
