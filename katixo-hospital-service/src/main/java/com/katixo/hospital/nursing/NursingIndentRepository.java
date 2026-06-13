@@ -17,8 +17,8 @@ public interface NursingIndentRepository extends JpaRepository<NursingIndent, Lo
     List<NursingIndent> findByTenantIdAndBranchIdAndIndentStatusOrderById(
             String tenantId, Long branchId, NursingIndent.IndentStatus indentStatus);
 
-    List<NursingIndent> findByTenantIdAndAdmissionIdAndErpSyncStatus(
-            String tenantId, Long admissionId, NursingIndent.ErpSyncStatus erpSyncStatus);
+    /** Dispensed indents for an admission that produced a pharmacy sale. */
+    List<NursingIndent> findByTenantIdAndAdmissionIdAndSaleIdNotNull(String tenantId, Long admissionId);
 
     @Query(value = "SELECT nextval('nursing_indent_seq')", nativeQuery = true)
     long nextIndentSequence();

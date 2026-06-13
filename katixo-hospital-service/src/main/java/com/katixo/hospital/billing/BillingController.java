@@ -24,7 +24,6 @@ import java.util.UUID;
 public class BillingController {
 
     private final BillingService billingService;
-    private final ErpBillingSyncService erpBillingSyncService;
     private final BillPdfService billPdfService;
 
     // ---------- tariff master ----------
@@ -212,21 +211,6 @@ public class BillingController {
                 "Bill payments", HttpStatus.OK);
     }
 
-    /** Retry the ERP journal for a finalized bill whose automatic sync failed. */
-    @PostMapping("/bills/{id}/sync-erp")
-    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> syncBillToErp(@PathVariable Long id) {
-        return respond(view(erpBillingSyncService.syncBillJournal(id)), "ERP journal posted", HttpStatus.OK);
-    }
-
-    /** Retry the ERP sync (hospital journal + pharmacy settlement) for a payment. */
-    @PostMapping("/payments/{paymentId}/sync-erp")
-    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> syncPaymentToErp(@PathVariable Long paymentId) {
-        return respond(paymentView(erpBillingSyncService.syncPayment(paymentId)),
-                "ERP sync complete", HttpStatus.OK);
-    }
-
     // ---------- helpers ----------
 
     private Map<String, Object> view(PatientBill b) {
@@ -243,8 +227,7 @@ public class BillingController {
         view.put("amountPaid", b.getAmountPaid());
         view.put("balanceDue", b.getBalanceDue());
         view.put("billStatus", b.getBillStatus().name());
-        view.put("erpSyncStatus", b.getErpSyncStatus().name());
-        view.put("erpJournalNumber", b.getErpJournalNumber());
+        view.put("journalNumber", b.getJournalNumber());
         return view;
     }
 
@@ -254,13 +237,8 @@ public class BillingController {
         view.put("billId", p.getBillId());
         view.put("amount", p.getAmount());
         view.put("paymentMode", p.getPaymentMode().name());
-        view.put("hospitalAmount", p.getHospitalAmount());
-        view.put("pharmacyAmount", p.getPharmacyAmount());
-        view.put("pharmacyAllocStatus", p.getPharmacyAllocStatus().name());
         view.put("reference", p.getReference());
-        view.put("erpSyncStatus", p.getErpSyncStatus().name());
-        view.put("erpJournalNumber", p.getErpJournalNumber());
-        view.put("erpSyncError", p.getErpSyncError());
+        view.put("journalNumber", p.getJournalNumber());
         view.put("createdAt", p.getCreatedAt() == null ? null : p.getCreatedAt().toString());
         return view;
     }

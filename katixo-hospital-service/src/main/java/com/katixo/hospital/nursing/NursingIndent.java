@@ -67,36 +67,18 @@ public class NursingIndent extends BaseEntity {
     @Column
     private Long dispensedBy;
 
-    // --- ERP sales-invoice linkage ---
-
-    @Column(nullable = false, length = 20)
-    @Enumerated(EnumType.STRING)
-    private ErpSyncStatus erpSyncStatus = ErpSyncStatus.NOT_SYNCED;
-
-    /** Generated ONCE per indent, reused on every retry (idempotency contract). */
-    @Column(length = 100)
-    private String erpIdempotencyKey;
-
-    @Column(length = 50)
-    private String erpInvoiceId;
-
-    @Column(length = 50)
-    private String erpInvoiceNumber;
-
-    @Column(precision = 14, scale = 2)
-    private BigDecimal erpInvoiceTotal;
-
-    @Column(columnDefinition = "TEXT")
-    private String erpSyncError;
+    // --- Local pharmacy sale linkage (CREDIT sale raised on dispense) ---
 
     @Column
-    private LocalDateTime erpSyncedAt;
+    private Long saleId;
+
+    @Column(length = 30)
+    private String saleNumber;
+
+    @Column(precision = 14, scale = 2)
+    private BigDecimal saleTotal;
 
     public enum IndentStatus {
         REQUESTED, APPROVED, REJECTED, DISPENSED, CANCELLED
-    }
-
-    public enum ErpSyncStatus {
-        NOT_SYNCED, SYNCED, FAILED
     }
 }

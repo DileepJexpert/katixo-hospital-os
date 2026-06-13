@@ -43,14 +43,14 @@ class NursingIndentServiceTest {
     @Mock
     private AuditService auditService;
     @Mock
-    private ErpIndentSyncService erpIndentSyncService;
+    private com.katixo.hospital.inventory.PharmacySaleService pharmacySaleService;
 
     private NursingIndentService service;
 
     @BeforeEach
     void setUp() {
         service = new NursingIndentService(indentRepository, itemRepository, admissionRepository,
-                policyService, auditService, erpIndentSyncService);
+                policyService, auditService, pharmacySaleService);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "nurse"));
 
         IPDAdmission admission = new IPDAdmission();
@@ -149,14 +149,29 @@ class NursingIndentServiceTest {
     }
 
     @Test
-    void dispenseRequiresApprovedAndTriggersErpSync() {
+    void dispenseRequiresApprovedAndRaisesCreditSale() {
         owned(NursingIndent.IndentStatus.APPROVED);
+        NursingIndentItem item = new NursingIndentItem();
+        item.setMedicineCode("PARA-500");
+        item.setQuantity(10);
+        when(itemRepository.findByTenantIdAndIndentIdOrderById(TENANT, 42L)).thenReturn(List.of(item));
+
+        com.katixo.hospital.inventory.PharmacySale sale = new com.katixo.hospital.inventory.PharmacySale();
+        sale.setSaleNumber("PS-100001");
+        sale.setGrandTotal(new java.math.BigDecimal("25.00"));
+        ReflectionTestUtils.setField(sale, "id", 7L);
+        when(pharmacySaleService.createSale(any())).thenReturn(sale);
 
         NursingIndent result = service.dispense(42L);
 
         assertEquals(NursingIndent.IndentStatus.DISPENSED, result.getIndentStatus());
-        // No active transaction in unit tests, so the after-commit hook runs inline.
-        verify(erpIndentSyncService).syncIndentQuietly(42L);
+        assertEquals("PS-100001", result.getSaleNumber());
+        // CREDIT sale (settled at discharge), referencing this indent
+        org.mockito.ArgumentCaptor<com.katixo.hospital.inventory.PharmacySaleService.SaleRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(com.katixo.hospital.inventory.PharmacySaleService.SaleRequest.class);
+        verify(pharmacySaleService).createSale(captor.capture());
+        assertEquals(com.katixo.hospital.inventory.PharmacySale.SaleType.CREDIT, captor.getValue().saleType());
+        assertEquals("INDENT-42", captor.getValue().referenceId());
     }
 
     @Test
@@ -170,6 +185,6 @@ class NursingIndentServiceTest {
     void cancelledIndentCannotBeDispensed() {
         owned(NursingIndent.IndentStatus.CANCELLED);
         assertThrows(BusinessException.class, () -> service.dispense(42L));
-        verify(erpIndentSyncService, org.mockito.Mockito.never()).syncIndentQuietly(anyLong());
+        verify(pharmacySaleService, org.mockito.Mockito.never()).createSale(any());
     }
 }

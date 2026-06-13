@@ -49,7 +49,13 @@ public class BillingService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
-    private final ErpBillingSyncService erpBillingSyncService;
+    private final com.katixo.hospital.accounting.JournalService journalService;
+
+    // Chart-of-accounts codes the bill/payment journals post to.
+    private static final String AR_ACCOUNT = "1100";
+    private static final String CASH_ACCOUNT = "1010";
+    private static final String BANK_ACCOUNT = "1020";
+    private static final String HOSPITAL_INCOME_ACCOUNT = "4020";
 
     // ------------------------------------------------------------
     // Tariff master
@@ -250,29 +256,33 @@ public class BillingService {
         bill.setUpdatedBy(userId());
         PatientBill saved = billRepository.save(bill);
 
+        // Local journal: DR Patient AR / CR Hospital Service Income (charges are
+        // GST-exempt healthcare services). Pharmacy credit sales posted their own
+        // AR debits at dispense, so the patient's AR is one unified balance.
+        if (saved.getNetAmount().signum() > 0) {
+            var entry = journalService.post(saved.getFinalizedAt().toLocalDate(),
+                    "Hospital bill " + saved.getBillNumber(), "BILLING", saved.getBillNumber(), List.of(
+                            com.katixo.hospital.accounting.JournalService.Line.debit(
+                                    AR_ACCOUNT, saved.getNetAmount(), "Patient receivable " + saved.getBillNumber()),
+                            com.katixo.hospital.accounting.JournalService.Line.credit(
+                                    HOSPITAL_INCOME_ACCOUNT, saved.getNetAmount(), "Hospital services")));
+            saved.setJournalEntryId(entry.getId());
+            saved.setJournalNumber(entry.getEntryNumber());
+            saved = billRepository.save(saved);
+        }
+
         outboxEventService.publish("PatientBill", String.valueOf(saved.getId()), "BillFinalized", billSnapshot(saved));
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
-
-        // ERP journal (DR AR / CR hospital revenue) posts after this commits; an
-        // ERP failure marks the bill FAILED for retry, never blocks finalize.
-        Long billIdForSync = saved.getId();
-        afterCommit(() -> erpBillingSyncService.syncBillJournalQuietly(billIdForSync));
         return saved;
     }
 
     // ------------------------------------------------------------
-    // Payments: hospital records the payment, the ERP books the money
-    // (DR Cash|Bank / CR AR) so the patient ledger lives in one place.
+    // Payments: DR Cash|Bank / CR Patient AR, posted to the hospital's own
+    // books. Hospital charges and IPD pharmacy credit sales share one Patient
+    // AR balance, so a payment settles the consolidated total directly.
     // ------------------------------------------------------------
 
-    /**
-     * Records money collected against a finalized bill. The amount is split:
-     * the HOSPITAL share (up to the bill's hospital balance) is journaled in
-     * the ERP as DR Cash|Bank / CR AR; any remainder is the PHARMACY share —
-     * for IPD bills it settles the attached ERP sales invoices through the
-     * ERP payment API, so the patient can pay the GRAND total in one go.
-     */
     public PatientBillPayment recordPayment(Long billId, BigDecimal amount,
                                             PatientBillPayment.PaymentMode paymentMode,
                                             String reference, String notes) {
@@ -288,63 +298,60 @@ public class BillingService {
             throw new BusinessException("PAYMENT_MODE_REQUIRED", "Payment mode is required");
         }
 
-        BigDecimal hospitalDue = bill.getBalanceDue();
-        BigDecimal pharmacyDue = pharmacyOutstanding(bill);
-        if (amount.compareTo(hospitalDue.add(pharmacyDue)) > 0) {
+        BigDecimal grandBalance = grandTotal(bill).subtract(bill.getAmountPaid());
+        if (amount.compareTo(grandBalance) > 0) {
             throw new BusinessException("PAYMENT_EXCEEDS_BALANCE",
-                    "Payment " + amount + " exceeds total due (hospital " + hospitalDue
-                            + " + pharmacy " + pharmacyDue + ")");
+                    "Payment " + amount + " exceeds balance due " + grandBalance);
         }
-
-        BigDecimal hospitalShare = amount.min(hospitalDue);
-        BigDecimal pharmacyShare = amount.subtract(hospitalShare);
 
         PatientBillPayment payment = new PatientBillPayment();
         payment.setBillId(billId);
         payment.setAmount(amount);
-        payment.setHospitalAmount(hospitalShare);
-        payment.setPharmacyAmount(pharmacyShare);
-        payment.setPharmacyAllocStatus(PatientBillPayment.PharmacyAllocStatus.NOT_REQUIRED);
         payment.setPaymentMode(paymentMode);
         payment.setReference(reference);
         payment.setNotes(notes);
         stamp(payment);
         PatientBillPayment saved = paymentRepository.save(payment);
 
-        bill.setAmountPaid(bill.getAmountPaid().add(hospitalShare));
+        String moneyAccount = paymentMode == PatientBillPayment.PaymentMode.CASH ? CASH_ACCOUNT : BANK_ACCOUNT;
+        var entry = journalService.post(LocalDate.now(),
+                "Payment for hospital bill " + bill.getBillNumber()
+                        + " (" + paymentMode + (reference == null ? "" : ", ref " + reference) + ")",
+                "PAYMENT", "PAYMENT-" + saved.getId(), List.of(
+                        com.katixo.hospital.accounting.JournalService.Line.debit(
+                                moneyAccount, amount, paymentMode.name()),
+                        com.katixo.hospital.accounting.JournalService.Line.credit(
+                                AR_ACCOUNT, amount, "Settles " + bill.getBillNumber())));
+        saved.setJournalEntryId(entry.getId());
+        saved.setJournalNumber(entry.getEntryNumber());
+        saved = paymentRepository.save(saved);
+
+        bill.setAmountPaid(bill.getAmountPaid().add(amount));
         bill.setUpdatedBy(userId());
         billRepository.save(bill);
 
         auditService.audit("PatientBillPayment", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
-                null, Map.of("billId", billId, "amount", amount,
-                        "hospitalShare", hospitalShare, "pharmacyShare", pharmacyShare,
-                        "mode", paymentMode.name()),
+                null, Map.of("billId", billId, "amount", amount, "mode", paymentMode.name(),
+                        "journalNumber", saved.getJournalNumber()),
                 UUID.randomUUID().toString());
-
-        Long paymentIdForSync = saved.getId();
-        afterCommit(() -> erpBillingSyncService.syncPaymentQuietly(paymentIdForSync));
         return saved;
     }
 
-    /** Unpaid balance of the bill's IPD pharmacy ERP invoices (OPD receipts are cash-settled). */
+    /** Consolidated amount the patient owes = hospital net + IPD pharmacy credit sales. */
+    private BigDecimal grandTotal(PatientBill bill) {
+        return bill.getNetAmount().add(pharmacyOutstanding(bill));
+    }
+
+    /** Total of the admission's IPD pharmacy credit sales (OPD sales are cash-settled, not on the bill). */
     private BigDecimal pharmacyOutstanding(PatientBill bill) {
         if (bill.getSourceType() != HospitalCharge.SourceType.IPD_ADMISSION) {
             return BigDecimal.ZERO;
         }
-        var ctx = TenantContext.get();
-        BigDecimal invoiced = indentRepository
-                .findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
-                        com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED)
+        return indentRepository
+                .findByTenantIdAndAdmissionIdAndSaleIdNotNull(TenantContext.get().getTenantId(), bill.getSourceId())
                 .stream()
-                .map(i -> i.getErpInvoiceTotal() == null ? BigDecimal.ZERO : i.getErpInvoiceTotal())
+                .map(i -> i.getSaleTotal() == null ? BigDecimal.ZERO : i.getSaleTotal())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal allocated = paymentRepository
-                .findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
-                .stream()
-                .map(p -> p.getPharmacyAmount() == null ? BigDecimal.ZERO : p.getPharmacyAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal due = invoiced.subtract(allocated);
-        return due.signum() < 0 ? BigDecimal.ZERO : due;
     }
 
     @Transactional(readOnly = true)
@@ -455,10 +462,9 @@ public class BillingService {
                     .filter(d -> d.getSaleNumber() != null && !alreadyAttached.contains(d.getSaleNumber()))
                     .forEach(d -> attachPharmacyRef(bill, d.getSaleNumber(), d.getSaleTotal()));
         } else {
-            indentRepository.findByTenantIdAndAdmissionIdAndErpSyncStatus(ctx.getTenantId(), bill.getSourceId(),
-                            com.katixo.hospital.nursing.NursingIndent.ErpSyncStatus.SYNCED).stream()
-                    .filter(i -> i.getErpInvoiceNumber() != null && !alreadyAttached.contains(i.getErpInvoiceNumber()))
-                    .forEach(i -> attachPharmacyRef(bill, i.getErpInvoiceNumber(), i.getErpInvoiceTotal()));
+            indentRepository.findByTenantIdAndAdmissionIdAndSaleIdNotNull(ctx.getTenantId(), bill.getSourceId()).stream()
+                    .filter(i -> i.getSaleNumber() != null && !alreadyAttached.contains(i.getSaleNumber()))
+                    .forEach(i -> attachPharmacyRef(bill, i.getSaleNumber(), i.getSaleTotal()));
         }
     }
 
@@ -473,21 +479,6 @@ public class BillingService {
         ref.setInvoiceType("PHARMACY");
         ref.setCreatedBy(userId());
         erpRefRepository.save(ref);
-    }
-
-    /** Runs after the surrounding transaction commits (immediately if none, e.g. in unit tests). */
-    private void afterCommit(Runnable action) {
-        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
-            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                    new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            action.run();
-                        }
-                    });
-        } else {
-            action.run();
-        }
     }
 
     /** Auto-charge domain amounts: OPD consultation fee, IPD bed segments, lab order items. Returns patientId. */
@@ -674,8 +665,7 @@ public class BillingService {
         snapshot.put("amountPaid", b.getAmountPaid());
         snapshot.put("balanceDue", b.getBalanceDue());
         snapshot.put("billStatus", b.getBillStatus().name());
-        snapshot.put("erpSyncStatus", b.getErpSyncStatus().name());
-        snapshot.put("erpJournalNumber", b.getErpJournalNumber());
+        snapshot.put("journalNumber", b.getJournalNumber());
         return snapshot;
     }
 

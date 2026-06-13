@@ -1191,12 +1191,8 @@ CREATE TABLE patient_bill (
     updated_by bigint,
     updated_at timestamp without time zone DEFAULT now() NOT NULL,
     amount_paid numeric(12,2) DEFAULT 0 NOT NULL,
-    erp_sync_status character varying(20) DEFAULT 'NOT_SYNCED'::character varying NOT NULL,
-    erp_idempotency_key character varying(100),
-    erp_journal_id character varying(50),
-    erp_journal_number character varying(50),
-    erp_sync_error text,
-    erp_synced_at timestamp without time zone
+    journal_entry_id bigint,
+    journal_number character varying(30)
 );
 
 
@@ -1241,21 +1237,13 @@ CREATE TABLE patient_bill_payment (
     payment_mode character varying(20) NOT NULL,
     reference character varying(100),
     notes character varying(300),
-    erp_sync_status character varying(20) DEFAULT 'NOT_SYNCED'::character varying NOT NULL,
-    erp_idempotency_key character varying(100),
-    erp_journal_id character varying(50),
-    erp_journal_number character varying(50),
-    erp_sync_error text,
-    erp_synced_at timestamp without time zone,
+    journal_entry_id bigint,
+    journal_number character varying(30),
     status character varying(20) DEFAULT 'ACTIVE'::character varying,
     created_by bigint,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_by bigint,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    hospital_amount numeric(12,2),
-    pharmacy_amount numeric(12,2),
-    pharmacy_alloc_status character varying(20) DEFAULT 'NOT_REQUIRED'::character varying NOT NULL,
-    pharmacy_alloc_error text
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2866,11 +2854,6 @@ CREATE INDEX idx_bill_patient ON patient_bill USING btree (patient_id, created_a
 CREATE INDEX idx_bill_payment_bill ON patient_bill_payment USING btree (bill_id);
 
 
---
--- Name: idx_bill_payment_erp_sync; Type: INDEX; Schema: t_demo_tenant; Owner: -
---
-
-CREATE INDEX idx_bill_payment_erp_sync ON patient_bill_payment USING btree (erp_sync_status);
 
 
 --
@@ -3083,11 +3066,6 @@ CREATE INDEX idx_opd_visit_tenant_branch ON opd_visit USING btree (tenant_id, br
 CREATE INDEX idx_outbox_status ON outbox_event USING btree (status, created_at) WHERE ((status)::text = 'PENDING'::text);
 
 
---
--- Name: idx_patient_bill_erp_sync; Type: INDEX; Schema: t_demo_tenant; Owner: -
---
-
-CREATE INDEX idx_patient_bill_erp_sync ON patient_bill USING btree (erp_sync_status);
 
 
 --
@@ -3675,14 +3653,10 @@ CREATE TABLE nursing_indent (
     rejection_reason    VARCHAR(300),
     dispensed_at        TIMESTAMP,
     dispensed_by        BIGINT,
-    -- ERP sales-invoice linkage (idempotency key generated once, reused on retry)
-    erp_sync_status     VARCHAR(20)   NOT NULL DEFAULT 'NOT_SYNCED',
-    erp_idempotency_key VARCHAR(100),
-    erp_invoice_id      VARCHAR(50),
-    erp_invoice_number  VARCHAR(50),
-    erp_invoice_total   NUMERIC(14,2),
-    erp_sync_error      TEXT,
-    erp_synced_at       TIMESTAMP,
+    -- Local pharmacy sale linkage (CREDIT sale raised on dispense)
+    sale_id             BIGINT,
+    sale_number         VARCHAR(30),
+    sale_total          NUMERIC(14,2),
     status              VARCHAR(20)   DEFAULT 'ACTIVE',
     created_by          BIGINT,
     created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3694,7 +3668,6 @@ CREATE TABLE nursing_indent (
 CREATE INDEX idx_nursing_indent_tenant_branch ON nursing_indent(tenant_id, branch_id);
 CREATE INDEX idx_nursing_indent_admission ON nursing_indent(admission_id);
 CREATE INDEX idx_nursing_indent_status ON nursing_indent(indent_status);
-CREATE INDEX idx_nursing_indent_erp_sync ON nursing_indent(erp_sync_status);
 
 CREATE TABLE nursing_indent_item (
     id                  BIGSERIAL PRIMARY KEY,

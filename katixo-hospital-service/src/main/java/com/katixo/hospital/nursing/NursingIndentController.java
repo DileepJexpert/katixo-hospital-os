@@ -23,7 +23,6 @@ import java.util.UUID;
 public class NursingIndentController {
 
     private final NursingIndentService indentService;
-    private final ErpIndentSyncService erpIndentSyncService;
 
     @Getter
     @NoArgsConstructor
@@ -110,13 +109,6 @@ public class NursingIndentController {
         return respond(view(indentService.dispense(id)), "Indent dispensed", HttpStatus.OK);
     }
 
-    /** Retry ERP invoice creation for a dispensed indent whose sync failed. Idempotent. */
-    @PostMapping("/indents/{id}/sync-erp")
-    @PreAuthorize("hasAnyRole('PHARMACIST', 'BILLING', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> syncErp(@PathVariable Long id) {
-        return respond(view(erpIndentSyncService.syncIndent(id)), "ERP invoice created", HttpStatus.OK);
-    }
-
     // ---------- helpers ----------
 
     private Map<String, Object> view(NursingIndent i) {
@@ -129,10 +121,8 @@ public class NursingIndentController {
         view.put("totalItems", i.getTotalItems());
         view.put("notes", i.getNotes());
         view.put("rejectionReason", i.getRejectionReason());
-        view.put("erpSyncStatus", i.getErpSyncStatus().name());
-        view.put("erpInvoiceNumber", i.getErpInvoiceNumber());
-        view.put("erpInvoiceTotal", i.getErpInvoiceTotal());
-        view.put("erpSyncError", i.getErpSyncError());
+        view.put("saleNumber", i.getSaleNumber());
+        view.put("saleTotal", i.getSaleTotal());
         view.put("dispensedAt", i.getDispensedAt() == null ? null : i.getDispensedAt().toString());
         return view;
     }

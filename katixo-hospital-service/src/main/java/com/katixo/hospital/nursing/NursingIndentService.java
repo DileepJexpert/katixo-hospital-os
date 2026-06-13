@@ -13,8 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -43,7 +41,7 @@ public class NursingIndentService {
     private final IPDAdmissionRepository admissionRepository;
     private final PolicyService policyService;
     private final AuditService auditService;
-    private final ErpIndentSyncService erpIndentSyncService;
+    private final com.katixo.hospital.inventory.PharmacySaleService pharmacySaleService;
 
     public record ItemRequest(String medicineCode, String medicineName, Integer quantity,
                               NursingIndentItem.ItemCategory category) {
@@ -137,23 +135,35 @@ public class NursingIndentService {
     }
 
     /**
-     * Pharmacy issues the indent to the ward. The ERP sales invoice (GST,
-     * FEFO, stock deduction, AR journal) is created AFTER this commits —
-     * an ERP failure never blocks the physical issue.
+     * Pharmacy issues the indent to the ward, raising a CREDIT pharmacy sale
+     * in the hospital's own books (FEFO issue + GST + DR Patient AR journal),
+     * all in this transaction. IPD pharmacy is on credit — it is settled at
+     * discharge against the same Patient AR as the hospital charges. If an
+     * item is missing from the master or stock is short, the issue rolls back.
      */
     public NursingIndent dispense(Long indentId) {
         NursingIndent indent = getOwnedIndent(indentId);
         requireStatus(indent, NursingIndent.IndentStatus.APPROVED);
 
+        List<NursingIndentItem> items = itemRepository
+                .findByTenantIdAndIndentIdOrderById(TenantContext.get().getTenantId(), indentId);
+        List<com.katixo.hospital.inventory.PharmacySaleService.SaleLineInput> lines = items.stream()
+                .map(i -> new com.katixo.hospital.inventory.PharmacySaleService.SaleLineInput(
+                        i.getMedicineCode(), java.math.BigDecimal.valueOf(i.getQuantity())))
+                .toList();
+
+        var sale = pharmacySaleService.createSale(new com.katixo.hospital.inventory.PharmacySaleService.SaleRequest(
+                com.katixo.hospital.inventory.PharmacySale.SaleType.CREDIT,
+                indent.getPatientId(), "INDENT", "INDENT-" + indent.getId(), null, false, lines));
+
         indent.setIndentStatus(NursingIndent.IndentStatus.DISPENSED);
         indent.setDispensedAt(LocalDateTime.now());
         indent.setDispensedBy(userId());
+        indent.setSaleId(sale.getId());
+        indent.setSaleNumber(sale.getSaleNumber());
+        indent.setSaleTotal(sale.getGrandTotal());
         indent.setUpdatedBy(userId());
-        NursingIndent saved = audited(indentRepository.save(indent));
-
-        Long savedId = saved.getId();
-        afterCommit(() -> erpIndentSyncService.syncIndentQuietly(savedId));
-        return saved;
+        return audited(indentRepository.save(indent));
     }
 
     @Transactional(readOnly = true)
@@ -225,7 +235,7 @@ public class NursingIndentService {
         snapshot.put("admissionId", i.getAdmissionId());
         snapshot.put("status", i.getIndentStatus().name());
         snapshot.put("totalItems", i.getTotalItems());
-        snapshot.put("erpSyncStatus", i.getErpSyncStatus().name());
+        snapshot.put("saleNumber", i.getSaleNumber());
         return snapshot;
     }
 
@@ -237,19 +247,6 @@ public class NursingIndentService {
         entity.setCreatedBy(userId());
         entity.setUpdatedBy(userId());
         entity.setStatus(BaseEntity.EntityStatus.ACTIVE);
-    }
-
-    private void afterCommit(Runnable action) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-        } else {
-            action.run();
-        }
     }
 
     private Long branchId() {
