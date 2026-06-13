@@ -2,26 +2,28 @@
 
 ## What is this project?
 
-Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospitals up to 150 beds. It runs as a new Spring Boot hospital service integrated with the existing Katixo ERP (pharmacy/stock/billing engine) through internal HTTP APIs.
+Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospitals up to 150 beds. It is a **standalone Spring Boot product** — it owns its full stack including its own accounting (double-entry), pharmacy inventory (batch/expiry/FEFO) and GST. It does **not** depend on any external ERP at runtime.
+
+> **ARCHITECTURE NOTE (2026-06-13):** Katixo Hospital OS and Katasticho ERP are now **two separate products** for two different customer bases. The earlier hospital→ERP HTTP integration was removed (Phase 3); the hospital posts everything to its own books in-process. Anything below describing "ERP API calls", "ErpApiClient", "Erp*SyncService", per-tenant ERP credentials, or the 2+1 service model is **historical** — superseded by the in-process accounting (`accounting/`), inventory (`inventory/`) modules. Katasticho is never called and must never be reintroduced as a runtime dependency here.
 
 ## Architecture Rules (NEVER violate these)
 
-### Service Count: 2+1 only
-- `katixo-hospital-service` — NEW. Owns: patient, OPD, IPD, clinical, lab, radiology, OT, TPA, discharge, dashboard, consent, certificates, NABH, policy engine
-- `katixo-erp-service` — EXISTS. Owns: medicine master, stock, batch/expiry, purchase, pharmacy invoice, GST, payment, ledger
-- `katixo-integration-service` — LATER. Will own: WhatsApp, SMS, ABDM, AI, payment gateway
-- **NEVER create additional services. NEVER split hospital-service into microservices.**
-- Internal modules within hospital-service use package boundaries, not service boundaries.
+### Single self-contained service
+- `katixo-hospital-service` owns the whole product: patient, OPD, IPD, clinical, lab, radiology, OT, TPA, discharge, dashboard, consent, certificates, NABH, policy engine — **plus its own accounting, pharmacy inventory and GST** (`accounting/`, `inventory/`).
+- **NEVER split into microservices. NEVER add a runtime dependency on Katasticho (or any ERP).** Cross-cutting capabilities (accounting, etc.) are in-process modules called directly, not remote services.
+- Internal modules use package boundaries, not service boundaries.
+- (Historical: there was a `katixo-erp-service` integration and a planned `katixo-integration-service`; the ERP integration was removed in Phase 3.)
 
-### Billing Ownership (CRITICAL)
-- **Hospital service calculates**: room rent, doctor fees, procedure charges, OT charges, lab charges, radiology charges, nursing charges. These are healthcare-exempt under GST — simple `quantity × tariff_rate`.
-- **ERP service calculates**: pharmacy invoices (medicines, consumables, implants) with GST, batch tracking, stock movements, and payment ledger.
-- **Hospital service NEVER**: calculates GST, manages medicine stock, creates pharmacy invoices, or maintains payment ledger.
-- **Final bill**: hospital service assembles its own charge records + ERP invoice references into one consolidated view.
-- **Payment flow**: hospital service sends payment request to ERP payment API → ERP updates unified ledger.
+### Billing & accounting ownership (CURRENT — self-contained)
+- The hospital owns **everything** in-process: double-entry ledger (`accounting/` — `JournalService`, chart of accounts), pharmacy inventory with batch/expiry/**FEFO** (`inventory/` — `InventoryService`), GST split (`GstCalculator`), and pharmacy sales (`PharmacySaleService`).
+- **Hospital service charges** (room/doctor/procedure/OT/lab/radiology/nursing) are healthcare-exempt — `quantity × tariff_rate`, no GST. Posted DR Patient AR (1100) / CR Hospital Service Income (4020) on bill finalize.
+- **Pharmacy** (medicines/consumables) carries GST: a `PharmacySale` FEFO-issues stock, splits CGST/SGST from the inclusive MRP, and posts DR Cash|Bank or Patient AR / CR Pharmacy Sales (4010) + CGST/SGST output + DR COGS / CR Inventory.
+- **OPD/OTC dispense = CASH sale** (paid at counter). **IPD indent = CREDIT sale** (DR Patient AR, settled at discharge). Both share ONE Patient AR, so a discharge payment settles the consolidated balance directly (DR Cash|Bank / CR Patient AR) — no separate allocation.
+- **Consolidated bill** = hospital charges + the patient's pharmacy sales, assembled by `BillingService`. Receipt PDF via `BillPdfService`.
+- (Legacy: `bill_erp_invoice_ref` table/entity is the pharmacy-sale-reference link on a bill — the `erp` in its name is cosmetic, pending rename.)
 
 ### Tenant Isolation (MANDATORY) — schema-per-tenant
-- **DB isolation model: one shared PostgreSQL database, one schema per hospital tenant** (`t_<tenant_id>`), plus a `platform` control schema holding `tenant_registry` (tenant → schema + per-tenant Katasticho ERP credentials).
+- **DB isolation model: one shared PostgreSQL database, one schema per hospital tenant** (`t_<tenant_id>`), plus a `platform` control schema holding `tenant_registry` (tenant → schema). Each tenant schema carries the hospital's own `account` / `journal_entry` / `pharmacy_item` / `stock_batch` / `pharmacy_sale` tables.
 - Hibernate SCHEMA multi-tenancy routes every JPA query: `TenantSchemaResolver` (TenantContext → schema via `TenantDirectory` cache) + `SchemaMultiTenantConnectionProvider` (sets/resets `search_path` per pooled connection). Wired in `HibernateMultiTenancyConfig`.
 - Flyway runs programmatically (`TenantMigrationService`): `db/migration/platform` → platform schema once; `db/migration/tenant` → EVERY tenant schema (startup sweep in `TenantBootstrap`, and at provisioning). Spring's auto-Flyway is disabled.
 - **Tenant migrations re-baselined 2026-06-12:** `V1__tenant_baseline.sql` (full schema, old V0_001..V1_012 squashed) + `V2__default_policies.sql` (policy seeds via the `${tenantId}` Flyway placeholder supplied by TenantMigrationService — the old seeds hardcoded 'test-tenant-001' and never matched at runtime).
@@ -54,21 +56,11 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 - Duplicate requests with same key MUST return the original response, not create duplicates.
 - Idempotency keys stored in `idempotency_record` table with TTL.
 
-### ERP Internal API Headers (MANDATORY for every call)
-```
-X-API-Key: kat_...  (per-tenant Katasticho org-scoped API key from tenant_registry;
-                     fallback: Authorization: Bearer <service-token>)
-X-Correlation-Id: <uuid>
-Idempotency-Key: <stable-key> (for command APIs — generated ONCE by the caller and
-                               persisted with the business record, reused on retry)
-X-Tenant-Id: <tenant_id>
-X-Group-Id: <group_id>
-X-Branch-Id: <branch_id>
-X-Source-System: HOSPITAL
-X-Source-Reference-Id: <prescription_id/indent_id/visit_id/admission_id>
-```
-- ERP mapping: **one Katasticho org per hospital tenant**, authenticated by that org's API key (Katasticho's `ApiKeyAuthenticationFilter` resolves org+role from the key; the X-* headers are tracing only).
-- `ErpApiClient` resolves credentials per tenant from the registry; ERP is used for ACCOUNTING ONLY (journal entries, invoices, payments) — see Billing Ownership above.
+### ERP Internal API (REMOVED — historical)
+The hospital no longer calls any ERP. Accounting/pharmacy/stock are in-process
+(`accounting/`, `inventory/`). The `idempotency_record` table + Idempotency-Key
+header remain available for the hospital's OWN external command APIs, but there
+is no outbound ERP client. Do not reintroduce one.
 
 ## Tech Stack
 
@@ -178,52 +170,39 @@ katixo-hospital-service/
   **IMPLEMENTED:** `NursingIndentService` @ `/api/v1/nursing/indents` — categories in policy
   `ipd.indent.approval.required_categories` (default IMPLANT,NARCOTIC) need DOCTOR/ADMIN
   approval; others auto-approve. Lifecycle REQUESTED→APPROVED/REJECTED→DISPENSED/CANCELLED.
-- **IPD pharmacy = ERP SALES INVOICE (AR), not a cash receipt** (settled at discharge):
-  `ErpIndentSyncService` on dispense (after commit) mirrors the patient as an ERP CUSTOMER
-  contact (matched by UHID, key `HOSP-CONTACT-<tenant>-<patientId>`), back-computes taxable
-  price from GST-inclusive MRP, creates+sends the invoice (keys `HOSP-INDENT[-SEND]-<tenant>-<id>`;
-  send = GST journal + stock deduction). FAILED→retry via `POST /indents/{id}/sync-erp`.
-  `generateBill` auto-attaches SYNCED indent invoices (IPD: indent.admissionId == bill.sourceId).
-  OPEN ITEM: discharge payment does not yet settle the ERP invoices' AR (needs ERP payment allocation).
+- **IPD pharmacy = local CREDIT pharmacy sale (Patient AR), settled at discharge:**
+  `NursingIndentService.dispense` raises a `PharmacySale` (type CREDIT) in-process —
+  FEFO-issues stock, splits GST from inclusive MRP, posts DR Patient AR (1100) / CR
+  Pharmacy Sales (4010) + CGST/SGST + DR COGS / CR Inventory. Indent records
+  saleId/saleNumber/saleTotal. Missing item or short stock rolls the dispense back.
 - Discharge types: Normal, LAMA, Death
 - Discharge checklist: some items block, others warn (from policy engine)
 
 ### Pharmacy
-- OPD dispense: hospital calls ERP, ERP creates invoice atomically.
-  **IMPLEMENTED:** `ErpDispenseSyncService` — on FULLY_DISPENSED (after commit), resolves
-  medicine codes to ERP items by SKU (`GET /api/v1/items?search=`), creates a POS sales
-  receipt (`POST /api/v1/sales-receipts`, CASH, MRP tax-inclusive, ERP does FEFO/stock/GST/journal).
-  Idempotency key `HOSP-DISP-<tenant>-<dispenseId>` persisted on prescription_dispense (V1_011);
-  ERP failure marks erp_sync_status=FAILED, never blocks the dispense. Retry:
-  `POST /api/v1/pharmacy/dispenses/{id}/sync-erp`. Katasticho replays duplicates via its
-  IdempotencyFilter (V67).
-- OTC sales: no UHID required, separate Quick Sale flow
+- OPD dispense → local **CASH** `PharmacySale` on FULLY_DISPENSED (`PharmacyQueueService`):
+  FEFO issue + GST + DR Cash / CR Sales+GST + COGS journal, in the same transaction. The
+  dispense records saleId/saleNumber/saleTotal. Item-not-in-master or short stock rolls the
+  completion back (you can't dispense stock you don't have). Engine: `inventory/PharmacySaleService`.
+- Item master + batch/expiry/FEFO stock: `inventory/` (`InventoryService`, `/api/v1/inventory`).
+- OTC sales: no UHID required, separate Quick Sale flow (call `PharmacySaleService` directly) — TODO UI.
 - Queue: default FIFO with priority override (logged for audit)
 - Substitution: record original item, dispensed item, reason
 
-### Billing
-- Hospital charges = quantity × tariff (no GST)
-- ERP charges = pharmacy invoice with GST
-- **ERP accounting sync (IMPLEMENTED — `ErpBillingSyncService`):** bill finalize posts
-  DR AR (1100) / CR Hospital Revenue (4010) journal in Katasticho (after commit); payments
-  (`POST /api/v1/billing/bills/{id}/payments`, modes CASH/CARD/UPI/CHEQUE/BANK_TRANSFER,
-  validated against balanceDue) post DR Cash (1010)|Bank (1020) / CR AR. Account codes
-  configurable via `katixo.erp.accounts.*`. Idempotency keys `HOSP-BILL-…`/`HOSP-PAY-…`
-  persisted (V1_012: patient_bill erp columns + amount_paid, patient_bill_payment table).
-  ERP failure → erp_sync_status=FAILED, retry via `POST /bills/{id}/sync-erp` and
-  `POST /payments/{paymentId}/sync-erp`. `generateBill` auto-attaches SYNCED pharmacy
-  dispense receipts as BillErpInvoiceRef (OPD: dispense.visitId == bill.sourceId).
-- **Grand-total payment split (IMPLEMENTED):** a payment may cover hospital + IPD pharmacy.
-  `recordPayment` splits it: hospital share (≤ bill balance) → Cash|Bank/AR journal;
-  remainder = pharmacy share → settled against the admission's open ERP sales invoices
-  oldest-first via `POST /api/v1/payments` (keys `HOSP-PAYALLOC-<tenant>-<paymentId>-<indentId>`,
-  resume-safe on partial failure). Validation: amount ≤ hospitalDue + pharmacyDue.
-- **Printable bill (IMPLEMENTED):** `GET /api/v1/billing/bills/{id}/receipt.pdf` —
-  A4 PDF via openhtmltopdf (`BillPdfService`): charges by category (GST-exempt note),
-  pharmacy invoices, discount, payments, grand total. FINAL bills only.
-- **Dev-reset caveat:** idempotency keys embed row ids; resetting the hospital DB reuses
-  ids, so Katasticho REPLAYS old responses for up to 48h. When resetting the hospital DB
-  in dev, also clear the ERP org's `idempotency_record` (or use a fresh ERP org).
+### Billing (all in-process — `accounting/JournalService`)
+- Hospital charges = quantity × tariff (no GST). Bill finalize posts DR Patient AR (1100) /
+  CR Hospital Service Income (4020).
+- Payment (`POST /api/v1/billing/bills/{id}/payments`, CASH/CARD/UPI/CHEQUE/BANK_TRANSFER)
+  posts DR Cash (1010)|Bank (1020) / CR Patient AR. Account codes are constants in
+  `BillingService`.
+- **Unified Patient AR:** IPD pharmacy credit sales and hospital charges both debit AR, so a
+  discharge payment settles the consolidated balance directly — no allocation step. Validated
+  against grand balance = hospital net + IPD pharmacy credit-sale total. OPD pharmacy is CASH
+  (already paid), so it is shown on the consolidated bill but NOT re-billed.
+- `generateBill` auto-attaches the patient's pharmacy sales (OPD: dispense.visitId==sourceId;
+  IPD: indent.admissionId==sourceId) as `bill_erp_invoice_ref` rows (legacy name; cosmetic).
+- **Printable bill:** `GET /api/v1/billing/bills/{id}/receipt.pdf` — A4 PDF via openhtmltopdf
+  (`BillPdfService`): charges by category (GST-exempt note), pharmacy sales, discount, payments,
+  grand total. FINAL bills only.
 - Patient credit account: balance, configurable limit, warn/block action
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
