@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Printable consolidated bill (A4 PDF): hospital charges grouped by service
- * category (GST-exempt healthcare services), attached ERP pharmacy invoices,
+ * category (GST-exempt healthcare services), attached pharmacy sales,
  * discount, payments and the grand total. Rendered from an HTML template via
  * openhtmltopdf — same approach as Katasticho's invoice PDFs.
  */
@@ -45,7 +45,7 @@ public class BillPdfService {
         Map<String, List<Map<String, Object>>> chargesByCategory =
                 (Map<String, List<Map<String, Object>>>) receipt.get("chargesByCategory");
         Map<String, BigDecimal> categoryTotals = (Map<String, BigDecimal>) receipt.get("categoryTotals");
-        List<Map<String, Object>> erpInvoices = (List<Map<String, Object>>) receipt.get("erpInvoices");
+        List<Map<String, Object>> pharmacySales = (List<Map<String, Object>>) receipt.get("pharmacySales");
 
         StringBuilder html = new StringBuilder();
         html.append("""
@@ -98,13 +98,13 @@ public class BillPdfService {
         }
         html.append("</table>");
 
-        if (erpInvoices != null && !erpInvoices.isEmpty()) {
-            html.append("<div class='section'>Pharmacy (billed by pharmacy with GST)</div>")
+        if (pharmacySales != null && !pharmacySales.isEmpty()) {
+            html.append("<div class='section'>Pharmacy (GST)</div>")
                     .append("<table><tr><th>Invoice / Receipt</th><th>Type</th><th class='num'>Amount</th></tr>");
-            for (Map<String, Object> invoice : erpInvoices) {
-                html.append("<tr><td>").append(esc(invoice.get("invoiceNumber")))
-                        .append("</td><td>").append(esc(invoice.get("type")))
-                        .append("</td><td class='num'>").append(money(invoice.get("amount")))
+            for (Map<String, Object> sale : pharmacySales) {
+                html.append("<tr><td>").append(esc(sale.get("saleNumber")))
+                        .append("</td><td>").append(esc(sale.get("docType")))
+                        .append("</td><td class='num'>").append(money(sale.get("amount")))
                         .append("</td></tr>");
             }
             html.append("</table>");
@@ -117,7 +117,7 @@ public class BillPdfService {
             html.append(totalRow("Discount", "- " + money(discount), false));
         }
         html.append(totalRow("Hospital Net", receipt.get("hospitalNetAmount"), false))
-                .append(totalRow("Pharmacy Total", receipt.get("erpInvoicesTotal"), false))
+                .append(totalRow("Pharmacy Total", receipt.get("pharmacyTotal"), false))
                 .append(totalRow("GRAND TOTAL", receipt.get("grandTotal"), true));
 
         BigDecimal paid = payments.stream()

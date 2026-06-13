@@ -275,41 +275,10 @@ CREATE SEQUENCE bed_isolation_id_seq
 ALTER SEQUENCE bed_isolation_id_seq OWNED BY bed_isolation.id;
 
 
---
--- Name: bill_erp_invoice_ref; Type: TABLE; Schema: t_demo_tenant; Owner: -
---
-
-CREATE TABLE bill_erp_invoice_ref (
-    id bigint NOT NULL,
-    tenant_id character varying(50) NOT NULL,
-    hospital_group_id bigint NOT NULL,
-    branch_id bigint NOT NULL,
-    bill_id bigint NOT NULL,
-    erp_invoice_number character varying(50) NOT NULL,
-    erp_invoice_amount numeric(12,2) NOT NULL,
-    invoice_type character varying(30) DEFAULT 'PHARMACY'::character varying NOT NULL,
-    created_by bigint,
-    created_at timestamp without time zone DEFAULT now() NOT NULL
-);
 
 
---
--- Name: bill_erp_invoice_ref_id_seq; Type: SEQUENCE; Schema: t_demo_tenant; Owner: -
---
-
-CREATE SEQUENCE bill_erp_invoice_ref_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
 
 
---
--- Name: bill_erp_invoice_ref_id_seq; Type: SEQUENCE OWNED BY; Schema: t_demo_tenant; Owner: -
---
-
-ALTER SEQUENCE bill_erp_invoice_ref_id_seq OWNED BY bill_erp_invoice_ref.id;
 
 
 --
@@ -2000,11 +1969,6 @@ ALTER TABLE ONLY bed_allocation ALTER COLUMN id SET DEFAULT nextval('bed_allocat
 ALTER TABLE ONLY bed_isolation ALTER COLUMN id SET DEFAULT nextval('bed_isolation_id_seq'::regclass);
 
 
---
--- Name: bill_erp_invoice_ref id; Type: DEFAULT; Schema: t_demo_tenant; Owner: -
---
-
-ALTER TABLE ONLY bill_erp_invoice_ref ALTER COLUMN id SET DEFAULT nextval('bill_erp_invoice_ref_id_seq'::regclass);
 
 
 --
@@ -2279,20 +2243,8 @@ ALTER TABLE ONLY bed
     ADD CONSTRAINT bed_tenant_id_branch_id_room_id_bed_number_key UNIQUE (tenant_id, branch_id, room_id, bed_number);
 
 
---
--- Name: bill_erp_invoice_ref bill_erp_invoice_ref_pkey; Type: CONSTRAINT; Schema: t_demo_tenant; Owner: -
---
-
-ALTER TABLE ONLY bill_erp_invoice_ref
-    ADD CONSTRAINT bill_erp_invoice_ref_pkey PRIMARY KEY (id);
 
 
---
--- Name: bill_erp_invoice_ref bill_erp_invoice_ref_tenant_id_bill_id_erp_invoice_number_key; Type: CONSTRAINT; Schema: t_demo_tenant; Owner: -
---
-
-ALTER TABLE ONLY bill_erp_invoice_ref
-    ADD CONSTRAINT bill_erp_invoice_ref_tenant_id_bill_id_erp_invoice_number_key UNIQUE (tenant_id, bill_id, erp_invoice_number);
 
 
 --
@@ -2968,11 +2920,6 @@ CREATE INDEX idx_doctor_leave_doctor_date ON doctor_leave USING btree (tenant_id
 CREATE INDEX idx_doctor_leave_status ON doctor_leave USING btree (status);
 
 
---
--- Name: idx_erp_ref_bill; Type: INDEX; Schema: t_demo_tenant; Owner: -
---
-
-CREATE INDEX idx_erp_ref_bill ON bill_erp_invoice_ref USING btree (bill_id);
 
 
 --
@@ -3348,12 +3295,6 @@ ALTER TABLE ONLY bed
     ADD CONSTRAINT bed_room_id_fkey FOREIGN KEY (room_id) REFERENCES room(id);
 
 
---
--- Name: bill_erp_invoice_ref bill_erp_invoice_ref_bill_id_fkey; Type: FK CONSTRAINT; Schema: t_demo_tenant; Owner: -
---
-
-ALTER TABLE ONLY bill_erp_invoice_ref
-    ADD CONSTRAINT bill_erp_invoice_ref_bill_id_fkey FOREIGN KEY (bill_id) REFERENCES patient_bill(id);
 
 
 --
@@ -3885,3 +3826,22 @@ CREATE TABLE pharmacy_sale_line (
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_pharmacy_sale_line_sale ON pharmacy_sale_line(sale_id);
+
+-- ============================================================
+-- BILL PHARMACY REF (link from a consolidated bill to a pharmacy sale)
+-- Renamed from bill_erp_invoice_ref — the hospital owns its pharmacy sales.
+-- ============================================================
+CREATE TABLE bill_pharmacy_ref (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    bill_id             BIGINT       NOT NULL REFERENCES patient_bill(id),
+    sale_number         VARCHAR(50)  NOT NULL,
+    amount              NUMERIC(12,2) NOT NULL,
+    doc_type            VARCHAR(30)  NOT NULL DEFAULT 'PHARMACY',
+    created_by          BIGINT,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, bill_id, sale_number)
+);
+CREATE INDEX idx_bill_pharmacy_ref_bill ON bill_pharmacy_ref(bill_id);

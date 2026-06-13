@@ -39,9 +39,9 @@ class BillPdfServiceTest {
         receipt.put("chargesTotal", new BigDecimal("1500.00"));
         receipt.put("discountAmount", BigDecimal.ZERO);
         receipt.put("hospitalNetAmount", new BigDecimal("1500.00"));
-        receipt.put("erpInvoices", List.of(Map.of(
-                "invoiceNumber", "INV-2026-000001", "type", "PHARMACY", "amount", new BigDecimal("37.47"))));
-        receipt.put("erpInvoicesTotal", new BigDecimal("37.47"));
+        receipt.put("pharmacySales", List.of(Map.of(
+                "saleNumber", "PS-100001", "docType", "PHARMACY", "amount", new BigDecimal("37.47"))));
+        receipt.put("pharmacyTotal", new BigDecimal("37.47"));
         receipt.put("grandTotal", new BigDecimal("1537.47"));
 
         PatientBillPayment payment = new PatientBillPayment();

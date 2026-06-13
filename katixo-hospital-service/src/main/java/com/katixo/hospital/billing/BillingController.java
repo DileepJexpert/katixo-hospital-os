@@ -140,22 +140,23 @@ public class BillingController {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ErpRefRequest {
+    public static class PharmacyRefRequest {
         @NotBlank
-        private String invoiceNumber;
+        private String saleNumber;
         @NotNull
         private BigDecimal amount;
-        private String invoiceType;
+        private String docType;
     }
 
-    @PostMapping("/bills/{id}/erp-refs")
+    /** Manually link a pharmacy sale to a bill (sales normally auto-attach on generate). */
+    @PostMapping("/bills/{id}/pharmacy-refs")
     @PreAuthorize("hasAnyRole('BILLING', 'PHARMACIST', 'ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> addErpRef(@PathVariable Long id,
-                                                         @Valid @RequestBody ErpRefRequest req) {
-        BillErpInvoiceRef ref = billingService.addErpInvoiceRef(id, req.getInvoiceNumber(),
-                req.getAmount(), req.getInvoiceType());
-        return respond(Map.of("id", ref.getId(), "invoiceNumber", ref.getErpInvoiceNumber(),
-                "amount", ref.getErpInvoiceAmount()), "ERP invoice linked", HttpStatus.CREATED);
+    public ResponseEntity<ApiResponse<Object>> addPharmacyRef(@PathVariable Long id,
+                                                              @Valid @RequestBody PharmacyRefRequest req) {
+        BillPharmacyRef ref = billingService.addPharmacyRef(id, req.getSaleNumber(),
+                req.getAmount(), req.getDocType());
+        return respond(Map.of("id", ref.getId(), "saleNumber", ref.getSaleNumber(),
+                "amount", ref.getAmount()), "Pharmacy sale linked", HttpStatus.CREATED);
     }
 
     @PostMapping("/bills/{id}/finalize")

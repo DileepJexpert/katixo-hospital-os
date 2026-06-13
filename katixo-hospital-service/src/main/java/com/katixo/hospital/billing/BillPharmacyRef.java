@@ -11,20 +11,21 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Reference to an ERP-owned invoice (pharmacy etc.) for the consolidated bill view.
- * The amount here is a display copy — the source of truth is the ERP ledger.
+ * Link from a consolidated bill to one of the patient's pharmacy sales
+ * (OPD cash receipt or IPD credit sale). A display copy of the sale number +
+ * total; the source of truth is the {@code pharmacy_sale} ledger.
  */
 @Entity
-@Table(name = "bill_erp_invoice_ref", indexes = {
-        @Index(name = "idx_erp_ref_bill", columnList = "bill_id")
+@Table(name = "bill_pharmacy_ref", indexes = {
+        @Index(name = "idx_bill_pharmacy_ref_bill", columnList = "bill_id")
 }, uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"tenant_id", "bill_id", "erp_invoice_number"})
+        @UniqueConstraint(columnNames = {"tenant_id", "bill_id", "sale_number"})
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BillErpInvoiceRef {
+public class BillPharmacyRef {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,13 +44,13 @@ public class BillErpInvoiceRef {
     private Long billId;
 
     @Column(nullable = false, length = 50, updatable = false)
-    private String erpInvoiceNumber;
+    private String saleNumber;
 
     @Column(nullable = false, precision = 12, scale = 2, updatable = false)
-    private BigDecimal erpInvoiceAmount;
+    private BigDecimal amount;
 
     @Column(nullable = false, length = 30, updatable = false)
-    private String invoiceType = "PHARMACY";
+    private String docType = "PHARMACY";
 
     @Column(updatable = false)
     private Long createdBy;

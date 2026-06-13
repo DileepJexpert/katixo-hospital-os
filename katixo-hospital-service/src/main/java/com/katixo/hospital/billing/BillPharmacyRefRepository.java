@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface BillErpInvoiceRefRepository extends JpaRepository<BillErpInvoiceRef, Long> {
+public interface BillPharmacyRefRepository extends JpaRepository<BillPharmacyRef, Long> {
 
-    List<BillErpInvoiceRef> findByTenantIdAndBillIdOrderById(String tenantId, Long billId);
+    List<BillPharmacyRef> findByTenantIdAndBillIdOrderById(String tenantId, Long billId);
 }

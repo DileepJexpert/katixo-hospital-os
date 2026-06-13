@@ -91,8 +91,8 @@ class _BillingHomeState extends State<BillingHome> {
     }
   }
 
-  /// Collect a payment against the finalized bill. The backend books the
-  /// money in the ERP ledger (DR Cash|Bank / CR AR) after this succeeds.
+  /// Collect a payment against the finalized bill. The backend books it
+  /// in-process (DR Cash|Bank / CR Patient AR).
   Future<void> _paymentDialog() async {
     final bill = _consolidated?['bill'] as Map<String, dynamic>?;
     final billId = _billId;
@@ -184,29 +184,6 @@ class _BillingHomeState extends State<BillingHome> {
     }
   }
 
-  /// Retry the ERP ledger posting for a bill or payment whose sync failed.
-  Future<void> _retryErpSync(String path) async {
-    final billId = _billId;
-    if (billId == null) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final api = context.read<ApiClient>();
-      await api.post<Map<String, dynamic>>(
-        path,
-        const <String, dynamic>{},
-        fromJson: (json) => json as Map<String, dynamic>,
-      );
-      setState(() => _info = 'Posted to ERP ledger');
-      await _loadConsolidated(billId);
-    } on ApiException catch (e) {
-      setState(() => _error = e.error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   Future<void> _discountDialog() async {
     final amountCtrl = TextEditingController();
@@ -422,10 +399,6 @@ class _BillingHomeState extends State<BillingHome> {
                 onFinalize: _finalize,
                 onReceipt: _showReceipt,
                 onPayment: _paymentDialog,
-                onRetryBillSync: () =>
-                    _retryErpSync('/api/v1/billing/bills/$_billId/sync-erp'),
-                onRetryPaymentSync: (paymentId) => _retryErpSync(
-                    '/api/v1/billing/payments/$paymentId/sync-erp'),
               ),
             ],
           ],
@@ -444,8 +417,6 @@ class _ConsolidatedBillCard extends StatelessWidget {
     required this.onFinalize,
     required this.onReceipt,
     required this.onPayment,
-    required this.onRetryBillSync,
-    required this.onRetryPaymentSync,
   });
 
   final Map<String, dynamic> consolidated;
@@ -455,8 +426,6 @@ class _ConsolidatedBillCard extends StatelessWidget {
   final VoidCallback onFinalize;
   final VoidCallback onReceipt;
   final VoidCallback onPayment;
-  final VoidCallback onRetryBillSync;
-  final void Function(int paymentId) onRetryPaymentSync;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +438,7 @@ class _ConsolidatedBillCard extends StatelessWidget {
     final isFinal = billStatus == 'FINAL';
     final balanceDue =
         num.tryParse('${bill['balanceDue'] ?? bill['netAmount']}') ?? 0;
-    final erpSyncStatus = '${bill['erpSyncStatus'] ?? 'NOT_SYNCED'}';
+    final journalNumber = bill['journalNumber'] as String?;
 
     return Card(
       child: Padding(
@@ -514,26 +483,12 @@ class _ConsolidatedBillCard extends StatelessWidget {
               ],
             ),
 
-            // ERP ledger sync state for the finalized bill
-            if (isFinal) ...[
+            // Ledger reference for the finalized bill (posted in-process).
+            if (isFinal && journalNumber != null) ...[
               const SizedBox(height: Space.sm),
-              Row(
-                children: [
-                  _ErpSyncBadge(
-                    status: erpSyncStatus,
-                    journalNumber: bill['erpJournalNumber'] as String?,
-                    label: 'Bill journal',
-                  ),
-                  if (erpSyncStatus == 'FAILED') ...[
-                    const SizedBox(width: Space.sm),
-                    TextButton.icon(
-                      onPressed: loading ? null : onRetryBillSync,
-                      icon: const Icon(Icons.sync_outlined, size: 16),
-                      label: const Text('Retry ERP post'),
-                    ),
-                  ],
-                ],
-              ),
+              Text('Journal: $journalNumber',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ],
             const SizedBox(height: Space.md),
             const Divider(),
@@ -560,7 +515,7 @@ class _ConsolidatedBillCard extends StatelessWidget {
               _totalRow(theme, 'Discount', '- ${bill['discountAmount']}'),
             _totalRow(theme, 'Hospital Net', consolidated['hospitalNetAmount']),
             _totalRow(
-                theme, 'Pharmacy (ERP)', consolidated['erpInvoicesTotal']),
+                theme, 'Pharmacy', consolidated['pharmacyTotal']),
             const SizedBox(height: Space.xs),
             Row(
               children: [
@@ -600,19 +555,12 @@ class _ConsolidatedBillCard extends StatelessWidget {
                     children: [
                       Text('₹${p['amount']} · ${p['paymentMode']}'
                           '${p['reference'] != null ? ' · ${p['reference']}' : ''}'),
-                      const SizedBox(width: Space.sm),
-                      _ErpSyncBadge(
-                        status: '${p['erpSyncStatus'] ?? 'NOT_SYNCED'}',
-                        journalNumber: p['erpJournalNumber'] as String?,
-                        label: 'Ledger',
-                      ),
-                      if ('${p['erpSyncStatus']}' == 'FAILED')
-                        TextButton(
-                          onPressed: loading
-                              ? null
-                              : () => onRetryPaymentSync(p['id'] as int),
-                          child: const Text('Retry'),
-                        ),
+                      if (p['journalNumber'] != null) ...[
+                        const SizedBox(width: Space.sm),
+                        Text('(${p['journalNumber']})',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ],
                       const Spacer(),
                       Text('${p['createdAt'] ?? ''}'.split('T').first,
                           style: theme.textTheme.bodySmall),
@@ -638,52 +586,6 @@ class _ConsolidatedBillCard extends StatelessWidget {
           Text('₹$value', style: theme.textTheme.bodyMedium),
         ],
       ),
-    );
-  }
-}
-
-/// Shows whether a bill/payment has been posted to the Katasticho ERP ledger.
-class _ErpSyncBadge extends StatelessWidget {
-  const _ErpSyncBadge({
-    required this.status,
-    required this.label,
-    this.journalNumber,
-  });
-
-  final String status;
-  final String label;
-  final String? journalNumber;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (color, icon, text) = switch (status) {
-      'SYNCED' => (
-          theme.colorScheme.primary,
-          Icons.check_circle_outline,
-          journalNumber == null || journalNumber == 'null'
-              ? '$label posted'
-              : '$label $journalNumber',
-        ),
-      'FAILED' => (
-          theme.colorScheme.error,
-          Icons.error_outline,
-          '$label not posted',
-        ),
-      _ => (
-          theme.colorScheme.onSurfaceVariant,
-          Icons.schedule_outlined,
-          '$label pending',
-        ),
-    };
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(text, style: theme.textTheme.bodySmall?.copyWith(color: color)),
-      ],
     );
   }
 }

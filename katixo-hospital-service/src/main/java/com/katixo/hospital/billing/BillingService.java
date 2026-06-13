@@ -38,7 +38,7 @@ public class BillingService {
     private final HospitalChargeRepository chargeRepository;
     private final PatientBillRepository billRepository;
     private final PatientBillPaymentRepository paymentRepository;
-    private final BillErpInvoiceRefRepository erpRefRepository;
+    private final BillPharmacyRefRepository pharmacyRefRepository;
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
@@ -224,23 +224,23 @@ public class BillingService {
     // ERP invoice refs + finalize + consolidated view
     // ------------------------------------------------------------
 
-    public BillErpInvoiceRef addErpInvoiceRef(Long billId, String invoiceNumber, BigDecimal amount, String type) {
+    public BillPharmacyRef addPharmacyRef(Long billId, String invoiceNumber, BigDecimal amount, String type) {
         var ctx = TenantContext.get();
         PatientBill bill = getOwnedBill(billId);
         if (bill.getBillStatus() == PatientBill.BillStatus.CANCELLED) {
             throw new BusinessException("INVALID_STATE", "Bill is cancelled");
         }
 
-        BillErpInvoiceRef ref = new BillErpInvoiceRef();
+        BillPharmacyRef ref = new BillPharmacyRef();
         ref.setTenantId(bill.getTenantId());
         ref.setHospitalGroupId(bill.getHospitalGroupId());
         ref.setBranchId(bill.getBranchId());
         ref.setBillId(billId);
-        ref.setErpInvoiceNumber(invoiceNumber);
-        ref.setErpInvoiceAmount(amount);
-        ref.setInvoiceType(type == null ? "PHARMACY" : type);
+        ref.setSaleNumber(invoiceNumber);
+        ref.setAmount(amount);
+        ref.setDocType(type == null ? "PHARMACY" : type);
         ref.setCreatedBy(userId());
-        return erpRefRepository.save(ref);
+        return pharmacyRefRepository.save(ref);
     }
 
     public PatientBill finalizeBill(Long billId) {
@@ -366,22 +366,22 @@ public class BillingService {
         var ctx = TenantContext.get();
         PatientBill bill = getOwnedBill(billId);
         List<HospitalCharge> charges = chargeRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
-        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        List<BillPharmacyRef> erpRefs = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
 
-        BigDecimal erpTotal = erpRefs.stream()
-                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+        BigDecimal pharmacyTotal = erpRefs.stream()
+                .map(BillPharmacyRef::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return Map.of(
                 "bill", billSnapshot(bill),
                 "charges", charges.stream().map(this::chargeSnapshot).toList(),
-                "erpInvoices", erpRefs.stream().map(r -> Map.of(
-                        "invoiceNumber", r.getErpInvoiceNumber(),
-                        "amount", r.getErpInvoiceAmount(),
-                        "type", r.getInvoiceType())).toList(),
+                "pharmacySales", erpRefs.stream().map(r -> Map.of(
+                        "saleNumber", r.getSaleNumber(),
+                        "amount", r.getAmount(),
+                        "docType", r.getDocType())).toList(),
                 "hospitalNetAmount", bill.getNetAmount(),
-                "erpInvoicesTotal", erpTotal,
-                "grandTotal", bill.getNetAmount().add(erpTotal)
+                "pharmacyTotal", pharmacyTotal,
+                "grandTotal", bill.getNetAmount().add(pharmacyTotal)
         );
     }
 
@@ -415,9 +415,9 @@ public class BillingService {
             categoryTotals.merge(category, c.getAmount(), BigDecimal::add);
         }
 
-        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
-        BigDecimal erpTotal = erpRefs.stream()
-                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+        List<BillPharmacyRef> erpRefs = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        BigDecimal pharmacyTotal = erpRefs.stream()
+                .map(BillPharmacyRef::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Map<String, Object> receipt = new java.util.LinkedHashMap<>();
@@ -432,12 +432,12 @@ public class BillingService {
         receipt.put("chargesTotal", bill.getChargesTotal());
         receipt.put("discountAmount", bill.getDiscountAmount());
         receipt.put("hospitalNetAmount", bill.getNetAmount());
-        receipt.put("erpInvoices", erpRefs.stream().map(r -> Map.of(
-                "invoiceNumber", r.getErpInvoiceNumber(),
-                "amount", r.getErpInvoiceAmount(),
-                "type", r.getInvoiceType())).toList());
-        receipt.put("erpInvoicesTotal", erpTotal);
-        receipt.put("grandTotal", bill.getNetAmount().add(erpTotal));
+        receipt.put("pharmacySales", erpRefs.stream().map(r -> Map.of(
+                "saleNumber", r.getSaleNumber(),
+                "amount", r.getAmount(),
+                "docType", r.getDocType())).toList());
+        receipt.put("pharmacyTotal", pharmacyTotal);
+        receipt.put("grandTotal", bill.getNetAmount().add(pharmacyTotal));
         return receipt;
     }
 
@@ -454,8 +454,8 @@ public class BillingService {
      */
     private void autoAttachPharmacyReceipts(PatientBill bill) {
         var ctx = TenantContext.get();
-        var alreadyAttached = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
-                .stream().map(BillErpInvoiceRef::getErpInvoiceNumber).collect(java.util.stream.Collectors.toSet());
+        var alreadyAttached = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
+                .stream().map(BillPharmacyRef::getSaleNumber).collect(java.util.stream.Collectors.toSet());
 
         if (bill.getSourceType() == HospitalCharge.SourceType.OPD_VISIT) {
             dispenseRepository.findByTenantIdAndVisitIdAndSaleIdNotNull(ctx.getTenantId(), bill.getSourceId()).stream()
@@ -469,16 +469,16 @@ public class BillingService {
     }
 
     private void attachPharmacyRef(PatientBill bill, String saleNumber, BigDecimal amount) {
-        BillErpInvoiceRef ref = new BillErpInvoiceRef();
+        BillPharmacyRef ref = new BillPharmacyRef();
         ref.setTenantId(bill.getTenantId());
         ref.setHospitalGroupId(bill.getHospitalGroupId());
         ref.setBranchId(bill.getBranchId());
         ref.setBillId(bill.getId());
-        ref.setErpInvoiceNumber(saleNumber);
-        ref.setErpInvoiceAmount(amount == null ? BigDecimal.ZERO : amount);
-        ref.setInvoiceType("PHARMACY");
+        ref.setSaleNumber(saleNumber);
+        ref.setAmount(amount == null ? BigDecimal.ZERO : amount);
+        ref.setDocType("PHARMACY");
         ref.setCreatedBy(userId());
-        erpRefRepository.save(ref);
+        pharmacyRefRepository.save(ref);
     }
 
     /** Auto-charge domain amounts: OPD consultation fee, IPD bed segments, lab order items. Returns patientId. */
