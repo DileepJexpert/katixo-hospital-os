@@ -82,6 +82,7 @@ VALUES
   ('${tenantId}', 1, 1, '2110', 'CGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '2120', 'SGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '2130', 'IGST Output Payable',        'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '2010', 'Trade Payables',             'LIABILITY', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '4010', 'Pharmacy Sales',             'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '4020', 'Hospital Service Income',    'INCOME',    TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '5010', 'Cost of Goods Sold',         'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW());

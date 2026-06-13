@@ -3790,3 +3790,75 @@ CREATE TABLE journal_line (
 );
 CREATE INDEX idx_journal_line_entry ON journal_line(journal_entry_id);
 CREATE INDEX idx_journal_line_account ON journal_line(tenant_id, account_code);
+
+-- ============================================================
+-- PHARMACY INVENTORY (hospital owns its own stock — batch + FEFO)
+-- pharmacy_item = medicine master; stock_batch = lots w/ expiry+cost;
+-- stock_movement = append-only ledger (balances derived from it).
+-- ============================================================
+
+CREATE TABLE pharmacy_item (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(50)  NOT NULL,
+    name                VARCHAR(255) NOT NULL,
+    hsn_code            VARCHAR(10),
+    gst_rate            NUMERIC(5,2)  NOT NULL DEFAULT 0,
+    mrp                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    manufacturer        VARCHAR(150),
+    track_batches       BOOLEAN      NOT NULL DEFAULT TRUE,
+    reorder_level       NUMERIC(12,2),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
+CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
+
+CREATE TABLE stock_batch (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    item_id             BIGINT       NOT NULL REFERENCES pharmacy_item(id),
+    batch_number        VARCHAR(60)  NOT NULL,
+    expiry_date         DATE,
+    cost_price          NUMERIC(12,2) NOT NULL DEFAULT 0,
+    mrp                 NUMERIC(12,2) NOT NULL DEFAULT 0,
+    quantity_received   NUMERIC(14,2) NOT NULL DEFAULT 0,
+    quantity_available  NUMERIC(14,2) NOT NULL DEFAULT 0,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_stock_batch_item_expiry ON stock_batch(tenant_id, item_id, expiry_date);
+CREATE INDEX idx_stock_batch_tenant_branch ON stock_batch(tenant_id, branch_id);
+
+CREATE TABLE stock_movement (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    item_id             BIGINT       NOT NULL,
+    batch_id            BIGINT       NOT NULL,
+    movement_type       VARCHAR(20)  NOT NULL,
+    quantity            NUMERIC(14,2) NOT NULL,
+    unit_cost           NUMERIC(12,2) NOT NULL DEFAULT 0,
+    reference_type      VARCHAR(30),
+    reference_id        VARCHAR(60),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_stock_movement_item ON stock_movement(tenant_id, item_id);
+CREATE INDEX idx_stock_movement_batch ON stock_movement(batch_id);
+CREATE INDEX idx_stock_movement_ref ON stock_movement(tenant_id, reference_type, reference_id);
