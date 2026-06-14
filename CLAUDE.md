@@ -4,6 +4,8 @@
 
 Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospitals up to 150 beds. It is a **standalone Spring Boot product** — it owns its full stack including its own accounting (double-entry), pharmacy inventory (batch/expiry/FEFO) and GST. It does **not** depend on any external ERP at runtime.
 
+> **STATUS & PLAN:** see `docs/IMPLEMENTATION_STATUS_AND_PLAN.md` for what's built and what's next. Update it as features land.
+
 > **ARCHITECTURE NOTE (2026-06-13):** Katixo Hospital OS and Katasticho ERP are now **two separate products** for two different customer bases. The earlier hospital→ERP HTTP integration was removed (Phase 3); the hospital posts everything to its own books in-process. Anything below describing "ERP API calls", "ErpApiClient", "Erp*SyncService", per-tenant ERP credentials, or the 2+1 service model is **historical** — superseded by the in-process accounting (`accounting/`), inventory (`inventory/`) modules. Katasticho is never called and must never be reintroduced as a runtime dependency here.
 
 ## Architecture Rules (NEVER violate these)
@@ -80,6 +82,16 @@ is no outbound ERP client. Do not reintroduce one.
 - Flutter Web (responsive — desktop, tablet, phone)
 - No separate native mobile apps
 - Module structure by role: front_desk, doctor, nurse, pharmacy, lab, billing, owner, settings
+
+#### Flutter app conventions (`katixo-hospital-app/lib/`) — match these
+- **State:** `provider` (ChangeNotifier) for global `AuthState`/`ThemeController` + `ApiClient`; screen-level state is plain `setState`. No Riverpod/Bloc.
+- **API:** single `core/api/http_client.dart` `ApiClient` (raw `http`, JWT + `X-Tenant-Id`/`X-Group-Id`/`X-Branch-Id` headers, retries). Call `context.read<ApiClient>().get/post<T>(path, body, fromJson:)`. Paths are hardcoded `/api/v1/...` strings; responses are handled as raw `Map<String,dynamic>`/`List` (no DTO layer yet).
+- **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
+- **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
+- **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
+- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses**), **AdminHome** (expenses · payroll · lab report). Feature screens: `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report).
+- **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
+- **No Flutter SDK in the Claude Code env** — Dart changes can't be compile-checked here; run `flutter analyze` / build locally.
 
 ### Infrastructure
 - Docker Compose for local dev
