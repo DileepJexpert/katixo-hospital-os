@@ -149,4 +149,58 @@ class PayrollServiceTest {
         assertEquals(0, new BigDecimal("15655.00").compareTo(dr));
         assertEquals(PayrollRun.RunStatus.APPROVED, run.getRunStatus());
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void payStatutoryClearsPayablesAgainstBank() {
+        PayrollRun run = new PayrollRun();
+        run.setBranchId(1L);
+        run.setPeriodYear(2026);
+        run.setPeriodMonth(6);
+        run.setRunStatus(PayrollRun.RunStatus.APPROVED);
+        ReflectionTestUtils.setField(run, "id", 7L);
+        when(runRepository.findByIdAndTenantIdAndBranchId(7L, TENANT, 1L)).thenReturn(Optional.of(run));
+
+        Payslip p = new Payslip();
+        p.setPfEmployee(new BigDecimal("1200.00"));
+        p.setPfEmployer(new BigDecimal("1200.00"));
+        p.setEsiEmployee(new BigDecimal("105.00"));
+        p.setEsiEmployer(new BigDecimal("455.00"));
+        p.setProfessionalTax(new BigDecimal("200.00"));
+        p.setTds(new BigDecimal("500.00"));
+        when(payslipRepository.findByTenantIdAndPayrollRunIdOrderById(TENANT, 7L)).thenReturn(List.of(p));
+
+        JournalEntry je = new JournalEntry();
+        ReflectionTestUtils.setField(je, "id", 950L);
+        ReflectionTestUtils.setField(je, "entryNumber", "JE-950");
+        when(journalService.post(any(), anyString(), eq("PAYROLL_STATUTORY"), anyString(), any())).thenReturn(je);
+
+        service.payStatutory(7L, false, null);
+
+        ArgumentCaptor<List<JournalService.Line>> captor = ArgumentCaptor.forClass(List.class);
+        verify(journalService).post(any(), anyString(), eq("PAYROLL_STATUTORY"), anyString(), captor.capture());
+        List<JournalService.Line> lines = captor.getValue();
+        BigDecimal dr = lines.stream().map(JournalService.Line::debit).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cr = lines.stream().map(JournalService.Line::credit).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, dr.compareTo(cr), "statutory journal must balance");
+        // PF (1200+1200) + ESI (105+455) + PT 200 + TDS 500 = 3660
+        assertEquals(0, new BigDecimal("3660.00").compareTo(cr));
+        // single CR line to Bank 1020 (last line)
+        assertEquals("1020", lines.get(lines.size() - 1).accountCode());
+        assertEquals(true, run.isStatutoryPaid());
+    }
+
+    @Test
+    void payStatutoryRejectedOnDraftRun() {
+        PayrollRun run = new PayrollRun();
+        run.setBranchId(1L);
+        run.setRunStatus(PayrollRun.RunStatus.DRAFT);
+        ReflectionTestUtils.setField(run, "id", 8L);
+        when(runRepository.findByIdAndTenantIdAndBranchId(8L, TENANT, 1L)).thenReturn(Optional.of(run));
+
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.katixo.hospital.common.exception.BusinessException.class,
+                () -> service.payStatutory(8L, false, null));
+        assertEquals("INVALID_STATE", ex.getCode());
+    }
 }

@@ -26,6 +26,7 @@ import java.util.UUID;
 public class PayrollController {
 
     private final PayrollService payrollService;
+    private final PayslipPdfService payslipPdfService;
 
     @Getter
     @NoArgsConstructor
@@ -101,6 +102,34 @@ public class PayrollController {
         return respond(runView(payrollService.payRun(id)), "Payroll paid", HttpStatus.OK);
     }
 
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PayStatutoryRequest {
+        private Boolean fromCash;
+        private LocalDate paidDate;
+    }
+
+    @PostMapping("/runs/{id}/pay-statutory")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> payStatutory(@PathVariable Long id,
+                                                            @RequestBody(required = false) PayStatutoryRequest req) {
+        boolean fromCash = req != null && Boolean.TRUE.equals(req.getFromCash());
+        LocalDate paidDate = req == null ? null : req.getPaidDate();
+        return respond(runView(payrollService.payStatutory(id, fromCash, paidDate)),
+                "Statutory dues remitted", HttpStatus.OK);
+    }
+
+    @GetMapping("/runs/{id}/payslips/{employeeId}.pdf")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<byte[]> payslipPdf(@PathVariable Long id, @PathVariable Long employeeId) {
+        byte[] pdf = payslipPdfService.renderPayslipPdf(id, employeeId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=payslip-" + id + "-" + employeeId + ".pdf")
+                .body(pdf);
+    }
+
     @GetMapping("/runs")
     @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<ApiResponse<Object>> listRuns() {
@@ -142,6 +171,9 @@ public class PayrollController {
         v.put("totalNet", r.getTotalNet());
         v.put("journalEntryId", r.getJournalEntryId());
         v.put("paymentJournalEntryId", r.getPaymentJournalEntryId());
+        v.put("statutoryPaid", r.isStatutoryPaid());
+        v.put("statutoryPaidDate", r.getStatutoryPaidDate() == null ? null : r.getStatutoryPaidDate().toString());
+        v.put("statutoryJournalEntryId", r.getStatutoryJournalEntryId());
         return v;
     }
 

@@ -213,7 +213,14 @@ katixo-hospital-service/
   ESI 0.75% employee / 3.25% employer of gross when gross ≤ ₹21,000, PT + TDS fixed per employee.
 - Approve posts DR Salaries & Wages (5100) + Employer Contributions (5110) / CR Salary Payable (2040)
   + PF/ESI/PT/TDS Payable (2050/2051/2052/2053). Pay posts DR Salary Payable / CR Bank (1020).
-  `/api/v1/payroll`.
+- **Statutory remittance:** `POST /api/v1/payroll/runs/{id}/pay-statutory` clears the PF/ESI/PT/TDS
+  payables to government — DR PF/ESI/PT/TDS Payable / CR Bank (or Cash if `fromCash`). Allowed once the
+  salary journal has posted (APPROVED or PAID run) and only once (`statutoryPaid` flag). Mirrors the
+  expense AP loop.
+- **Payslip PDF:** `GET /api/v1/payroll/runs/{id}/payslips/{employeeId}.pdf` — A4 salary slip via
+  openhtmltopdf (`PayslipPdfService`): earnings (basic/HRA/allowances), deductions (PF/ESI/PT/TDS),
+  net pay, employer PF/ESI footnote.
+- `/api/v1/payroll` (employees, runs, runs/{id}/approve|pay|pay-statutory, runs/{id}/payslips/{empId}.pdf).
 
 ### Expense tracking (hospital-owned — `expense/`)
 - Operating expenses by category (RENT 5200 / UTILITIES 5210 / SUPPLIES 5220 / MAINTENANCE 5230 /

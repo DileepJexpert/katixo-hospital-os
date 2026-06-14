@@ -59,6 +59,16 @@ public class PayrollRun extends BaseEntity {
     @Column
     private Long paymentJournalEntryId;
 
+    /** Journal that clears the PF/ESI/PT/TDS payables (remittance to government). */
+    @Column
+    private Long statutoryJournalEntryId;
+
+    @Column(nullable = false)
+    private boolean statutoryPaid = false;
+
+    @Column
+    private java.time.LocalDate statutoryPaidDate;
+
     public enum RunStatus {
         DRAFT, APPROVED, PAID
     }

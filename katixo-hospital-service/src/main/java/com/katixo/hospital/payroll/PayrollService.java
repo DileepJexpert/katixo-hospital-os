@@ -45,6 +45,7 @@ public class PayrollService {
     private static final String PT_PAYABLE = "2052";
     private static final String TDS_PAYABLE = "2053";
     private static final String BANK_ACCOUNT = "1020";
+    private static final String CASH_ACCOUNT = "1010";
 
     private final EmployeeRepository employeeRepository;
     private final PayrollRunRepository runRepository;
@@ -232,6 +233,75 @@ public class PayrollService {
         run.setRunStatus(PayrollRun.RunStatus.PAID);
         run.setUpdatedBy(userId());
         return runRepository.save(run);
+    }
+
+    /**
+     * Remits the statutory dues (PF/ESI/PT/TDS) to government, clearing those
+     * payables: DR PF/ESI/PT/TDS Payable / CR Bank (or Cash). Allowed once the
+     * salary journal has posted (APPROVED or PAID run) and only once.
+     */
+    public PayrollRun payStatutory(Long runId, boolean fromCash, LocalDate paidDate) {
+        var ctx = TenantContext.get();
+        PayrollRun run = getRun(runId);
+        if (run.getRunStatus() == PayrollRun.RunStatus.DRAFT) {
+            throw new BusinessException("INVALID_STATE",
+                    "Approve the run before remitting statutory dues");
+        }
+        if (run.isStatutoryPaid()) {
+            throw new BusinessException("STATUTORY_ALREADY_PAID", "Statutory dues already remitted for this run");
+        }
+        List<Payslip> slips = payslipRepository.findByTenantIdAndPayrollRunIdOrderById(ctx.getTenantId(), runId);
+
+        BigDecimal pf = sum(slips, Payslip::getPfEmployee).add(sum(slips, Payslip::getPfEmployer));
+        BigDecimal esi = sum(slips, Payslip::getEsiEmployee).add(sum(slips, Payslip::getEsiEmployer));
+        BigDecimal pt = sum(slips, Payslip::getProfessionalTax);
+        BigDecimal tds = sum(slips, Payslip::getTds);
+        BigDecimal total = pf.add(esi).add(pt).add(tds);
+        if (total.signum() <= 0) {
+            throw new BusinessException("NO_STATUTORY_DUES", "This run has no statutory dues to remit");
+        }
+
+        List<JournalService.Line> lines = new ArrayList<>();
+        if (pf.signum() > 0) {
+            lines.add(JournalService.Line.debit(PF_PAYABLE, pf, "PF remitted"));
+        }
+        if (esi.signum() > 0) {
+            lines.add(JournalService.Line.debit(ESI_PAYABLE, esi, "ESI remitted"));
+        }
+        if (pt.signum() > 0) {
+            lines.add(JournalService.Line.debit(PT_PAYABLE, pt, "Professional tax remitted"));
+        }
+        if (tds.signum() > 0) {
+            lines.add(JournalService.Line.debit(TDS_PAYABLE, tds, "TDS remitted"));
+        }
+        lines.add(JournalService.Line.credit(fromCash ? CASH_ACCOUNT : BANK_ACCOUNT, total,
+                fromCash ? "Cash" : "Bank"));
+
+        LocalDate when = paidDate == null ? LocalDate.now() : paidDate;
+        var entry = journalService.post(when,
+                "Statutory remittance " + run.getPeriodYear() + "-" + run.getPeriodMonth(),
+                "PAYROLL_STATUTORY",
+                "PAYROLL-STAT-" + run.getPeriodYear() + "-" + run.getPeriodMonth(), lines);
+        run.setStatutoryJournalEntryId(entry.getId());
+        run.setStatutoryPaid(true);
+        run.setStatutoryPaidDate(when);
+        run.setUpdatedBy(userId());
+        PayrollRun saved = runRepository.save(run);
+        auditService.audit("PayrollRun", String.valueOf(runId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("statutoryPaid", true, "amount", total, "journal", entry.getEntryNumber()),
+                UUID.randomUUID().toString());
+        log.info("Statutory dues remitted for run {}-{}: {} (PF {}, ESI {}, PT {}, TDS {})",
+                run.getPeriodYear(), run.getPeriodMonth(), total, pf, esi, pt, tds);
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public Payslip getPayslip(Long runId, Long employeeId) {
+        return getPayslips(runId).stream()
+                .filter(p -> employeeId.equals(p.getEmployeeId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("PAYSLIP_NOT_FOUND",
+                        "No payslip for employee " + employeeId + " in run " + runId));
     }
 
     @Transactional(readOnly = true)
