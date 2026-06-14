@@ -7,6 +7,7 @@ import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
+import '../expense/expense_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Billing role home: generate a bill for an OPD visit or IPD admission,
@@ -27,6 +28,7 @@ class _BillingHomeState extends State<BillingHome> {
   bool _loading = false;
   String? _error;
   String? _info;
+  int _index = 0;
 
   int? get _billId =>
       (_consolidated?['bill'] as Map<String, dynamic>?)?['id'] as int?;
@@ -311,9 +313,14 @@ class _BillingHomeState extends State<BillingHome> {
           icon: Icons.receipt_long_outlined,
           selectedIcon: Icons.receipt_long,
         ),
+        ShellDestination(
+          label: 'Expenses',
+          icon: Icons.receipt_outlined,
+          selectedIcon: Icons.receipt,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _index,
+      onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -329,7 +336,9 @@ class _BillingHomeState extends State<BillingHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _index == 1
+          ? const ExpenseScreen()
+          : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

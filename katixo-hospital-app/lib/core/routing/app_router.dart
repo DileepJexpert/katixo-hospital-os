@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
+import '../../features/admin/admin_home.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
@@ -42,6 +43,7 @@ Widget _roleHome(AuthState authState) {
     'DOCTOR' => const DoctorHome(),
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
+    'ADMIN' => const AdminHome(),
     _ => const FrontDeskHome(),
   };
 }
