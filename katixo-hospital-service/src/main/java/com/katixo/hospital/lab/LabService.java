@@ -350,6 +350,40 @@ public class LabService {
         );
     }
 
+    /** Rich data for the printable lab report: patient header + each test's result. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReportData(Long orderId) {
+        var ctx = TenantContext.get();
+        LabOrder order = orderRepository.findByIdAndTenantIdAndBranchId(orderId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Lab order not found: " + orderId));
+        var patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                order.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+
+        List<Map<String, Object>> results = itemRepository
+                .findByTenantIdAndLabOrderIdOrderById(ctx.getTenantId(), orderId).stream()
+                .map(item -> {
+                    var report = reportRepository.findByTenantIdAndLabOrderItemId(ctx.getTenantId(), item.getId());
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("testName", item.getTestName());
+                    row.put("result", report.map(LabReport::getResultValue).orElse(""));
+                    row.put("unit", report.map(LabReport::getUnit).orElse(""));
+                    row.put("referenceRange", report.map(LabReport::getReferenceRange).orElse(""));
+                    row.put("isAbnormal", report.map(LabReport::getIsAbnormal).orElse(false));
+                    row.put("status", report.map(r -> r.getReportStatus().name())
+                            .orElse(item.getItemStatus().name()));
+                    return row;
+                }).toList();
+
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("orderNumber", order.getOrderNumber());
+        data.put("orderDate", order.getCreatedAt() == null ? "" : order.getCreatedAt().toString());
+        data.put("orderStatus", order.getOrderStatus().name());
+        data.put("patientName", patient == null ? "" : patient.getFullName());
+        data.put("uhid", patient == null ? "" : patient.getUhid());
+        data.put("results", results);
+        return data;
+    }
+
     @Transactional(readOnly = true)
     public List<LabOrderItem> getWorklist() {
         var ctx = TenantContext.get();

@@ -24,48 +24,32 @@ public class TenantRegistryDao {
             rs.getString("tenant_id"),
             rs.getString("schema_name"),
             rs.getString("display_name"),
-            rs.getString("status"),
-            rs.getString("erp_base_url"),
-            rs.getString("erp_api_key"),
-            rs.getString("erp_org_code"));
+            rs.getString("status"));
 
     private final JdbcTemplate jdbcTemplate;
 
     public Optional<TenantRecord> findByTenantId(String tenantId) {
         List<TenantRecord> rows = jdbcTemplate.query(
-                "SELECT tenant_id, schema_name, display_name, status, erp_base_url, erp_api_key, erp_org_code"
-                        + " FROM " + TABLE + " WHERE tenant_id = ?",
+                "SELECT tenant_id, schema_name, display_name, status FROM " + TABLE + " WHERE tenant_id = ?",
                 MAPPER, tenantId);
         return rows.stream().findFirst();
     }
 
     public List<TenantRecord> findAll() {
         return jdbcTemplate.query(
-                "SELECT tenant_id, schema_name, display_name, status, erp_base_url, erp_api_key, erp_org_code"
-                        + " FROM " + TABLE + " ORDER BY tenant_id",
+                "SELECT tenant_id, schema_name, display_name, status FROM " + TABLE + " ORDER BY tenant_id",
                 MAPPER);
     }
 
     public void insert(TenantRecord record) {
         jdbcTemplate.update(
-                "INSERT INTO " + TABLE
-                        + " (tenant_id, schema_name, display_name, status, erp_base_url, erp_api_key, erp_org_code)"
-                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                record.tenantId(), record.schemaName(), record.displayName(), record.status(),
-                record.erpBaseUrl(), record.erpApiKey(), record.erpOrgCode());
+                "INSERT INTO " + TABLE + " (tenant_id, schema_name, display_name, status) VALUES (?, ?, ?, ?)",
+                record.tenantId(), record.schemaName(), record.displayName(), record.status());
     }
 
     public void updateStatus(String tenantId, String status) {
         jdbcTemplate.update(
                 "UPDATE " + TABLE + " SET status = ?, updated_at = NOW() WHERE tenant_id = ?",
                 status, tenantId);
-    }
-
-    public void updateErpConfig(String tenantId, String erpBaseUrl, String erpApiKey, String erpOrgCode) {
-        jdbcTemplate.update(
-                "UPDATE " + TABLE
-                        + " SET erp_base_url = ?, erp_api_key = ?, erp_org_code = ?, updated_at = NOW()"
-                        + " WHERE tenant_id = ?",
-                erpBaseUrl, erpApiKey, erpOrgCode, tenantId);
     }
 }

@@ -40,24 +40,11 @@ public class TenantAdminController {
         private String tenantId;
         @NotBlank
         private String displayName;
-        private String erpBaseUrl;
-        private String erpApiKey;
-        private String erpOrgCode;
-    }
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ErpConfigRequest {
-        private String erpBaseUrl;
-        private String erpApiKey;
-        private String erpOrgCode;
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> provision(@Valid @RequestBody ProvisionRequest req) {
-        TenantRecord tenant = provisioningService.provision(req.getTenantId(), req.getDisplayName(),
-                req.getErpBaseUrl(), req.getErpApiKey(), req.getErpOrgCode());
+        TenantRecord tenant = provisioningService.provision(req.getTenantId(), req.getDisplayName());
         return respond(view(tenant), "Tenant provisioned", HttpStatus.CREATED);
     }
 
@@ -83,22 +70,12 @@ public class TenantAdminController {
                 "Tenant activated", HttpStatus.OK);
     }
 
-    @PutMapping("/{tenantId}/erp-config")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> updateErpConfig(
-            @PathVariable String tenantId, @RequestBody ErpConfigRequest req) {
-        provisioningService.updateErpConfig(tenantId, req.getErpBaseUrl(), req.getErpApiKey(), req.getErpOrgCode());
-        return respond(Map.of("tenantId", tenantId), "ERP config updated", HttpStatus.OK);
-    }
-
     private Map<String, Object> view(TenantRecord t) {
         Map<String, Object> view = new java.util.LinkedHashMap<>();
         view.put("tenantId", t.tenantId());
         view.put("schemaName", t.schemaName());
         view.put("displayName", t.displayName());
         view.put("status", t.status());
-        view.put("erpBaseUrl", t.erpBaseUrl());
-        view.put("erpOrgCode", t.erpOrgCode());
-        view.put("erpApiKeyConfigured", t.erpApiKey() != null && !t.erpApiKey().isBlank());
         return view;
     }
 

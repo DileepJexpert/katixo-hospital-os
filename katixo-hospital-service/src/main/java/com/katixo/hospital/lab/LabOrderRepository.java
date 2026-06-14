@@ -17,9 +17,9 @@ public interface LabOrderRepository extends BaseRepository<LabOrder> {
                                 @Param("sourceType") HospitalCharge.SourceType sourceType,
                                 @Param("sourceId") Long sourceId);
 
-    @Query(value = "SELECT nextval('hospital.lab_order_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('lab_order_seq')", nativeQuery = true)
     Long nextOrderSequence();
 
-    @Query(value = "SELECT nextval('hospital.lab_sample_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('lab_sample_seq')", nativeQuery = true)
     Long nextSampleSequence();
 }

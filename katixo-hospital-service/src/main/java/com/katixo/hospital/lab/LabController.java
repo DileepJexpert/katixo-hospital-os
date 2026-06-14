@@ -26,6 +26,7 @@ import java.util.UUID;
 public class LabController {
 
     private final LabService labService;
+    private final LabReportPdfService labReportPdfService;
 
     // ---------- test master ----------
 
@@ -94,6 +95,24 @@ public class LabController {
     @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'LAB_TECH', 'BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getOrder(@PathVariable Long id) {
         return respond(labService.getOrderView(id), "Lab order", HttpStatus.OK);
+    }
+
+    /** Lab report data (patient + each test's result/unit/range/flag). */
+    @GetMapping("/orders/{id}/report")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'LAB_TECH', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> report(@PathVariable Long id) {
+        return respond(labService.getReportData(id), "Lab report", HttpStatus.OK);
+    }
+
+    /** Printable lab report (A4 PDF). */
+    @GetMapping(value = "/orders/{id}/report.pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'LAB_TECH', 'BILLING', 'ADMIN')")
+    public ResponseEntity<byte[]> reportPdf(@PathVariable Long id) {
+        byte[] pdf = labReportPdfService.renderReportPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=lab-report-" + id + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @GetMapping("/worklist")

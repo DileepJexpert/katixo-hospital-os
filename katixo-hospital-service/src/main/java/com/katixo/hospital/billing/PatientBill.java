@@ -65,6 +65,22 @@ public class PatientBill extends BaseEntity {
     @Column
     private LocalDateTime finalizedAt;
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal amountPaid = BigDecimal.ZERO;
+
+    // --- Local accounting linkage (finalize posts DR Patient AR / CR Hospital Service Income) ---
+
+    @Column
+    private Long journalEntryId;
+
+    @Column(length = 30)
+    private String journalNumber;
+
+    /** Hospital-charge balance only; the consolidated grand balance is computed in the service. */
+    public BigDecimal getBalanceDue() {
+        return netAmount.subtract(amountPaid);
+    }
+
     public enum DiscountStatus {
         NONE, PENDING_APPROVAL, APPROVED
     }

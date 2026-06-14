@@ -7,6 +7,7 @@ import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
+import '../expense/expense_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Billing role home: generate a bill for an OPD visit or IPD admission,
@@ -23,9 +24,11 @@ class _BillingHomeState extends State<BillingHome> {
   String _sourceType = 'OPD_VISIT';
 
   Map<String, dynamic>? _consolidated;
+  List<Map<String, dynamic>> _payments = const [];
   bool _loading = false;
   String? _error;
   String? _info;
+  int _index = 0;
 
   int? get _billId =>
       (_consolidated?['bill'] as Map<String, dynamic>?)?['id'] as int?;
@@ -74,11 +77,115 @@ class _BillingHomeState extends State<BillingHome> {
         '/api/v1/billing/bills/$billId',
         fromJson: (json) => json as Map<String, dynamic>,
       );
-      if (mounted) setState(() => _consolidated = view);
+      final payments = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/billing/bills/$billId/payments',
+        fromJson: (json) =>
+            List<Map<String, dynamic>>.from(json as List? ?? const []),
+      );
+      if (mounted) {
+        setState(() {
+          _consolidated = view;
+          _payments = payments;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     }
   }
+
+  /// Collect a payment against the finalized bill. The backend books it
+  /// in-process (DR Cash|Bank / CR Patient AR).
+  Future<void> _paymentDialog() async {
+    final bill = _consolidated?['bill'] as Map<String, dynamic>?;
+    final billId = _billId;
+    if (bill == null || billId == null) return;
+
+    final balanceDue = '${bill['balanceDue'] ?? bill['netAmount']}';
+    final amountCtrl = TextEditingController(text: balanceDue);
+    final referenceCtrl = TextEditingController();
+    var mode = 'CASH';
+
+    final collect = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Record Payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount (₹) *',
+                  prefixText: '₹ ',
+                  helperText: 'Balance due: ₹$balanceDue',
+                ),
+              ),
+              const SizedBox(height: Space.md),
+              DropdownButtonFormField<String>(
+                value: mode,
+                decoration: const InputDecoration(labelText: 'Payment mode *'),
+                items: const [
+                  DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                  DropdownMenuItem(value: 'CARD', child: Text('Card')),
+                  DropdownMenuItem(value: 'UPI', child: Text('UPI')),
+                  DropdownMenuItem(value: 'CHEQUE', child: Text('Cheque')),
+                  DropdownMenuItem(
+                      value: 'BANK_TRANSFER', child: Text('Bank transfer')),
+                ],
+                onChanged: (v) => setDialogState(() => mode = v ?? 'CASH'),
+              ),
+              const SizedBox(height: Space.md),
+              TextField(
+                controller: referenceCtrl,
+                decoration: const InputDecoration(
+                    labelText: 'Reference (UPI/cheque no.)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Collect'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (collect != true) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      final payment = await api.post<Map<String, dynamic>>(
+        '/api/v1/billing/bills/$billId/payments',
+        {
+          'amount': double.tryParse(amountCtrl.text) ?? 0,
+          'paymentMode': mode,
+          if (referenceCtrl.text.trim().isNotEmpty)
+            'reference': referenceCtrl.text.trim(),
+        },
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() =>
+          _info = 'Payment of ₹${payment['amount']} recorded ($mode)');
+      await _loadConsolidated(billId);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
 
   Future<void> _discountDialog() async {
     final amountCtrl = TextEditingController();
@@ -206,9 +313,14 @@ class _BillingHomeState extends State<BillingHome> {
           icon: Icons.receipt_long_outlined,
           selectedIcon: Icons.receipt_long,
         ),
+        ShellDestination(
+          label: 'Expenses',
+          icon: Icons.receipt_outlined,
+          selectedIcon: Icons.receipt,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _index,
+      onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -224,7 +336,9 @@ class _BillingHomeState extends State<BillingHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _index == 1
+          ? const ExpenseScreen()
+          : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -288,10 +402,12 @@ class _BillingHomeState extends State<BillingHome> {
               const SizedBox(height: Space.lg),
               _ConsolidatedBillCard(
                 consolidated: _consolidated!,
+                payments: _payments,
                 loading: _loading,
                 onDiscount: _discountDialog,
                 onFinalize: _finalize,
                 onReceipt: _showReceipt,
+                onPayment: _paymentDialog,
               ),
             ],
           ],
@@ -304,17 +420,21 @@ class _BillingHomeState extends State<BillingHome> {
 class _ConsolidatedBillCard extends StatelessWidget {
   const _ConsolidatedBillCard({
     required this.consolidated,
+    required this.payments,
     required this.loading,
     required this.onDiscount,
     required this.onFinalize,
     required this.onReceipt,
+    required this.onPayment,
   });
 
   final Map<String, dynamic> consolidated;
+  final List<Map<String, dynamic>> payments;
   final bool loading;
   final VoidCallback onDiscount;
   final VoidCallback onFinalize;
   final VoidCallback onReceipt;
+  final VoidCallback onPayment;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +444,10 @@ class _ConsolidatedBillCard extends StatelessWidget {
         List<Map<String, dynamic>>.from(consolidated['charges'] as List? ?? []);
     final billStatus = bill['billStatus'] as String;
     final isDraft = billStatus == 'DRAFT';
+    final isFinal = billStatus == 'FINAL';
+    final balanceDue =
+        num.tryParse('${bill['balanceDue'] ?? bill['netAmount']}') ?? 0;
+    final journalNumber = bill['journalNumber'] as String?;
 
     return Card(
       child: Padding(
@@ -350,14 +474,31 @@ class _ConsolidatedBillCard extends StatelessWidget {
                     onPressed: loading ? null : onFinalize,
                     child: const Text('Finalize'),
                   ),
-                ] else
+                ] else ...[
+                  if (isFinal && balanceDue > 0) ...[
+                    FilledButton.icon(
+                      onPressed: loading ? null : onPayment,
+                      icon: const Icon(Icons.payments_outlined, size: 18),
+                      label: const Text('Record Payment'),
+                    ),
+                    const SizedBox(width: Space.sm),
+                  ],
                   OutlinedButton.icon(
                     onPressed: onReceipt,
                     icon: const Icon(Icons.print_outlined, size: 18),
                     label: const Text('Receipt'),
                   ),
+                ],
               ],
             ),
+
+            // Ledger reference for the finalized bill (posted in-process).
+            if (isFinal && journalNumber != null) ...[
+              const SizedBox(height: Space.sm),
+              Text('Journal: $journalNumber',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
             const SizedBox(height: Space.md),
             const Divider(),
 
@@ -383,7 +524,7 @@ class _ConsolidatedBillCard extends StatelessWidget {
               _totalRow(theme, 'Discount', '- ${bill['discountAmount']}'),
             _totalRow(theme, 'Hospital Net', consolidated['hospitalNetAmount']),
             _totalRow(
-                theme, 'Pharmacy (ERP)', consolidated['erpInvoicesTotal']),
+                theme, 'Pharmacy', consolidated['pharmacyTotal']),
             const SizedBox(height: Space.xs),
             Row(
               children: [
@@ -393,6 +534,49 @@ class _ConsolidatedBillCard extends StatelessWidget {
                     style: theme.textTheme.titleLarge),
               ],
             ),
+
+            if (isFinal) ...[
+              _totalRow(theme, 'Paid', bill['amountPaid']),
+              Row(
+                children: [
+                  Text('Balance Due', style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  Text(
+                    '₹$balanceDue',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: balanceDue > 0
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (payments.isNotEmpty) ...[
+              const SizedBox(height: Space.md),
+              Text('Payments', style: theme.textTheme.titleSmall),
+              const SizedBox(height: Space.xs),
+              for (final p in payments)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.xxs),
+                  child: Row(
+                    children: [
+                      Text('₹${p['amount']} · ${p['paymentMode']}'
+                          '${p['reference'] != null ? ' · ${p['reference']}' : ''}'),
+                      if (p['journalNumber'] != null) ...[
+                        const SizedBox(width: Space.sm),
+                        Text('(${p['journalNumber']})',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ],
+                      const Spacer(),
+                      Text('${p['createdAt'] ?? ''}'.split('T').first,
+                          style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+            ],
           ],
         ),
       ),

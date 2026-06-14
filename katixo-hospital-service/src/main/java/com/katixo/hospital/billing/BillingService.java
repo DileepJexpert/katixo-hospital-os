@@ -37,15 +37,25 @@ public class BillingService {
     private final TariffMasterRepository tariffRepository;
     private final HospitalChargeRepository chargeRepository;
     private final PatientBillRepository billRepository;
-    private final BillErpInvoiceRefRepository erpRefRepository;
+    private final PatientBillPaymentRepository paymentRepository;
+    private final BillPharmacyRefRepository pharmacyRefRepository;
     private final OPDVisitRepository visitRepository;
     private final IPDAdmissionRepository admissionRepository;
     private final BedAllocationRepository allocationRepository;
     private final com.katixo.hospital.patient.PatientRepository patientRepository;
+    private final com.katixo.hospital.pharmacy.PrescriptionDispenseRepository dispenseRepository;
+    private final com.katixo.hospital.nursing.NursingIndentRepository indentRepository;
     private final LabService labService;
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final com.katixo.hospital.accounting.JournalService journalService;
+
+    // Chart-of-accounts codes the bill/payment journals post to.
+    private static final String AR_ACCOUNT = "1100";
+    private static final String CASH_ACCOUNT = "1010";
+    private static final String BANK_ACCOUNT = "1020";
+    private static final String HOSPITAL_INCOME_ACCOUNT = "4020";
 
     // ------------------------------------------------------------
     // Tariff master
@@ -137,6 +147,8 @@ public class BillingService {
         });
         chargeRepository.saveAll(unbilled);
 
+        autoAttachPharmacyReceipts(saved);
+
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
 
@@ -212,23 +224,23 @@ public class BillingService {
     // ERP invoice refs + finalize + consolidated view
     // ------------------------------------------------------------
 
-    public BillErpInvoiceRef addErpInvoiceRef(Long billId, String invoiceNumber, BigDecimal amount, String type) {
+    public BillPharmacyRef addPharmacyRef(Long billId, String invoiceNumber, BigDecimal amount, String type) {
         var ctx = TenantContext.get();
         PatientBill bill = getOwnedBill(billId);
         if (bill.getBillStatus() == PatientBill.BillStatus.CANCELLED) {
             throw new BusinessException("INVALID_STATE", "Bill is cancelled");
         }
 
-        BillErpInvoiceRef ref = new BillErpInvoiceRef();
+        BillPharmacyRef ref = new BillPharmacyRef();
         ref.setTenantId(bill.getTenantId());
         ref.setHospitalGroupId(bill.getHospitalGroupId());
         ref.setBranchId(bill.getBranchId());
         ref.setBillId(billId);
-        ref.setErpInvoiceNumber(invoiceNumber);
-        ref.setErpInvoiceAmount(amount);
-        ref.setInvoiceType(type == null ? "PHARMACY" : type);
+        ref.setSaleNumber(invoiceNumber);
+        ref.setAmount(amount);
+        ref.setDocType(type == null ? "PHARMACY" : type);
         ref.setCreatedBy(userId());
-        return erpRefRepository.save(ref);
+        return pharmacyRefRepository.save(ref);
     }
 
     public PatientBill finalizeBill(Long billId) {
@@ -244,10 +256,162 @@ public class BillingService {
         bill.setUpdatedBy(userId());
         PatientBill saved = billRepository.save(bill);
 
+        // Local journal: DR Patient AR / CR Hospital Service Income (charges are
+        // GST-exempt healthcare services). Pharmacy credit sales posted their own
+        // AR debits at dispense, so the patient's AR is one unified balance.
+        if (saved.getNetAmount().signum() > 0) {
+            var entry = journalService.post(saved.getFinalizedAt().toLocalDate(),
+                    "Hospital bill " + saved.getBillNumber(), "BILLING", saved.getBillNumber(), List.of(
+                            com.katixo.hospital.accounting.JournalService.Line.debit(
+                                    AR_ACCOUNT, saved.getNetAmount(), "Patient receivable " + saved.getBillNumber()),
+                            com.katixo.hospital.accounting.JournalService.Line.credit(
+                                    HOSPITAL_INCOME_ACCOUNT, saved.getNetAmount(), "Hospital services")));
+            saved.setJournalEntryId(entry.getId());
+            saved.setJournalNumber(entry.getEntryNumber());
+            saved = billRepository.save(saved);
+        }
+
         outboxEventService.publish("PatientBill", String.valueOf(saved.getId()), "BillFinalized", billSnapshot(saved));
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
         return saved;
+    }
+
+    // ------------------------------------------------------------
+    // Payments: DR Cash|Bank / CR Patient AR, posted to the hospital's own
+    // books. Hospital charges and IPD pharmacy credit sales share one Patient
+    // AR balance, so a payment settles the consolidated total directly.
+    // ------------------------------------------------------------
+
+    public PatientBillPayment recordPayment(Long billId, BigDecimal amount,
+                                            PatientBillPayment.PaymentMode paymentMode,
+                                            String reference, String notes) {
+        PatientBill bill = getOwnedBill(billId);
+
+        if (bill.getBillStatus() != PatientBill.BillStatus.FINAL) {
+            throw new BusinessException("BILL_NOT_FINAL", "Payments are recorded against finalized bills only");
+        }
+        if (amount == null || amount.signum() <= 0) {
+            throw new BusinessException("INVALID_AMOUNT", "Payment amount must be positive");
+        }
+        if (paymentMode == null) {
+            throw new BusinessException("PAYMENT_MODE_REQUIRED", "Payment mode is required");
+        }
+
+        BigDecimal grandBalance = grandTotal(bill).subtract(bill.getAmountPaid());
+        if (amount.compareTo(grandBalance) > 0) {
+            throw new BusinessException("PAYMENT_EXCEEDS_BALANCE",
+                    "Payment " + amount + " exceeds balance due " + grandBalance);
+        }
+
+        PatientBillPayment payment = new PatientBillPayment();
+        payment.setBillId(billId);
+        payment.setAmount(amount);
+        payment.setPaymentMode(paymentMode);
+        payment.setReference(reference);
+        payment.setNotes(notes);
+        stamp(payment);
+        PatientBillPayment saved = paymentRepository.save(payment);
+
+        String moneyAccount = paymentMode == PatientBillPayment.PaymentMode.CASH ? CASH_ACCOUNT : BANK_ACCOUNT;
+        var entry = journalService.post(LocalDate.now(),
+                "Payment for hospital bill " + bill.getBillNumber()
+                        + " (" + paymentMode + (reference == null ? "" : ", ref " + reference) + ")",
+                "PAYMENT", "PAYMENT-" + saved.getId(), List.of(
+                        com.katixo.hospital.accounting.JournalService.Line.debit(
+                                moneyAccount, amount, paymentMode.name()),
+                        com.katixo.hospital.accounting.JournalService.Line.credit(
+                                AR_ACCOUNT, amount, "Settles " + bill.getBillNumber())));
+        saved.setJournalEntryId(entry.getId());
+        saved.setJournalNumber(entry.getEntryNumber());
+        saved = paymentRepository.save(saved);
+
+        bill.setAmountPaid(bill.getAmountPaid().add(amount));
+        bill.setUpdatedBy(userId());
+        billRepository.save(bill);
+
+        auditService.audit("PatientBillPayment", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
+                null, Map.of("billId", billId, "amount", amount, "mode", paymentMode.name(),
+                        "journalNumber", saved.getJournalNumber()),
+                UUID.randomUUID().toString());
+        return saved;
+    }
+
+    /** Consolidated amount the patient owes = hospital net + IPD pharmacy credit sales. */
+    private BigDecimal grandTotal(PatientBill bill) {
+        return bill.getNetAmount().add(pharmacyOutstanding(bill));
+    }
+
+    /** Total of the admission's IPD pharmacy credit sales (OPD sales are cash-settled, not on the bill). */
+    private BigDecimal pharmacyOutstanding(PatientBill bill) {
+        if (bill.getSourceType() != HospitalCharge.SourceType.IPD_ADMISSION) {
+            return BigDecimal.ZERO;
+        }
+        return indentRepository
+                .findByTenantIdAndAdmissionIdAndSaleIdNotNull(TenantContext.get().getTenantId(), bill.getSourceId())
+                .stream()
+                .map(i -> i.getSaleTotal() == null ? BigDecimal.ZERO : i.getSaleTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Voids a payment: reverses its Cash|Bank/AR journal and reduces the bill's paid amount. */
+    public PatientBillPayment voidPayment(Long paymentId, String reason) {
+        var ctx = TenantContext.get();
+        PatientBillPayment payment = paymentRepository.findByIdAndTenantId(paymentId, ctx.getTenantId())
+                .orElseThrow(() -> new BusinessException("PAYMENT_NOT_FOUND", "Payment not found: " + paymentId));
+        if (payment.isReversed()) {
+            throw new BusinessException("PAYMENT_ALREADY_VOIDED", "Payment is already voided");
+        }
+        if (payment.getJournalEntryId() != null) {
+            journalService.reverse(payment.getJournalEntryId(), reason);
+        }
+        payment.setReversed(true);
+        payment.setUpdatedBy(userId());
+        paymentRepository.save(payment);
+
+        PatientBill bill = getOwnedBill(payment.getBillId());
+        bill.setAmountPaid(bill.getAmountPaid().subtract(payment.getAmount()));
+        bill.setUpdatedBy(userId());
+        billRepository.save(bill);
+
+        auditService.audit("PatientBillPayment", String.valueOf(paymentId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("voided", true, "amount", payment.getAmount(), "reason", reason == null ? "" : reason),
+                UUID.randomUUID().toString());
+        return payment;
+    }
+
+    /**
+     * Cancels a finalized bill: reverses its AR/income journal. Requires the
+     * bill to be fully unpaid (void payments first) — the hospital-charge
+     * journal is reversed; any pharmacy sales are returned separately.
+     */
+    public PatientBill cancelBill(Long billId, String reason) {
+        PatientBill bill = getOwnedBill(billId);
+        if (bill.getBillStatus() == PatientBill.BillStatus.CANCELLED) {
+            throw new BusinessException("ALREADY_CANCELLED", "Bill is already cancelled");
+        }
+        if (bill.getBillStatus() == PatientBill.BillStatus.FINAL
+                && bill.getAmountPaid().signum() != 0) {
+            throw new BusinessException("BILL_HAS_PAYMENTS",
+                    "Void the payments before cancelling bill " + bill.getBillNumber());
+        }
+        if (bill.getJournalEntryId() != null) {
+            journalService.reverse(bill.getJournalEntryId(), reason);
+        }
+        bill.setBillStatus(PatientBill.BillStatus.CANCELLED);
+        bill.setUpdatedBy(userId());
+        PatientBill saved = billRepository.save(bill);
+        auditService.audit("PatientBill", String.valueOf(billId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("cancelled", true, "reason", reason == null ? "" : reason),
+                UUID.randomUUID().toString());
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PatientBillPayment> listPayments(Long billId) {
+        var ctx = TenantContext.get();
+        getOwnedBill(billId);
+        return paymentRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
     }
 
     @Transactional(readOnly = true)
@@ -255,22 +419,22 @@ public class BillingService {
         var ctx = TenantContext.get();
         PatientBill bill = getOwnedBill(billId);
         List<HospitalCharge> charges = chargeRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
-        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        List<BillPharmacyRef> erpRefs = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
 
-        BigDecimal erpTotal = erpRefs.stream()
-                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+        BigDecimal pharmacyTotal = erpRefs.stream()
+                .map(BillPharmacyRef::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return Map.of(
                 "bill", billSnapshot(bill),
                 "charges", charges.stream().map(this::chargeSnapshot).toList(),
-                "erpInvoices", erpRefs.stream().map(r -> Map.of(
-                        "invoiceNumber", r.getErpInvoiceNumber(),
-                        "amount", r.getErpInvoiceAmount(),
-                        "type", r.getInvoiceType())).toList(),
+                "pharmacySales", erpRefs.stream().map(r -> Map.of(
+                        "saleNumber", r.getSaleNumber(),
+                        "amount", r.getAmount(),
+                        "docType", r.getDocType())).toList(),
                 "hospitalNetAmount", bill.getNetAmount(),
-                "erpInvoicesTotal", erpTotal,
-                "grandTotal", bill.getNetAmount().add(erpTotal)
+                "pharmacyTotal", pharmacyTotal,
+                "grandTotal", bill.getNetAmount().add(pharmacyTotal)
         );
     }
 
@@ -304,9 +468,9 @@ public class BillingService {
             categoryTotals.merge(category, c.getAmount(), BigDecimal::add);
         }
 
-        List<BillErpInvoiceRef> erpRefs = erpRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
-        BigDecimal erpTotal = erpRefs.stream()
-                .map(BillErpInvoiceRef::getErpInvoiceAmount)
+        List<BillPharmacyRef> erpRefs = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), billId);
+        BigDecimal pharmacyTotal = erpRefs.stream()
+                .map(BillPharmacyRef::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Map<String, Object> receipt = new java.util.LinkedHashMap<>();
@@ -321,18 +485,54 @@ public class BillingService {
         receipt.put("chargesTotal", bill.getChargesTotal());
         receipt.put("discountAmount", bill.getDiscountAmount());
         receipt.put("hospitalNetAmount", bill.getNetAmount());
-        receipt.put("erpInvoices", erpRefs.stream().map(r -> Map.of(
-                "invoiceNumber", r.getErpInvoiceNumber(),
-                "amount", r.getErpInvoiceAmount(),
-                "type", r.getInvoiceType())).toList());
-        receipt.put("erpInvoicesTotal", erpTotal);
-        receipt.put("grandTotal", bill.getNetAmount().add(erpTotal));
+        receipt.put("pharmacySales", erpRefs.stream().map(r -> Map.of(
+                "saleNumber", r.getSaleNumber(),
+                "amount", r.getAmount(),
+                "docType", r.getDocType())).toList());
+        receipt.put("pharmacyTotal", pharmacyTotal);
+        receipt.put("grandTotal", bill.getNetAmount().add(pharmacyTotal));
         return receipt;
     }
 
     // ------------------------------------------------------------
     // internals
     // ------------------------------------------------------------
+
+    /**
+     * Pulls the (local) pharmacy sales already raised at dispense time onto the
+     * bill, so the consolidated bill shows hospital charges + pharmacy sales
+     * without manual entry:
+     * OPD → CASH sales from prescription dispenses (dispense.visitId == sourceId);
+     * IPD → CREDIT sales from dispensed nursing indents (indent.admissionId == sourceId).
+     */
+    private void autoAttachPharmacyReceipts(PatientBill bill) {
+        var ctx = TenantContext.get();
+        var alreadyAttached = pharmacyRefRepository.findByTenantIdAndBillIdOrderById(ctx.getTenantId(), bill.getId())
+                .stream().map(BillPharmacyRef::getSaleNumber).collect(java.util.stream.Collectors.toSet());
+
+        if (bill.getSourceType() == HospitalCharge.SourceType.OPD_VISIT) {
+            dispenseRepository.findByTenantIdAndVisitIdAndSaleIdNotNull(ctx.getTenantId(), bill.getSourceId()).stream()
+                    .filter(d -> d.getSaleNumber() != null && !alreadyAttached.contains(d.getSaleNumber()))
+                    .forEach(d -> attachPharmacyRef(bill, d.getSaleNumber(), d.getSaleTotal()));
+        } else {
+            indentRepository.findByTenantIdAndAdmissionIdAndSaleIdNotNull(ctx.getTenantId(), bill.getSourceId()).stream()
+                    .filter(i -> i.getSaleNumber() != null && !alreadyAttached.contains(i.getSaleNumber()))
+                    .forEach(i -> attachPharmacyRef(bill, i.getSaleNumber(), i.getSaleTotal()));
+        }
+    }
+
+    private void attachPharmacyRef(PatientBill bill, String saleNumber, BigDecimal amount) {
+        BillPharmacyRef ref = new BillPharmacyRef();
+        ref.setTenantId(bill.getTenantId());
+        ref.setHospitalGroupId(bill.getHospitalGroupId());
+        ref.setBranchId(bill.getBranchId());
+        ref.setBillId(bill.getId());
+        ref.setSaleNumber(saleNumber);
+        ref.setAmount(amount == null ? BigDecimal.ZERO : amount);
+        ref.setDocType("PHARMACY");
+        ref.setCreatedBy(userId());
+        pharmacyRefRepository.save(ref);
+    }
 
     /** Auto-charge domain amounts: OPD consultation fee, IPD bed segments, lab order items. Returns patientId. */
     private Long autoCreateDomainCharges(HospitalCharge.SourceType sourceType, Long sourceId) {
@@ -505,18 +705,21 @@ public class BillingService {
     }
 
     private Map<String, Object> billSnapshot(PatientBill b) {
-        return Map.of(
-                "id", b.getId(),
-                "billNumber", b.getBillNumber(),
-                "patientId", b.getPatientId(),
-                "sourceType", b.getSourceType().name(),
-                "sourceId", b.getSourceId(),
-                "chargesTotal", b.getChargesTotal(),
-                "discountAmount", b.getDiscountAmount(),
-                "discountStatus", b.getDiscountStatus().name(),
-                "netAmount", b.getNetAmount(),
-                "billStatus", b.getBillStatus().name()
-        );
+        Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
+        snapshot.put("id", b.getId());
+        snapshot.put("billNumber", b.getBillNumber());
+        snapshot.put("patientId", b.getPatientId());
+        snapshot.put("sourceType", b.getSourceType().name());
+        snapshot.put("sourceId", b.getSourceId());
+        snapshot.put("chargesTotal", b.getChargesTotal());
+        snapshot.put("discountAmount", b.getDiscountAmount());
+        snapshot.put("discountStatus", b.getDiscountStatus().name());
+        snapshot.put("netAmount", b.getNetAmount());
+        snapshot.put("amountPaid", b.getAmountPaid());
+        snapshot.put("balanceDue", b.getBalanceDue());
+        snapshot.put("billStatus", b.getBillStatus().name());
+        snapshot.put("journalNumber", b.getJournalNumber());
+        return snapshot;
     }
 
     private Map<String, Object> chargeSnapshot(HospitalCharge c) {

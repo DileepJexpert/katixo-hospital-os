@@ -23,6 +23,6 @@ public interface OPDVisitRepository extends BaseRepository<OPDVisit> {
                                               @Param("doctorId") Long doctorId,
                                               @Param("since") LocalDateTime since);
 
-    @Query(value = "SELECT nextval('hospital.opd_visit_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('opd_visit_seq')", nativeQuery = true)
     Long nextVisitSequence();
 }

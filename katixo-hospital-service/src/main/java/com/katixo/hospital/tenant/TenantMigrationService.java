@@ -43,7 +43,7 @@ public class TenantMigrationService {
         log.info("Platform schema '{}' migrated", TenantSchemas.PLATFORM_SCHEMA);
     }
 
-    public void migrateTenantSchema(String schemaName) {
+    public void migrateTenantSchema(String schemaName, String tenantId) {
         TenantSchemas.requireValid(schemaName);
         Flyway.configure()
                 .dataSource(dataSource)
@@ -51,6 +51,9 @@ public class TenantMigrationService {
                 .schemas(schemaName)
                 .defaultSchema(schemaName)
                 .createSchemas(true)
+                // Lets seed migrations stamp rows with the owning tenant
+                // (e.g. hospital_policy.tenant_id = '${tenantId}').
+                .placeholders(java.util.Map.of("tenantId", tenantId))
                 .load()
                 .migrate();
         log.info("Tenant schema '{}' migrated", schemaName);

@@ -35,17 +35,13 @@ public class TenantBootstrap implements ApplicationRunner {
     @Value("${katixo.tenant.demo.tenant-id:demo-tenant}")
     private String demoTenantId;
 
-    @Value("${katixo.tenant.demo.erp-api-key:}")
-    private String demoErpApiKey;
-
     @Override
     public void run(ApplicationArguments args) {
         migrationService.migratePlatformSchema();
         provisioningService.migrateAllTenants();
 
         if (demoTenantEnabled && registryDao.findByTenantId(demoTenantId).isEmpty()) {
-            provisioningService.provision(demoTenantId, "Demo Hospital",
-                    null, demoErpApiKey.isBlank() ? null : demoErpApiKey, null);
+            provisioningService.provision(demoTenantId, "Demo Hospital");
             log.info("Auto-provisioned demo tenant '{}'", demoTenantId);
         }
     }

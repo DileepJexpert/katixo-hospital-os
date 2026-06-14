@@ -10,6 +10,8 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../inventory/item_master_screen.dart';
+import '../inventory/otc_sale_screen.dart';
 
 /// Pharmacist role home: FIFO dispense queue with audited priority override.
 class PharmacistHome extends StatefulWidget {
@@ -24,6 +26,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
   bool _loading = false;
   String? _error;
   Timer? _refreshTimer;
+  int _index = 0;
 
   @override
   void initState() {
@@ -172,9 +175,19 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           icon: Icons.local_pharmacy_outlined,
           selectedIcon: Icons.local_pharmacy,
         ),
+        ShellDestination(
+          label: 'Item Master',
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2,
+        ),
+        ShellDestination(
+          label: 'OTC Sale',
+          icon: Icons.point_of_sale_outlined,
+          selectedIcon: Icons.point_of_sale,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _index,
+      onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -190,7 +203,10 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: switch (_index) {
+        1 => const ItemMasterScreen(),
+        2 => const OtcSaleScreen(),
+        _ => PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -248,6 +264,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           ],
         ),
       ),
+      },
     );
   }
 }

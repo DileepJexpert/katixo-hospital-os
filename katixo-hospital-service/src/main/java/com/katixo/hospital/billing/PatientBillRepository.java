@@ -10,7 +10,7 @@ import java.util.Optional;
 @Repository
 public interface PatientBillRepository extends BaseRepository<PatientBill> {
 
-    @Query(value = "SELECT nextval('hospital.bill_seq')", nativeQuery = true)
+    @Query(value = "SELECT nextval('bill_seq')", nativeQuery = true)
     Long nextBillSequence();
 
     @Query("SELECT COUNT(b) FROM PatientBill b WHERE b.tenantId = :tenantId " +
