@@ -46,7 +46,7 @@ class AppTheme {
       ),
 
       // ---------- Cards: flat + hairline border = compact pro ----------
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: Elevations.card,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -135,7 +135,7 @@ class AppTheme {
       ),
 
       // ---------- Dialogs ----------
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         elevation: Elevations.dialog,
         shape: RoundedRectangleBorder(borderRadius: Corners.lgRadius),
         titleTextStyle: textTheme.titleLarge,
