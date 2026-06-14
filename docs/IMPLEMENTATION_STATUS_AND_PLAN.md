@@ -90,8 +90,11 @@ design tokens, provider + setState, raw-map API calls).
 
 ## 4. Known gaps / not done yet
 
-- **Flutter not compile-verified** in the Claude env (no SDK) — run `flutter analyze`
-  locally; the 7 most recent screens have only had manual static review.
+- **Flutter UI cannot be _visually_ tested in the Claude env** (no browser/display) —
+  but it now **compiles cleanly**: with a locally-installed SDK (Flutter 3.44.2),
+  `flutter analyze` = **0 errors** (22 info lints) and `flutter build web --release`
+  **succeeds**. Visual/interaction testing (click-through, screenshots) still needs a
+  real browser/device run.
 - **PDF download/print** in-app: backend PDFs exist (bill, voucher, payslip, lab
   report) but the app shows data inline only (`ApiClient` is JSON-only). Needs a
   binary GET path + `url_launcher`.
@@ -107,7 +110,9 @@ design tokens, provider + setState, raw-map API calls).
 
 ## 5. Plan / next steps (prioritized)
 
-1. **Run `flutter analyze` & fix** — highest value; nothing Dart-side is compiled yet.
+1. **Visual QA of the Flutter screens** — run the app against a live backend and
+   click through expense, payroll, item master, OTC sale, lab report (compiles, but
+   not yet visually exercised).
 2. **Wire real PDF open/print** — add a binary GET to `ApiClient` + `url_launcher`;
    hook bill receipt, expense voucher, payslip, lab report buttons.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
@@ -118,8 +123,49 @@ design tokens, provider + setState, raw-map API calls).
 6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.
 7. **i18n** Hindi pass for patient-facing outputs.
 
-## 6. Branch / workflow
+## 6. Future roadmap (longer-term, planned — not yet built)
+
+Bigger initiatives beyond the immediate next steps. Grouped by theme; order within
+a group is rough priority.
+
+### Clinical depth
+- **OT module** UI + scheduling (booking, surgery notes, anaesthesia record).
+- **Radiology** orders + report capture (mirrors lab).
+- **Discharge** workflow in app (summary, blocking vs warning checklist from policy).
+- **Nursing station** screens (vitals charting, indent raise/approve, eMAR).
+- **Appointment scheduling** + online/self booking; doctor calendars.
+
+### Revenue cycle & finance
+- **TPA / insurance** full lifecycle (preauth → query → enhance → claim → settle),
+  per-insurer document checklists, ageing dashboard, auto-reminders.
+- **Vendor master + purchase** (GRN/purchase bills feeding pharmacy stock and AP),
+  replacing free-text expense payees.
+- **Package billing** (fixed / itemized-internal / excess-billing).
+- **Financial reports**: P&L, balance sheet, trial balance, GST returns (GSTR-1/3B),
+  day book, cash/bank book — exportable (PDF/Excel).
+- **Patient credit accounts** with configurable limits + warn/block.
+
+### Platform & scale
+- **Owner analytics dashboard** from read model / materialized views (30s refresh or SSE).
+- **Real-time boards** (OPD queue, bed availability, pharmacy queue) over WebSocket.
+- **Elasticsearch** patient + medicine search (replace LIKE queries).
+- **Notifications**: WhatsApp/SMS for appointments, reports-ready, bill receipts,
+  collection reminders; push notifications.
+- **ABHA / ABDM** (India health stack) integration; **e-invoice/e-way** where applicable.
+- **NABH** quality indicators + incident reporting; audit/compliance exports.
+- **Multi-branch** rollups for hospital groups; per-branch dashboards.
+
+### UX & delivery
+- **In-app PDF print/download** (binary `ApiClient` path) across all documents.
+- **Hindi (and later regional) i18n** for patient-facing output (prescription, bill, report).
+- **Role-complete homes** (nurse, lab tech, owner) + permission-gated navigation.
+- **MFA** for sensitive actions (high discount, refund, invoice cancel, discharge sign-off).
+- **Offline-tolerant** counter flows (pharmacy/OPD) where connectivity is unreliable.
+
+## 7. Branch / workflow
 
 - Active branch: `claude/friendly-johnson-gd10qe`. Commit + push here; no PRs unless asked.
-- Backend verify: `mvn -pl katixo-hospital-service test`. Flutter verify: local
-  `flutter analyze` (no SDK in Claude env).
+- Backend verify: `mvn -pl katixo-hospital-service test`.
+- Flutter verify: `flutter analyze` + `flutter build web` (needs a local Flutter SDK;
+  the Claude Code env has none by default — install with
+  `git clone --depth 1 -b stable https://github.com/flutter/flutter.git` if needed).
