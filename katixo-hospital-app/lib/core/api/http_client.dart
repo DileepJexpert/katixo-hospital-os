@@ -56,6 +56,11 @@ class ApiClient {
   }
 
   /// POST with request body.
+  ///
+  /// NOT auto-retried: a POST that committed server-side but whose response was
+  /// lost would be duplicated on retry (double payment/sale/journal). Until the
+  /// command APIs accept an Idempotency-Key, write requests run exactly once and
+  /// surface the error to the caller.
   Future<T> post<T>(
     String endpoint,
     Object body, {
@@ -63,17 +68,15 @@ class ApiClient {
     String? correlationId,
   }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
-    return _retryable<T>(() async {
-      final response = await _client.post(
-        uri,
-        headers: _headers(correlationId),
-        body: jsonEncode(body),
-      );
-      return _handleResponse(response, fromJson);
-    });
+    final response = await _client.post(
+      uri,
+      headers: _headers(correlationId),
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response, fromJson);
   }
 
-  /// PUT with request body.
+  /// PUT with request body. Not auto-retried (see [post]).
   Future<T> put<T>(
     String endpoint,
     Object body, {
@@ -81,27 +84,23 @@ class ApiClient {
     String? correlationId,
   }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
-    return _retryable<T>(() async {
-      final response = await _client.put(
-        uri,
-        headers: _headers(correlationId),
-        body: jsonEncode(body),
-      );
-      return _handleResponse(response, fromJson);
-    });
+    final response = await _client.put(
+      uri,
+      headers: _headers(correlationId),
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response, fromJson);
   }
 
-  /// DELETE.
+  /// DELETE. Not auto-retried (see [post]).
   Future<T> delete<T>(
     String endpoint, {
     required T Function(dynamic) fromJson,
     String? correlationId,
   }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
-    return _retryable<T>(() async {
-      final response = await _client.delete(uri, headers: _headers(correlationId));
-      return _handleResponse(response, fromJson);
-    });
+    final response = await _client.delete(uri, headers: _headers(correlationId));
+    return _handleResponse(response, fromJson);
   }
 
   /// Retry with exponential backoff on transient errors.

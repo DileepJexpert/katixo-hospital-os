@@ -18,16 +18,17 @@ import java.util.UUID;
 
 /**
  * Platform operations: provision a new hospital tenant (registry row + schema +
- * migrations) and manage its ERP credentials. ADMIN-only — and meant for the
- * platform operator, not hospital staff; move behind a dedicated platform role
- * once platform-level auth exists.
- *
- * <p>The ERP API key is write-only: accepted on input, never echoed back.
+ * migrations) and manage its ERP credentials. These act on the GLOBAL platform
+ * registry across all tenants, so they are restricted to a dedicated
+ * {@code PLATFORM_ADMIN} role — a hospital {@code ADMIN} must NOT be able to
+ * list/suspend/activate/provision other hospitals. No hospital staff user is
+ * granted PLATFORM_ADMIN; it is for the platform operator only. (The demo tenant
+ * is provisioned by TenantBootstrap at startup, not via this controller.)
  */
 @RestController
 @RequestMapping("/api/v1/platform/tenants")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('PLATFORM_ADMIN')")
 public class TenantAdminController {
 
     private final TenantProvisioningService provisioningService;

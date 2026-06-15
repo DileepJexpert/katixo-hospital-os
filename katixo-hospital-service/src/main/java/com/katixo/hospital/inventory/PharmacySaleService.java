@@ -165,6 +165,15 @@ public class PharmacySaleService {
         if (sale.isReversed()) {
             throw new BusinessException("SALE_ALREADY_REVERSED", "Sale " + sale.getSaleNumber() + " is already reversed");
         }
+        // A full reversal restores every original ISSUE; if some lines were already
+        // partially returned, that would double-restore stock and double-reverse the
+        // journal. Block it — return the remaining quantity instead.
+        boolean anyReturned = lineRepository.findByTenantIdAndSaleIdOrderById(ctx.getTenantId(), saleId).stream()
+                .anyMatch(l -> l.getReturnedQuantity() != null && l.getReturnedQuantity().signum() > 0);
+        if (anyReturned) {
+            throw new BusinessException("SALE_PARTIALLY_RETURNED",
+                    "Sale " + sale.getSaleNumber() + " has partial returns; return the remaining items instead of a full reversal");
+        }
 
         inventoryService.reverseSaleStock(sale.getSaleNumber());
         if (sale.getJournalEntryId() != null) {
