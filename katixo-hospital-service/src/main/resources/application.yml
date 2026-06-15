@@ -4,7 +4,8 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/katixo_hospital
     username: katixo
-    password: ${DB_PASSWORD}
+    # Prod sets DB_PASSWORD via env; dev falls back to docker-compose's POSTGRES_PASSWORD.
+    password: ${DB_PASSWORD:katixo_dev_password}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
