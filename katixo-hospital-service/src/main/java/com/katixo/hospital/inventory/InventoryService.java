@@ -186,6 +186,54 @@ public class InventoryService {
         return batchRepository.totalAvailable(TenantContext.get().getTenantId(), itemId);
     }
 
+    /** Available batches for an item in FEFO order (earliest expiry first) — for the dispense/stock-check UI. */
+    @Transactional(readOnly = true)
+    public List<StockBatch> listAvailableBatches(Long itemId) {
+        return batchRepository.findAvailableFefo(TenantContext.get().getTenantId(), itemId);
+    }
+
+    /**
+     * Restores up to {@code quantity} of an item to the batches a sale drew from
+     * (oldest issue first), writing RETURN movements. Returns the value restored
+     * (Σ qty × batch cost) so the caller can reverse the proportional COGS.
+     * Used for partial pharmacy/IPD returns.
+     */
+    public BigDecimal returnIssuedStock(String saleNumber, Long itemId, BigDecimal quantity) {
+        var ctx = TenantContext.get();
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new BusinessException("INVALID_QUANTITY", "Return quantity must be positive");
+        }
+        List<StockMovement> issues = movementRepository
+                .findByTenantIdAndReferenceTypeAndReferenceId(ctx.getTenantId(), "PHARMACY_SALE", saleNumber).stream()
+                .filter(m -> m.getMovementType() == StockMovement.MovementType.ISSUE
+                        && m.getItemId().equals(itemId))
+                .sorted(java.util.Comparator.comparing(StockMovement::getId))
+                .toList();
+        BigDecimal remaining = quantity;
+        BigDecimal valueRestored = BigDecimal.ZERO;
+        for (StockMovement m : issues) {
+            if (remaining.signum() <= 0) {
+                break;
+            }
+            BigDecimal take = remaining.min(m.getQuantity());
+            StockBatch batch = batchRepository.findByIdAndTenantId(m.getBatchId(), ctx.getTenantId())
+                    .orElseThrow(() -> new BusinessException("BATCH_NOT_FOUND",
+                            "Batch not found for return: " + m.getBatchId()));
+            batch.setQuantityAvailable(batch.getQuantityAvailable().add(take));
+            batch.setUpdatedBy(userId());
+            batchRepository.save(batch);
+            recordMovement(itemId, m.getBatchId(), StockMovement.MovementType.REVERSAL,
+                    take, m.getUnitCost(), "PHARMACY_SALE_RETURN", saleNumber);
+            valueRestored = valueRestored.add(take.multiply(m.getUnitCost()));
+            remaining = remaining.subtract(take);
+        }
+        if (remaining.signum() > 0) {
+            throw new BusinessException("RETURN_EXCEEDS_ISSUED",
+                    "Return quantity exceeds what was issued for item " + itemId);
+        }
+        return valueRestored;
+    }
+
     /**
      * Restores stock issued for a sale back to the exact batches it came from,
      * writing REVERSAL movements (append-only — the ISSUE rows stay). Used when

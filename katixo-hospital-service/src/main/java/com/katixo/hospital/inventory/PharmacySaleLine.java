@@ -63,4 +63,8 @@ public class PharmacySaleLine extends BaseEntity {
 
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal costTotal = BigDecimal.ZERO;
+
+    /** Quantity already returned against this line (for partial returns). */
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal returnedQuantity = BigDecimal.ZERO;
 }

@@ -89,9 +89,22 @@ integration was removed). Katasticho and Katixo are now two separate products.
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
 
+### ERP-parity gap closures (in-process, 2026-06-15)
+The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
+substance already lives in-process. Three residual functional gaps were closed:
+- **Batch-level stock check:** `GET /api/v1/inventory/items/{itemId}/batches` lists
+  available batches FEFO (expiry/qty/MRP/cost).
+- **Partial pharmacy/IPD return:** `POST /api/v1/pharmacy-sales/{id}/return` returns
+  unused medicines per line — restores stock to the issued batches and reverses the
+  **proportional** revenue/GST/COGS (Patient AR reduced for credit sales). Lines track
+  cumulative returned qty so they can't be over-returned.
+- **Patient credit:** per-patient credit limit + outstanding + OK/WARN/BLOCK status at
+  `GET /api/v1/billing/patients/{id}/credit`, settable via `PUT .../credit-limit`.
+
 ### Tests
-- 15 backend test classes (59 tests) passing — payroll (incl. statutory remittance),
+- 17 backend test classes (63 tests) passing — payroll (incl. statutory remittance),
   expense (incl. AP loop), **TPA (approval reclassification + settlement + write-off)**,
+  **patient credit status**, **pharmacy partial return (proportional reversal)**,
   inventory/FEFO/GST, pharmacy sale + reversal, nursing indent, etc.
 
 ## 3. Completed — Flutter screens (`katixo-hospital-app`)

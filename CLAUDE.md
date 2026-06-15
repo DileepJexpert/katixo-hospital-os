@@ -62,7 +62,11 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 The hospital no longer calls any ERP. Accounting/pharmacy/stock are in-process
 (`accounting/`, `inventory/`). The `idempotency_record` table + Idempotency-Key
 header remain available for the hospital's OWN external command APIs, but there
-is no outbound ERP client. Do not reintroduce one.
+is no outbound ERP client. Do not reintroduce one. The old `erp-internal-api`
+contract (medicine search, stock check, OPD/OTC dispense, IPD issue/return,
+payment collect, invoice detail/cancel, patient credit) is fully covered in-process
+— including the 2026-06-15 closures: batch stock check, partial pharmacy/IPD return,
+and patient credit limit (see those sections). Do NOT rebuild it as HTTP endpoints.
 
 ## Tech Stack
 
@@ -196,7 +200,11 @@ katixo-hospital-service/
   dispense records saleId/saleNumber/saleTotal. Item-not-in-master or short stock rolls the
   completion back (you can't dispense stock you don't have). Engine: `inventory/PharmacySaleService`.
 - Item master + batch/expiry/FEFO stock: `inventory/` (`InventoryService`, `/api/v1/inventory`).
-- OTC sales: no UHID required, separate Quick Sale flow (call `PharmacySaleService` directly) — TODO UI.
+  **Batch-level stock check:** `GET /api/v1/inventory/items/{itemId}/batches` (FEFO list w/ expiry/qty/MRP/cost).
+- OTC sales: no UHID required, Quick Sale flow (`PharmacySaleService`). Flutter: PharmacistHome OTC tab.
+- **Partial return:** `POST /api/v1/pharmacy-sales/{id}/return` (per-line) restores stock to the issued
+  batches and reverses **proportional** revenue/GST/COGS (Patient AR reduced for IPD credit sales);
+  `pharmacy_sale_line.returned_quantity` prevents over-return. Full reversal stays `reverseSale`.
 - Queue: default FIFO with priority override (logged for audit)
 - Substitution: record original item, dispensed item, reason
 
@@ -215,7 +223,9 @@ katixo-hospital-service/
 - **Printable bill:** `GET /api/v1/billing/bills/{id}/receipt.pdf` — A4 PDF via openhtmltopdf
   (`BillPdfService`): charges by category (GST-exempt note), pharmacy sales, discount, payments,
   grand total. FINAL bills only.
-- Patient credit account: balance, configurable limit, warn/block action
+- Patient credit account: per-patient `credit_limit` + outstanding (Σ non-cancelled bill balances) +
+  OK/WARN/BLOCK status at `GET /api/v1/billing/patients/{id}/credit`; set via `PUT .../credit-limit`
+  (`PatientCreditService`). WARN ≥80% of limit, BLOCK ≥ limit, NO_LIMIT when limit = 0.
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
 

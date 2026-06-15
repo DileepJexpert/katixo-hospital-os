@@ -1091,7 +1091,8 @@ CREATE TABLE patient (
     privacy_consent_given boolean DEFAULT false NOT NULL,
     privacy_consent_at timestamp without time zone,
     data_sharing_consent boolean DEFAULT false NOT NULL,
-    data_sharing_consent_at timestamp without time zone
+    data_sharing_consent_at timestamp without time zone,
+    credit_limit numeric(14,2) DEFAULT 0 NOT NULL
 );
 
 
@@ -3822,6 +3823,7 @@ CREATE TABLE pharmacy_sale_line (
     igst                NUMERIC(14,2) NOT NULL DEFAULT 0,
     line_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
     cost_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    returned_quantity   NUMERIC(14,2) NOT NULL DEFAULT 0,
     status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
     created_by          BIGINT       NOT NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,6 +88,23 @@ public class InventoryController {
     public ResponseEntity<ApiResponse<Object>> stock(@PathVariable Long itemId) {
         return respond(Map.of("itemId", itemId, "available", inventoryService.availableQuantity(itemId)),
                 "Stock on hand", HttpStatus.OK);
+    }
+
+    /** FEFO batch-level stock check: available batches with expiry, qty, MRP, cost. */
+    @GetMapping("/items/{itemId}/batches")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'DOCTOR', 'NURSE', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> batches(@PathVariable Long itemId) {
+        List<Map<String, Object>> view = inventoryService.listAvailableBatches(itemId).stream().map(b -> {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("batchId", b.getId());
+            v.put("batchNumber", b.getBatchNumber());
+            v.put("expiryDate", b.getExpiryDate() == null ? null : b.getExpiryDate().toString());
+            v.put("quantityAvailable", b.getQuantityAvailable());
+            v.put("mrp", b.getMrp());
+            v.put("costPrice", b.getCostPrice());
+            return v;
+        }).toList();
+        return respond(view, "Available batches (FEFO)", HttpStatus.OK);
     }
 
     private Map<String, Object> itemView(Item item) {

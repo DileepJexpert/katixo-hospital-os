@@ -75,6 +75,37 @@ public class PharmacySaleController {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class ReturnLine {
+        @NotNull
+        private String itemCode;
+        @NotNull
+        private BigDecimal quantity;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReturnRequest {
+        private String reason;
+        @NotEmpty
+        private List<ReturnLine> lines;
+    }
+
+    /** Partial return of unused medicines against a sale (IPD return / OTC return). */
+    @PostMapping("/{id}/return")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> returnItems(@PathVariable Long id,
+                                                           @Valid @RequestBody ReturnRequest req) {
+        List<PharmacySaleService.ReturnLineInput> lines = req.getLines().stream()
+                .map(l -> new PharmacySaleService.ReturnLineInput(l.getItemCode(), l.getQuantity()))
+                .toList();
+        PharmacySale sale = pharmacySaleService.returnItems(id, lines, req.getReason());
+        return respond(saleView(sale, pharmacySaleService.getLines(id)), "Items returned", HttpStatus.OK);
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ReasonRequest {
         private String reason;
     }
