@@ -76,6 +76,14 @@ integration was removed). Katasticho and Katixo are now two separate products.
   audit trail. Endpoints at `/api/v1/tpa`. _Note: this is the internal TPA workflow; ABDM/
   ABHA + NHCX electronic claims exchange are still pending (see competitive gap doc)._
 
+### Owner / MIS dashboard (`dashboard/`)
+- Read-only KPI summary at `/api/v1/dashboard/summary?from=&to=`, aggregated from the
+  ledger + operational tables (tenant-scoped native queries): **financial** (revenue,
+  expense, net surplus, pharmacy vs service revenue for the period), **receivables/cash**
+  (cash+bank, patient AR, insurance receivable — current balances), **volumes** (OPD
+  visits, IPD admissions, new patients, pharmacy sales count/value), **occupancy**
+  (inpatients, total beds, occupancy %). Flutter dashboard screen with KPI grid + date range.
+
 ### Cross-cutting
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
@@ -94,9 +102,10 @@ integration was removed). Katasticho and Katixo are now two separate products.
 | DoctorHome | Queue worklist + prescription panel |
 | PharmacistHome | Dispense queue · **Item master** · **OTC sale** |
 | BillingHome | Bill generate/finalize/pay/receipt · **Expenses** · **TPA / Insurance** |
-| AdminHome | **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+| AdminHome | **Dashboard** · **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
 
 The TPA screen has payer master, case lifecycle actions (approve/submit/settle), and an ageing summary.
+The Dashboard screen shows financial/receivables/volume/occupancy KPI tiles for a selectable date range.
 
 All follow the shared conventions (AppShell/PageContainer/StatusChip/MessageBanner,
 design tokens, provider + setState, raw-map API calls).

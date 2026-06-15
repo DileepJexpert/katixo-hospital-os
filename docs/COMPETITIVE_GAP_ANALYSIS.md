@@ -52,8 +52,10 @@ housekeeping, dietary, biomedical assets).
    consent-based sharing. Increasingly **mandatory** for PMJAY empanelment.
 3. **NHCX** (National Health Claims Exchange) — structured FHIR claims submission;
    becoming the standard path (replaces manual TPA portals).
-4. **Analytics / MIS dashboard** — owner KPIs, doctor/department/revenue reports.
-   Table stakes; we have none surfaced.
+4. **Analytics / MIS dashboard** — ✅ **v1 DONE** (`dashboard/`): owner KPI summary
+   (revenue/expense/net, cash & receivables, OPD/IPD/pharmacy volumes, bed occupancy)
+   over a date range, surfaced as the AdminHome Dashboard tab. _Next:_ doctor/
+   department-wise drill-downs, trend charts, exportable reports.
 5. **SMS / WhatsApp notifications** — appointment reminders, reports-ready, bill
    links. Expected baseline in India.
 
