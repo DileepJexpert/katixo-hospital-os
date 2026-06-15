@@ -119,6 +119,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return PageContainer(
+      scrollable: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
