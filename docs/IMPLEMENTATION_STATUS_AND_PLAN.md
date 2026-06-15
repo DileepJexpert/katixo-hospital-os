@@ -84,6 +84,20 @@ integration was removed). Katasticho and Katixo are now two separate products.
   visits, IPD admissions, new patients, pharmacy sales count/value), **occupancy**
   (inpatients, total beds, occupancy %). Flutter dashboard screen with KPI grid + date range.
 
+### Notifications — SMS + WhatsApp (`notification/`)
+- Central `NotificationService` fan-out: resolves per-tenant settings + a (type, channel)
+  template, renders `{placeholders}`, **gates on patient consent**, sends via a pluggable
+  provider, and logs every attempt (SENT/FAILED/SKIPPED). Never throws.
+- **SMS** providers: **MSG91** (DLT-aware — sender header + DLT template id) + generic
+  **CUSTOM** (Fast2SMS/any BSP via webhook). **WhatsApp:** **Meta Cloud API** (approved
+  templates) + generic **CUSTOM** BSP. JDK `HttpClient`, fail-soft.
+- Per-tenant config (`notification_settings`, keys write-only/masked), templates
+  (`notification_template` per type+channel), log (`notification_log`). Endpoints at
+  `/api/v1/notifications` (settings, templates, send, logs).
+- **Trigger wired:** walk-in registration (`OPDService`) best-effort notifies the patient
+  (consent-gated, never blocks). _Next triggers: appointment, report-ready, bill; doctor
+  alerts + SSE; platform doctor registry — see `NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`._
+
 ### Cross-cutting
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
@@ -102,7 +116,8 @@ substance already lives in-process. Three residual functional gaps were closed:
   `GET /api/v1/billing/patients/{id}/credit`, settable via `PUT .../credit-limit`.
 
 ### Tests
-- 17 backend test classes (63 tests) passing — payroll (incl. statutory remittance),
+- 18 backend test classes (68 tests) passing — **notifications (consent gate, template
+  render, SENT/FAILED/SKIPPED, fail-soft)**, payroll (incl. statutory remittance),
   expense (incl. AP loop), **TPA (approval reclassification + settlement + write-off)**,
   **patient credit status**, **pharmacy partial return (proportional reversal)**,
   inventory/FEFO/GST, pharmacy sale + reversal, nursing indent, etc.

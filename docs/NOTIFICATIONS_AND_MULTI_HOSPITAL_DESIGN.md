@@ -79,9 +79,11 @@ hospitals" cheaply. Add A/C later only if a single unified screen is wanted.
 
 ## Recommended build sequence
 
-1. **Notification core + patient SMS/WhatsApp** (`notification/` + MSG91 + WhatsApp Cloud/
-   BSP, consent-gated, DLT-aware, per-tenant config, `notification_log`). Triggers:
-   appointment, walk-in, report-ready, bill. _Fully buildable & verifiable here._
+1. ✅ **DONE (2026-06-15): Notification core + patient SMS/WhatsApp** (`notification/`,
+   MSG91 + Meta Cloud + CUSTOM/BSP, consent-gated, DLT-aware, per-tenant settings +
+   templates + `notification_log`, `/api/v1/notifications`). **Walk-in trigger wired**
+   (`OPDService` → patient SMS/WhatsApp, best-effort). Remaining triggers (appointment,
+   report-ready, bill) are quick follow-ups. 68 tests pass.
 2. **Doctor alerts:** add doctor as a recipient on walk-in (SMS/WhatsApp now) + **SSE**
    live in-app queue/inbox.
 3. **Platform doctor registry** (cross-hospital alert by mobile + optional FCM tokens).

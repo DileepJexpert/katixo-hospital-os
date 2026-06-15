@@ -271,6 +271,22 @@ katixo-hospital-service/
 - **Still pending:** electronic NHCX claims (FHIR R4), per-insurer document checklists,
   bill-line-level linkage, overdue auto-reminders.
 
+### Notifications — SMS + WhatsApp (hospital-owned — `notification/`) — IMPLEMENTED
+- Central `NotificationService` fan-out: per-tenant `notification_settings` + a
+  `notification_template` per (type, channel) → renders `{placeholders}`, **gates on
+  patient consent**, sends via a pluggable provider, logs every attempt (`notification_log`
+  SENT/FAILED/SKIPPED). Never throws (a bad gateway can't break a clinical flow).
+- **SMS:** `MSG91` (DLT-aware: `sms_sender_id` header + DLT template id in `provider_ref`)
+  + generic `CUSTOM` (Fast2SMS/any BSP webhook). **WhatsApp:** `META` Cloud API (approved
+  templates) + generic `CUSTOM` BSP. JDK `HttpClient`. Providers implement
+  `SmsProvider`/`WhatsAppProvider` + `supports(provider)`; service picks by config.
+- **DLT (India):** transactional SMS needs a DLT-registered header + approved template id —
+  the hospital registers these and stores them in settings/templates; code passes them through.
+- Endpoints `/api/v1/notifications` (settings [keys write-only/masked], templates, send, logs).
+  Triggers: **walk-in registration wired** (`OPDService` → patient, consent-gated, best-effort).
+  TODO triggers: appointment, report-ready, bill; doctor alerts + SSE; platform doctor registry.
+- Design/roadmap: `docs/NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`. **Built fresh here — never call katasticho.**
+
 ## WebSocket / Real-time
 - OPD queue board: WebSocket, sub-2-second refresh
 - Bed availability board: WebSocket, sub-2-second refresh  

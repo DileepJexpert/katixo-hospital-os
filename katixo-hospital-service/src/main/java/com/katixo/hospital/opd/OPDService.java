@@ -4,7 +4,10 @@ import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.notification.NotificationService;
+import com.katixo.hospital.notification.NotificationType;
 import com.katixo.hospital.outbox.OutboxEventService;
+import com.katixo.hospital.patient.Patient;
 import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.policy.HospitalPolicyCode;
 import com.katixo.hospital.policy.PolicyService;
@@ -20,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -36,6 +40,7 @@ public class OPDService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final NotificationService notificationService;
 
     private static final List<QueueToken.QueueStatus> OPEN_QUEUE_STATUSES =
             List.of(QueueToken.QueueStatus.WAITING, QueueToken.QueueStatus.CALLED, QueueToken.QueueStatus.IN_PROGRESS);
@@ -49,7 +54,7 @@ public class OPDService {
         var context = TenantContext.get();
         Long branchId = Long.parseLong(context.getBranchId());
 
-        patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), branchId)
+        Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), branchId)
                 .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND", "Patient not found: " + patientId));
 
         OPDVisit visit = new OPDVisit();
@@ -78,7 +83,25 @@ public class OPDService {
 
         log.info("Walk-in visit {} created, token #{} for doctor {}", saved.getVisitNumber(),
                 token.getTokenNumber(), doctorId);
+
+        notifyWalkIn(patient, saved, token);
         return saved;
+    }
+
+    /** Best-effort patient SMS/WhatsApp on walk-in registration (consent-gated, never blocks). */
+    private void notifyWalkIn(Patient patient, OPDVisit visit, QueueToken token) {
+        try {
+            boolean consent = Boolean.TRUE.equals(patient.getPrivacyConsentGiven())
+                    || Boolean.TRUE.equals(patient.getDataSharingConsent());
+            Map<String, String> params = Map.of(
+                    "name", patient.getFullName() == null ? "" : patient.getFullName(),
+                    "visit", visit.getVisitNumber() == null ? "" : visit.getVisitNumber(),
+                    "token", token == null ? "" : String.valueOf(token.getTokenNumber()));
+            notificationService.notify(NotificationType.WALK_IN, patient.getMobile(), consent,
+                    params, "OPDVisit", visit.getId());
+        } catch (Exception e) {
+            log.warn("Walk-in notification skipped for visit {}: {}", visit.getVisitNumber(), e.getMessage());
+        }
     }
 
     /**
