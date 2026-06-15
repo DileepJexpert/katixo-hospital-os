@@ -1,9 +1,6 @@
 package com.katixo.hospital.notification;
 
 import com.katixo.hospital.common.entity.BaseEntity;
-import com.katixo.hospital.notification.NotificationRepositories.NotificationLogRepository;
-import com.katixo.hospital.notification.NotificationRepositories.NotificationSettingsRepository;
-import com.katixo.hospital.notification.NotificationRepositories.NotificationTemplateRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

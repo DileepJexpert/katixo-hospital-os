@@ -1,8 +1,5 @@
 package com.katixo.hospital.notification;
 
-import com.katixo.hospital.notification.NotificationRepositories.NotificationLogRepository;
-import com.katixo.hospital.notification.NotificationRepositories.NotificationSettingsRepository;
-import com.katixo.hospital.notification.NotificationRepositories.NotificationTemplateRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
