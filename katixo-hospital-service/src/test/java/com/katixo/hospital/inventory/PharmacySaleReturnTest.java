@@ -112,6 +112,18 @@ class PharmacySaleReturnTest {
     }
 
     @Test
+    void cannotFullyReverseAfterPartialReturn() {
+        PharmacySale sale = creditSale();
+        PharmacySaleLine line = line();
+        line.setReturnedQuantity(new BigDecimal("5")); // a partial return already happened
+        when(lineRepository.findByTenantIdAndSaleIdOrderById(TENANT, 5L)).thenReturn(List.of(line));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.reverseSale(5L, "oops"));
+        assertEquals("SALE_PARTIALLY_RETURNED", ex.getCode());
+    }
+
+    @Test
     void cannotReturnMoreThanDispensed() {
         creditSale();
         when(lineRepository.findByTenantIdAndSaleIdOrderById(TENANT, 5L)).thenReturn(List.of(line()));

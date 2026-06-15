@@ -5,12 +5,8 @@ FROM maven:3.9-eclipse-temurin-21 as builder
 
 WORKDIR /build
 
-# Copy pom files
+# Copy build files (monolith: parent pom + the single service module)
 COPY pom.xml .
-COPY katixo-common-lib ./katixo-common-lib
-COPY katixo-security-lib ./katixo-security-lib
-COPY katixo-tenant-lib ./katixo-tenant-lib
-COPY katixo-erp-client ./katixo-erp-client
 COPY katixo-hospital-service ./katixo-hospital-service
 
 # Build the application
