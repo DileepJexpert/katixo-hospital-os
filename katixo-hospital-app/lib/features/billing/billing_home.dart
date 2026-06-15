@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../expense/expense_screen.dart';
+import '../tpa/tpa_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Billing role home: generate a bill for an OPD visit or IPD admission,
@@ -318,6 +319,11 @@ class _BillingHomeState extends State<BillingHome> {
           icon: Icons.receipt_outlined,
           selectedIcon: Icons.receipt,
         ),
+        ShellDestination(
+          label: 'TPA / Insurance',
+          icon: Icons.health_and_safety_outlined,
+          selectedIcon: Icons.health_and_safety,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -338,6 +344,8 @@ class _BillingHomeState extends State<BillingHome> {
       ],
       body: _index == 1
           ? const ExpenseScreen()
+          : _index == 2
+          ? const TpaScreen()
           : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -89,7 +89,7 @@ is no outbound ERP client. Do not reintroduce one.
 - **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
 - **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
 - **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
-- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses**), **AdminHome** (expenses · payroll · lab report). Feature screens: `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report).
+- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (expenses · payroll · lab report). Feature screens: `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen).
 - **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
 - **No Flutter SDK in the Claude Code env** — Dart changes can't be compile-checked here; run `flutter analyze` / build locally.
 
@@ -246,11 +246,20 @@ katixo-hospital-service/
 - **Printable voucher:** `GET /api/v1/expenses/{id}/voucher.pdf` (A4 via openhtmltopdf, `ExpenseVoucherPdfService`).
 - `/api/v1/expenses` (record/list/pay/reverse/voucher.pdf). Reversible.
 
-### TPA
-- Full lifecycle: preauth → query → enhance → claim → settle
-- Per-insurer document checklists
-- Auto-reminders on overdue items
-- Ageing dashboard for owner
+### TPA / Insurance (hospital-owned — `tpa/`) — IMPLEMENTED
+- Payer master (INSURER / TPA / GOVT_SCHEME). Case lifecycle: PREAUTH_REQUESTED →
+  (QUERY_RAISED) → APPROVED → CLAIM_SUBMITTED → SETTLED / PARTIALLY_SETTLED (or REJECTED).
+- **Accounting (in-process):** on **approve**, DR Insurance/TPA Receivable (1110) /
+  CR Patient AR (1100) for the approved amount (unapproved balance stays as patient co-pay);
+  on **settle**, DR Bank (1020)|Cash / DR Claim Disallowance Write-off (5300) for disallowed /
+  CR Insurance Receivable (1110). Partial settlements supported (settledAmount/disallowedAmount
+  accumulate; status flips to SETTLED when cleared ≥ approved).
+- `recognitionJournalEntryId` (approval) + `settlementJournalEntryId` on the case;
+  `tpa_case_event` audit trail per transition. **Ageing** (0–30/31–60/61–90/90+) at
+  `/api/v1/tpa/ageing`. Endpoints at `/api/v1/tpa` (payers, cases, query/approve/reject/
+  submit/settle). Flutter: TPA tab in BillingHome.
+- **Still pending:** electronic NHCX claims (FHIR R4), per-insurer document checklists,
+  bill-line-level linkage, overdue auto-reminders.
 
 ## WebSocket / Real-time
 - OPD queue board: WebSocket, sub-2-second refresh

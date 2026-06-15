@@ -43,8 +43,11 @@ housekeeping, dietary, biomedical assets).
 ### ❌ Missing (ranked by business impact for a ≤150-bed Indian hospital)
 
 **Tier 1 — revenue / compliance blockers (build first to be sellable):**
-1. **TPA / insurance / cashless claims** — no module. Huge: a large share of
-   Indian hospital revenue is insurance/PMJAY. Competitors lead with this.
+1. **TPA / insurance / cashless claims** — ◐ **internal workflow DONE** (`tpa/`):
+   payer master, case lifecycle (pre-auth → approve → submit → settle), in-process
+   accounting (Patient AR → Insurance Receivable 1110, write-off 5300), ageing.
+   _Still pending:_ **electronic** claims via NHCX (FHIR R4) + per-insurer document
+   checklists + bill-line-level linkage.
 2. **ABDM / ABHA integration** — ABHA creation/verification, **FHIR R4** records,
    consent-based sharing. Increasingly **mandatory** for PMJAY empanelment.
 3. **NHCX** (National Health Claims Exchange) — structured FHIR claims submission;

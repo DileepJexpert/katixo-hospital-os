@@ -65,15 +65,26 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **AP loop** (`pay`): settles credit expenses (DR Trade Payables / CR Cash|Bank).
 - Booked **gross of GST** (no ITC on exempt-supply inputs). **Voucher PDF**. Reversible.
 
+### TPA / Insurance claims (`tpa/`)
+- Payer master (insurer / TPA / govt scheme). Case lifecycle: **PREAUTH_REQUESTED →
+  (QUERY_RAISED) → APPROVED → CLAIM_SUBMITTED → SETTLED / PARTIALLY_SETTLED** (or REJECTED).
+- **Accounting:** on **approve**, reclassify the approved amount from Patient AR (1100)
+  to **Insurance/TPA Receivable (1110)** — the unapproved balance stays as the patient's
+  co-pay. On **settle**, DR Bank (1020)|Cash / DR Claim Disallowance Write-off (5300) for
+  any disallowed amount / CR Insurance Receivable (1110). Supports partial settlements.
+- **Ageing** report (outstanding receivable bucketed 0–30/31–60/61–90/90+). Per-case event
+  audit trail. Endpoints at `/api/v1/tpa`. _Note: this is the internal TPA workflow; ABDM/
+  ABHA + NHCX electronic claims exchange are still pending (see competitive gap doc)._
+
 ### Cross-cutting
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
 
 ### Tests
-- 14 backend test classes (54 tests) passing — payroll (incl. statutory remittance),
-  expense (incl. AP loop), inventory/FEFO/GST, pharmacy sale + reversal, nursing
-  indent, etc.
+- 15 backend test classes (59 tests) passing — payroll (incl. statutory remittance),
+  expense (incl. AP loop), **TPA (approval reclassification + settlement + write-off)**,
+  inventory/FEFO/GST, pharmacy sale + reversal, nursing indent, etc.
 
 ## 3. Completed — Flutter screens (`katixo-hospital-app`)
 
@@ -82,8 +93,10 @@ integration was removed). Katasticho and Katixo are now two separate products.
 | FrontDeskHome | Registration, Walk-in visit |
 | DoctorHome | Queue worklist + prescription panel |
 | PharmacistHome | Dispense queue · **Item master** · **OTC sale** |
-| BillingHome | Bill generate/finalize/pay/receipt · **Expenses** |
+| BillingHome | Bill generate/finalize/pay/receipt · **Expenses** · **TPA / Insurance** |
 | AdminHome | **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+
+The TPA screen has payer master, case lifecycle actions (approve/submit/settle), and an ageing summary.
 
 All follow the shared conventions (AppShell/PageContainer/StatusChip/MessageBanner,
 design tokens, provider + setState, raw-map API calls).
