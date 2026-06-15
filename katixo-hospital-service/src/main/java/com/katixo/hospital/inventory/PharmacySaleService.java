@@ -182,6 +182,101 @@ public class PharmacySaleService {
         return saved;
     }
 
+    /** One requested return line: an item code and the quantity being returned. */
+    public record ReturnLineInput(String itemCode, BigDecimal quantity) {
+    }
+
+    /**
+     * Partial return of unused medicines against a sale (IPD return against an
+     * issue voucher, or OTC/OPD return). Per line: restores the returned qty to
+     * stock and reverses the proportional revenue, GST and COGS. The Patient AR
+     * (CREDIT sale) or Cash/Bank (CASH sale) is reduced accordingly. Lines track
+     * cumulative returned quantity so a line can never be over-returned.
+     */
+    public PharmacySale returnItems(Long saleId, List<ReturnLineInput> returns, String reason) {
+        var ctx = TenantContext.get();
+        PharmacySale sale = saleRepository.findByIdAndTenantIdAndBranchId(saleId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("SALE_NOT_FOUND", "Sale not found: " + saleId));
+        if (sale.isReversed()) {
+            throw new BusinessException("SALE_ALREADY_REVERSED", "Sale is fully reversed; nothing to return");
+        }
+        if (returns == null || returns.isEmpty()) {
+            throw new BusinessException("EMPTY_RETURN", "A return must have at least one line");
+        }
+        List<PharmacySaleLine> lines = lineRepository.findByTenantIdAndSaleIdOrderById(ctx.getTenantId(), saleId);
+
+        BigDecimal retTaxable = BigDecimal.ZERO, retCgst = BigDecimal.ZERO, retSgst = BigDecimal.ZERO,
+                retIgst = BigDecimal.ZERO, retCost = BigDecimal.ZERO;
+
+        for (ReturnLineInput r : returns) {
+            if (r.quantity() == null || r.quantity().signum() <= 0) {
+                throw new BusinessException("INVALID_QUANTITY", "Return quantity must be positive for " + r.itemCode());
+            }
+            PharmacySaleLine line = lines.stream()
+                    .filter(l -> l.getItemCode().equals(r.itemCode()))
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException("LINE_NOT_FOUND",
+                            "Item " + r.itemCode() + " is not on sale " + sale.getSaleNumber()));
+            BigDecimal returnable = line.getQuantity().subtract(line.getReturnedQuantity());
+            if (r.quantity().compareTo(returnable) > 0) {
+                throw new BusinessException("RETURN_EXCEEDS_DISPENSED",
+                        "Return " + r.quantity() + " exceeds returnable " + returnable + " for " + r.itemCode());
+            }
+            BigDecimal factor = r.quantity().divide(line.getQuantity(), 10, java.math.RoundingMode.HALF_UP);
+            retTaxable = retTaxable.add(scale(line.getTaxableValue().multiply(factor)));
+            retCgst = retCgst.add(scale(line.getCgst().multiply(factor)));
+            retSgst = retSgst.add(scale(line.getSgst().multiply(factor)));
+            retIgst = retIgst.add(scale(line.getIgst().multiply(factor)));
+
+            // restore stock to the batches it came from; use actual batch cost for COGS reversal
+            retCost = retCost.add(inventoryService.returnIssuedStock(
+                    sale.getSaleNumber(), line.getItemId(), r.quantity()));
+
+            line.setReturnedQuantity(line.getReturnedQuantity().add(r.quantity()));
+            line.setUpdatedBy(userId());
+            lineRepository.save(line);
+        }
+
+        BigDecimal refundTotal = retTaxable.add(retCgst).add(retSgst).add(retIgst);
+        postReturnJournal(sale, retTaxable, retCgst, retSgst, retIgst, refundTotal, retCost, reason);
+
+        auditService.audit("PharmacySale", String.valueOf(sale.getId()), AuditLog.AuditAction.UPDATE,
+                null, Map.of("saleNumber", sale.getSaleNumber(), "returnTotal", refundTotal,
+                        "reason", reason == null ? "" : reason), UUID.randomUUID().toString());
+        log.info("Pharmacy sale {} partial return: refund {} cost {}", sale.getSaleNumber(), refundTotal, retCost);
+        return sale;
+    }
+
+    private void postReturnJournal(PharmacySale sale, BigDecimal taxable, BigDecimal cgst, BigDecimal sgst,
+                                   BigDecimal igst, BigDecimal refundTotal, BigDecimal cost, String reason) {
+        String moneyAccount = sale.getSaleType() == PharmacySale.SaleType.CREDIT
+                ? AR_ACCOUNT
+                : ("CASH".equalsIgnoreCase(sale.getPaymentMode()) ? CASH_ACCOUNT : BANK_ACCOUNT);
+        List<JournalService.Line> lines = new ArrayList<>();
+        lines.add(JournalService.Line.debit(SALES_ACCOUNT, taxable, "Sales return"));
+        if (cgst.signum() > 0) {
+            lines.add(JournalService.Line.debit(CGST_ACCOUNT, cgst, "CGST reversed"));
+        }
+        if (sgst.signum() > 0) {
+            lines.add(JournalService.Line.debit(SGST_ACCOUNT, sgst, "SGST reversed"));
+        }
+        if (igst.signum() > 0) {
+            lines.add(JournalService.Line.debit(IGST_ACCOUNT, igst, "IGST reversed"));
+        }
+        lines.add(JournalService.Line.credit(moneyAccount, refundTotal,
+                "Return " + sale.getSaleNumber() + (reason == null ? "" : " (" + reason + ")")));
+        if (cost.signum() > 0) {
+            lines.add(JournalService.Line.debit(INVENTORY_ACCOUNT, cost, "Inventory back in"));
+            lines.add(JournalService.Line.credit(COGS_ACCOUNT, cost, "COGS reversed"));
+        }
+        journalService.post(LocalDate.now(),
+                "Pharmacy return " + sale.getSaleNumber(), "PHARMACY", sale.getSaleNumber() + "-RET", lines);
+    }
+
+    private BigDecimal scale(BigDecimal v) {
+        return v.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
     @Transactional(readOnly = true)
     public PharmacySale getSale(Long saleId) {
         var ctx = TenantContext.get();

@@ -29,13 +29,7 @@
     </properties>
 
     <modules>
-        <module>katixo-common-lib</module>
-        <module>katixo-security-lib</module>
-        <module>katixo-tenant-lib</module>
-        <module>katixo-erp-client</module>
-        <!-- katixo-erp-service: existing ERP, lives in separate repo — re-add when imported -->
         <module>katixo-hospital-service</module>
-        <!-- katixo-integration-service: added later -->
     </modules>
 
     <dependencyManagement>
@@ -56,28 +50,6 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-
-            <!-- Internal modules -->
-            <dependency>
-                <groupId>com.katixo</groupId>
-                <artifactId>katixo-common-lib</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.katixo</groupId>
-                <artifactId>katixo-security-lib</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.katixo</groupId>
-                <artifactId>katixo-tenant-lib</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.katixo</groupId>
-                <artifactId>katixo-erp-client</artifactId>
-                <version>${project.version}</version>
             </dependency>
 
             <!-- MapStruct -->

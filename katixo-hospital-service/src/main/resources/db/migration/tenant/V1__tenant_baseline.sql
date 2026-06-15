@@ -1091,7 +1091,8 @@ CREATE TABLE patient (
     privacy_consent_given boolean DEFAULT false NOT NULL,
     privacy_consent_at timestamp without time zone,
     data_sharing_consent boolean DEFAULT false NOT NULL,
-    data_sharing_consent_at timestamp without time zone
+    data_sharing_consent_at timestamp without time zone,
+    credit_limit numeric(14,2) DEFAULT 0 NOT NULL
 );
 
 
@@ -3822,6 +3823,7 @@ CREATE TABLE pharmacy_sale_line (
     igst                NUMERIC(14,2) NOT NULL DEFAULT 0,
     line_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
     cost_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    returned_quantity   NUMERIC(14,2) NOT NULL DEFAULT 0,
     status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
     created_by          BIGINT       NOT NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3884,6 +3886,146 @@ CREATE TABLE expense (
 );
 CREATE INDEX idx_expense_tenant_branch ON expense(tenant_id, branch_id);
 CREATE INDEX idx_expense_date ON expense(tenant_id, expense_date);
+
+-- ============================================================
+-- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
+-- ============================================================
+CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;
+CREATE SEQUENCE tpa_case_seq   START WITH 100001 INCREMENT BY 1;
+
+CREATE TABLE tpa_payer (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    payer_code          VARCHAR(30)  NOT NULL,
+    name                VARCHAR(150) NOT NULL,
+    payer_type          VARCHAR(20)  NOT NULL,   -- INSURER / TPA / GOVT_SCHEME
+    contact_person      VARCHAR(150),
+    contact_phone       VARCHAR(20),
+    contact_email       VARCHAR(150),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_tpa_payer_tenant_branch ON tpa_payer(tenant_id, branch_id);
+
+CREATE TABLE tpa_case (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    case_number         VARCHAR(30)  NOT NULL,
+    payer_id            BIGINT       NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    admission_id        BIGINT,
+    bill_id             BIGINT,
+    policy_number       VARCHAR(80),
+    case_status         VARCHAR(30)  NOT NULL DEFAULT 'PREAUTH_REQUESTED',
+    claimed_amount      NUMERIC(14,2) NOT NULL DEFAULT 0,
+    approved_amount     NUMERIC(14,2) NOT NULL DEFAULT 0,
+    settled_amount      NUMERIC(14,2) NOT NULL DEFAULT 0,
+    disallowed_amount   NUMERIC(14,2) NOT NULL DEFAULT 0,
+    recognition_journal_entry_id BIGINT,
+    settlement_journal_entry_id  BIGINT,
+    notes               VARCHAR(300),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_tpa_case_tenant_branch ON tpa_case(tenant_id, branch_id);
+CREATE INDEX idx_tpa_case_payer ON tpa_case(tenant_id, payer_id);
+CREATE INDEX idx_tpa_case_patient ON tpa_case(tenant_id, patient_id);
+CREATE INDEX idx_tpa_case_status ON tpa_case(tenant_id, case_status);
+
+CREATE TABLE tpa_case_event (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    tpa_case_id         BIGINT       NOT NULL REFERENCES tpa_case(id),
+    event_type          VARCHAR(40)  NOT NULL,
+    amount              NUMERIC(14,2),
+    note                VARCHAR(300),
+    actor_id            BIGINT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_tpa_case_event_case ON tpa_case_event(tenant_id, tpa_case_id);
+
+-- ============================================================
+-- NOTIFICATIONS (SMS / WhatsApp — hospital-owned, server-side)
+-- ============================================================
+CREATE TABLE notification_settings (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    sms_enabled         BOOLEAN      NOT NULL DEFAULT FALSE,
+    sms_provider        VARCHAR(20)  NOT NULL DEFAULT 'MSG91',
+    sms_api_key         VARCHAR(255),
+    sms_sender_id       VARCHAR(20),          -- DLT-registered header
+    sms_custom_url      VARCHAR(255),
+    whatsapp_enabled    BOOLEAN      NOT NULL DEFAULT FALSE,
+    whatsapp_provider   VARCHAR(20)  NOT NULL DEFAULT 'META',
+    whatsapp_token      VARCHAR(500),
+    whatsapp_phone_number_id VARCHAR(50),
+    whatsapp_base_url   VARCHAR(255),
+    whatsapp_custom_url VARCHAR(255),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, branch_id)
+);
+
+CREATE TABLE notification_template (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    notification_type   VARCHAR(40)  NOT NULL,  -- WALK_IN / APPOINTMENT / REPORT_READY / BILL / GENERIC
+    channel             VARCHAR(10)  NOT NULL,  -- SMS / WHATSAPP
+    provider_ref        VARCHAR(120),           -- DLT template id (SMS) / WA template name
+    body                VARCHAR(1000),          -- text with {placeholders}
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, branch_id, notification_type, channel)
+);
+
+CREATE TABLE notification_log (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    notification_type   VARCHAR(40)  NOT NULL,
+    channel             VARCHAR(10)  NOT NULL,
+    recipient           VARCHAR(120) NOT NULL,
+    send_status         VARCHAR(10)  NOT NULL,  -- SENT / FAILED / SKIPPED
+    provider_message_id VARCHAR(120),
+    error_text          VARCHAR(500),
+    related_type        VARCHAR(40),
+    related_id          BIGINT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_notification_log_tenant ON notification_log(tenant_id, branch_id, id);
 
 -- ============================================================
 -- HR / PAYROLL (hospital-owned; posts to own books)

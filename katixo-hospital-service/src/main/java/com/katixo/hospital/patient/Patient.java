@@ -122,6 +122,10 @@ public class Patient extends BaseEntity {
     @Column
     private LocalDateTime dataSharingConsentAt;
 
+    /** Configurable credit ceiling for this patient (0 = no limit). */
+    @Column(nullable = false, precision = 14, scale = 2)
+    private java.math.BigDecimal creditLimit = java.math.BigDecimal.ZERO;
+
     public enum Gender {
         MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY
     }

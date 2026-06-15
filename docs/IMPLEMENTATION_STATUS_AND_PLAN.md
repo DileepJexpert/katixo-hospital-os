@@ -65,15 +65,62 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **AP loop** (`pay`): settles credit expenses (DR Trade Payables / CR Cash|Bank).
 - Booked **gross of GST** (no ITC on exempt-supply inputs). **Voucher PDF**. Reversible.
 
+### TPA / Insurance claims (`tpa/`)
+- Payer master (insurer / TPA / govt scheme). Case lifecycle: **PREAUTH_REQUESTED →
+  (QUERY_RAISED) → APPROVED → CLAIM_SUBMITTED → SETTLED / PARTIALLY_SETTLED** (or REJECTED).
+- **Accounting:** on **approve**, reclassify the approved amount from Patient AR (1100)
+  to **Insurance/TPA Receivable (1110)** — the unapproved balance stays as the patient's
+  co-pay. On **settle**, DR Bank (1020)|Cash / DR Claim Disallowance Write-off (5300) for
+  any disallowed amount / CR Insurance Receivable (1110). Supports partial settlements.
+- **Ageing** report (outstanding receivable bucketed 0–30/31–60/61–90/90+). Per-case event
+  audit trail. Endpoints at `/api/v1/tpa`. _Note: this is the internal TPA workflow; ABDM/
+  ABHA + NHCX electronic claims exchange are still pending (see competitive gap doc)._
+
+### Owner / MIS dashboard (`dashboard/`)
+- Read-only KPI summary at `/api/v1/dashboard/summary?from=&to=`, aggregated from the
+  ledger + operational tables (tenant-scoped native queries): **financial** (revenue,
+  expense, net surplus, pharmacy vs service revenue for the period), **receivables/cash**
+  (cash+bank, patient AR, insurance receivable — current balances), **volumes** (OPD
+  visits, IPD admissions, new patients, pharmacy sales count/value), **occupancy**
+  (inpatients, total beds, occupancy %). Flutter dashboard screen with KPI grid + date range.
+
+### Notifications — SMS + WhatsApp (`notification/`)
+- Central `NotificationService` fan-out: resolves per-tenant settings + a (type, channel)
+  template, renders `{placeholders}`, **gates on patient consent**, sends via a pluggable
+  provider, and logs every attempt (SENT/FAILED/SKIPPED). Never throws.
+- **SMS** providers: **MSG91** (DLT-aware — sender header + DLT template id) + generic
+  **CUSTOM** (Fast2SMS/any BSP via webhook). **WhatsApp:** **Meta Cloud API** (approved
+  templates) + generic **CUSTOM** BSP. JDK `HttpClient`, fail-soft.
+- Per-tenant config (`notification_settings`, keys write-only/masked), templates
+  (`notification_template` per type+channel), log (`notification_log`). Endpoints at
+  `/api/v1/notifications` (settings, templates, send, logs).
+- **Trigger wired:** walk-in registration (`OPDService`) best-effort notifies the patient
+  (consent-gated, never blocks). _Next triggers: appointment, report-ready, bill; doctor
+  alerts + SSE; platform doctor registry — see `NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`._
+
 ### Cross-cutting
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
 
+### ERP-parity gap closures (in-process, 2026-06-15)
+The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
+substance already lives in-process. Three residual functional gaps were closed:
+- **Batch-level stock check:** `GET /api/v1/inventory/items/{itemId}/batches` lists
+  available batches FEFO (expiry/qty/MRP/cost).
+- **Partial pharmacy/IPD return:** `POST /api/v1/pharmacy-sales/{id}/return` returns
+  unused medicines per line — restores stock to the issued batches and reverses the
+  **proportional** revenue/GST/COGS (Patient AR reduced for credit sales). Lines track
+  cumulative returned qty so they can't be over-returned.
+- **Patient credit:** per-patient credit limit + outstanding + OK/WARN/BLOCK status at
+  `GET /api/v1/billing/patients/{id}/credit`, settable via `PUT .../credit-limit`.
+
 ### Tests
-- 14 backend test classes (54 tests) passing — payroll (incl. statutory remittance),
-  expense (incl. AP loop), inventory/FEFO/GST, pharmacy sale + reversal, nursing
-  indent, etc.
+- 18 backend test classes (68 tests) passing — **notifications (consent gate, template
+  render, SENT/FAILED/SKIPPED, fail-soft)**, payroll (incl. statutory remittance),
+  expense (incl. AP loop), **TPA (approval reclassification + settlement + write-off)**,
+  **patient credit status**, **pharmacy partial return (proportional reversal)**,
+  inventory/FEFO/GST, pharmacy sale + reversal, nursing indent, etc.
 
 ## 3. Completed — Flutter screens (`katixo-hospital-app`)
 
@@ -82,8 +129,11 @@ integration was removed). Katasticho and Katixo are now two separate products.
 | FrontDeskHome | Registration, Walk-in visit |
 | DoctorHome | Queue worklist + prescription panel |
 | PharmacistHome | Dispense queue · **Item master** · **OTC sale** |
-| BillingHome | Bill generate/finalize/pay/receipt · **Expenses** |
-| AdminHome | **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+| BillingHome | Bill generate/finalize/pay/receipt · **Expenses** · **TPA / Insurance** |
+| AdminHome | **Dashboard** · **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+
+The TPA screen has payer master, case lifecycle actions (approve/submit/settle), and an ageing summary.
+The Dashboard screen shows financial/receivables/volume/occupancy KPI tiles for a selectable date range.
 
 All follow the shared conventions (AppShell/PageContainer/StatusChip/MessageBanner,
 design tokens, provider + setState, raw-map API calls).

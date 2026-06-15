@@ -62,7 +62,11 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 The hospital no longer calls any ERP. Accounting/pharmacy/stock are in-process
 (`accounting/`, `inventory/`). The `idempotency_record` table + Idempotency-Key
 header remain available for the hospital's OWN external command APIs, but there
-is no outbound ERP client. Do not reintroduce one.
+is no outbound ERP client. Do not reintroduce one. The old `erp-internal-api`
+contract (medicine search, stock check, OPD/OTC dispense, IPD issue/return,
+payment collect, invoice detail/cancel, patient credit) is fully covered in-process
+— including the 2026-06-15 closures: batch stock check, partial pharmacy/IPD return,
+and patient credit limit (see those sections). Do NOT rebuild it as HTTP endpoints.
 
 ## Tech Stack
 
@@ -89,7 +93,7 @@ is no outbound ERP client. Do not reintroduce one.
 - **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
 - **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
 - **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
-- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses**), **AdminHome** (expenses · payroll · lab report). Feature screens: `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report).
+- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (**dashboard** · expenses · payroll · lab report). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen).
 - **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
 - **No Flutter SDK in the Claude Code env** — Dart changes can't be compile-checked here; run `flutter analyze` / build locally.
 
@@ -196,7 +200,11 @@ katixo-hospital-service/
   dispense records saleId/saleNumber/saleTotal. Item-not-in-master or short stock rolls the
   completion back (you can't dispense stock you don't have). Engine: `inventory/PharmacySaleService`.
 - Item master + batch/expiry/FEFO stock: `inventory/` (`InventoryService`, `/api/v1/inventory`).
-- OTC sales: no UHID required, separate Quick Sale flow (call `PharmacySaleService` directly) — TODO UI.
+  **Batch-level stock check:** `GET /api/v1/inventory/items/{itemId}/batches` (FEFO list w/ expiry/qty/MRP/cost).
+- OTC sales: no UHID required, Quick Sale flow (`PharmacySaleService`). Flutter: PharmacistHome OTC tab.
+- **Partial return:** `POST /api/v1/pharmacy-sales/{id}/return` (per-line) restores stock to the issued
+  batches and reverses **proportional** revenue/GST/COGS (Patient AR reduced for IPD credit sales);
+  `pharmacy_sale_line.returned_quantity` prevents over-return. Full reversal stays `reverseSale`.
 - Queue: default FIFO with priority override (logged for audit)
 - Substitution: record original item, dispensed item, reason
 
@@ -215,7 +223,9 @@ katixo-hospital-service/
 - **Printable bill:** `GET /api/v1/billing/bills/{id}/receipt.pdf` — A4 PDF via openhtmltopdf
   (`BillPdfService`): charges by category (GST-exempt note), pharmacy sales, discount, payments,
   grand total. FINAL bills only.
-- Patient credit account: balance, configurable limit, warn/block action
+- Patient credit account: per-patient `credit_limit` + outstanding (Σ non-cancelled bill balances) +
+  OK/WARN/BLOCK status at `GET /api/v1/billing/patients/{id}/credit`; set via `PUT .../credit-limit`
+  (`PatientCreditService`). WARN ≥80% of limit, BLOCK ≥ limit, NO_LIMIT when limit = 0.
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
 
@@ -246,11 +256,36 @@ katixo-hospital-service/
 - **Printable voucher:** `GET /api/v1/expenses/{id}/voucher.pdf` (A4 via openhtmltopdf, `ExpenseVoucherPdfService`).
 - `/api/v1/expenses` (record/list/pay/reverse/voucher.pdf). Reversible.
 
-### TPA
-- Full lifecycle: preauth → query → enhance → claim → settle
-- Per-insurer document checklists
-- Auto-reminders on overdue items
-- Ageing dashboard for owner
+### TPA / Insurance (hospital-owned — `tpa/`) — IMPLEMENTED
+- Payer master (INSURER / TPA / GOVT_SCHEME). Case lifecycle: PREAUTH_REQUESTED →
+  (QUERY_RAISED) → APPROVED → CLAIM_SUBMITTED → SETTLED / PARTIALLY_SETTLED (or REJECTED).
+- **Accounting (in-process):** on **approve**, DR Insurance/TPA Receivable (1110) /
+  CR Patient AR (1100) for the approved amount (unapproved balance stays as patient co-pay);
+  on **settle**, DR Bank (1020)|Cash / DR Claim Disallowance Write-off (5300) for disallowed /
+  CR Insurance Receivable (1110). Partial settlements supported (settledAmount/disallowedAmount
+  accumulate; status flips to SETTLED when cleared ≥ approved).
+- `recognitionJournalEntryId` (approval) + `settlementJournalEntryId` on the case;
+  `tpa_case_event` audit trail per transition. **Ageing** (0–30/31–60/61–90/90+) at
+  `/api/v1/tpa/ageing`. Endpoints at `/api/v1/tpa` (payers, cases, query/approve/reject/
+  submit/settle). Flutter: TPA tab in BillingHome.
+- **Still pending:** electronic NHCX claims (FHIR R4), per-insurer document checklists,
+  bill-line-level linkage, overdue auto-reminders.
+
+### Notifications — SMS + WhatsApp (hospital-owned — `notification/`) — IMPLEMENTED
+- Central `NotificationService` fan-out: per-tenant `notification_settings` + a
+  `notification_template` per (type, channel) → renders `{placeholders}`, **gates on
+  patient consent**, sends via a pluggable provider, logs every attempt (`notification_log`
+  SENT/FAILED/SKIPPED). Never throws (a bad gateway can't break a clinical flow).
+- **SMS:** `MSG91` (DLT-aware: `sms_sender_id` header + DLT template id in `provider_ref`)
+  + generic `CUSTOM` (Fast2SMS/any BSP webhook). **WhatsApp:** `META` Cloud API (approved
+  templates) + generic `CUSTOM` BSP. JDK `HttpClient`. Providers implement
+  `SmsProvider`/`WhatsAppProvider` + `supports(provider)`; service picks by config.
+- **DLT (India):** transactional SMS needs a DLT-registered header + approved template id —
+  the hospital registers these and stores them in settings/templates; code passes them through.
+- Endpoints `/api/v1/notifications` (settings [keys write-only/masked], templates, send, logs).
+  Triggers: **walk-in registration wired** (`OPDService` → patient, consent-gated, best-effort).
+  TODO triggers: appointment, report-ready, bill; doctor alerts + SSE; platform doctor registry.
+- Design/roadmap: `docs/NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`. **Built fresh here — never call katasticho.**
 
 ## WebSocket / Real-time
 - OPD queue board: WebSocket, sub-2-second refresh

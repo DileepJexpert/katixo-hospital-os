@@ -103,3 +103,10 @@ VALUES
   ('${tenantId}', 1, 1, '5220', 'Supplies',                   'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '5230', 'Repairs & Maintenance',      'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '5290', 'Miscellaneous Expense',      'EXPENSE',   TRUE, 'ACTIVE', 1, NOW(), 1, NOW());
+
+-- Insurance / TPA chart of accounts (TPA claims module)
+INSERT INTO account (tenant_id, hospital_group_id, branch_id, code, name, account_type, system_account,
+                     status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, '1110', 'Insurance/TPA Receivable',   'ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, '5300', 'Claim Disallowance Write-off', 'EXPENSE', TRUE, 'ACTIVE', 1, NOW(), 1, NOW());

@@ -24,4 +24,12 @@ public interface PatientBillRepository extends BaseRepository<PatientBill> {
     Optional<PatientBill> findFinalBillForSource(@Param("tenantId") String tenantId,
                                                   @Param("sourceType") HospitalCharge.SourceType sourceType,
                                                   @Param("sourceId") Long sourceId);
+
+    /** A patient's outstanding hospital-charge balance across non-cancelled bills. */
+    @Query("SELECT COALESCE(SUM(b.netAmount - b.amountPaid), 0) FROM PatientBill b " +
+            "WHERE b.tenantId = :tenantId AND b.branchId = :branchId AND b.patientId = :patientId " +
+            "AND b.billStatus <> 'CANCELLED'")
+    java.math.BigDecimal sumOutstandingForPatient(@Param("tenantId") String tenantId,
+                                                  @Param("branchId") Long branchId,
+                                                  @Param("patientId") Long patientId);
 }

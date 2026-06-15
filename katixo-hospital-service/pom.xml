@@ -15,24 +15,6 @@
     <description>Hospital OS backend — patient, OPD, IPD, lab, OT, billing, dashboard</description>
 
     <dependencies>
-        <!-- Internal libs -->
-        <dependency>
-            <groupId>com.katixo</groupId>
-            <artifactId>katixo-common-lib</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.katixo</groupId>
-            <artifactId>katixo-security-lib</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.katixo</groupId>
-            <artifactId>katixo-tenant-lib</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.katixo</groupId>
-            <artifactId>katixo-erp-client</artifactId>
-        </dependency>
-
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
