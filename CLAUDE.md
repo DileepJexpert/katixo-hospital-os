@@ -223,9 +223,10 @@ katixo-hospital-service/
 - **Printable bill:** `GET /api/v1/billing/bills/{id}/receipt.pdf` — A4 PDF via openhtmltopdf
   (`BillPdfService`): charges by category (GST-exempt note), pharmacy sales, discount, payments,
   grand total. FINAL bills only.
-- Patient credit account: per-patient `credit_limit` + outstanding (Σ non-cancelled bill balances) +
-  OK/WARN/BLOCK status at `GET /api/v1/billing/patients/{id}/credit`; set via `PUT .../credit-limit`
-  (`PatientCreditService`). WARN ≥80% of limit, BLOCK ≥ limit, NO_LIMIT when limit = 0.
+- Patient credit account: balance, transactions, configurable limit + warn/block status —
+  already implemented in `patient/PatientCreditService` (prepaid-balance model: addCredit on
+  payment, deductFromBalance on bill, reverseTransaction, setCreditLimit, updateCreditStatus);
+  endpoints under `/api/v1/patients/{patientId}/credit` (account, transactions, /adjust, /limit, /status).
 - Discount: threshold-based multi-level approval chain
 - Package: fixed / itemized-internal / excess-billing (item-by-item overrun)
 

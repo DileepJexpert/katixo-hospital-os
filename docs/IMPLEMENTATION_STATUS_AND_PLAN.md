@@ -112,8 +112,10 @@ substance already lives in-process. Three residual functional gaps were closed:
   unused medicines per line — restores stock to the issued batches and reverses the
   **proportional** revenue/GST/COGS (Patient AR reduced for credit sales). Lines track
   cumulative returned qty so they can't be over-returned.
-- **Patient credit:** per-patient credit limit + outstanding + OK/WARN/BLOCK status at
-  `GET /api/v1/billing/patients/{id}/credit`, settable via `PUT .../credit-limit`.
+- **Patient credit:** already covered by the existing `patient/PatientCreditService`
+  (prepaid-balance account + transactions + configurable limit + status) at
+  `/api/v1/patients/{id}/credit` — my earlier duplicate `billing/PatientCreditController`
+  was removed (it collided with the existing bean and broke startup on Windows).
 
 ### Tests
 - 18 backend test classes (68 tests) passing — **notifications (consent gate, template
