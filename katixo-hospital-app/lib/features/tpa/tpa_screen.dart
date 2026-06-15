@@ -129,6 +129,7 @@ class _TpaScreenState extends State<TpaScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return PageContainer(
+      scrollable: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

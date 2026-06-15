@@ -75,6 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final occupancy = (_data?['occupancy'] as Map?)?.cast<String, dynamic>() ?? const {};
 
     return PageContainer(
+      scrollable: false,
       child: ListView(
         children: [
           Row(
