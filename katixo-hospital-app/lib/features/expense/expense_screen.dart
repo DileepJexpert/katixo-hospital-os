@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_action.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -433,16 +434,20 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               if (e['paid'] == true)
                 _kv(theme, 'Paid via',
                     '${e['paidMode'] ?? ''} ${e['paidJournalNumber'] ?? ''}'),
-              const SizedBox(height: Space.sm),
-              Text(
-                'PDF voucher: GET /api/v1/expenses/${e['id']}/voucher.pdf',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant),
-              ),
             ],
           ),
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () => openPdfFromApi(
+              this.context,
+              this.context.read<ApiClient>(),
+              '/api/v1/expenses/${e['id']}/voucher.pdf',
+              'expense-voucher-${e['expenseNumber']}.pdf',
+            ),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Open PDF'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),

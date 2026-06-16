@@ -163,9 +163,11 @@ design tokens, provider + setState, raw-map API calls).
   `flutter analyze` = **0 errors** (22 info lints) and `flutter build web --release`
   **succeeds**. Visual/interaction testing (click-through, screenshots) still needs a
   real browser/device run.
-- **PDF download/print** in-app: backend PDFs exist (bill, voucher, payslip, lab
-  report) but the app shows data inline only (`ApiClient` is JSON-only). Needs a
-  binary GET path + `url_launcher`.
+- ~~**PDF download/print** in-app~~ — **done**: `ApiClient.getBytes` (auth-aware binary GET)
+  + a platform-safe `file_opener` (Blob object-URL on web, conditional import) + the shared
+  `openPdfFromApi` helper. Wired on bill receipt, expense voucher, payslip and lab report
+  (opens the backend PDF in a new tab). _Not visually verified — no browser/Flutter SDK in
+  this env; run locally to confirm._
 - **Lab viewer access** limited to AdminHome; DOCTOR/LAB_TECH have no dedicated home
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
@@ -182,8 +184,9 @@ design tokens, provider + setState, raw-map API calls).
 1. **Visual QA of the Flutter screens** — run the app against a live backend and
    click through expense, payroll, item master, OTC sale, lab report (compiles, but
    not yet visually exercised).
-2. **Wire real PDF open/print** — add a binary GET to `ApiClient` + `url_launcher`;
-   hook bill receipt, expense voucher, payslip, lab report buttons.
+2. ~~**Wire real PDF open/print**~~ **done** (`ApiClient.getBytes` + Blob `file_opener` +
+   `openPdfFromApi`; hooked on bill receipt, expense voucher, payslip, lab report) — needs a
+   local browser run to visually confirm.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
    result entry, approve) + router role for LAB_TECH; expose report viewer to DOCTOR.
 4. ~~**Expense approval workflow** via policy engine (spend thresholds → approval).~~ **Backend done**

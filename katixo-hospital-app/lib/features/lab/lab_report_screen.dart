@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_action.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -21,6 +22,7 @@ class _LabReportScreenState extends State<LabReportScreen> {
   final _orderIdCtrl = TextEditingController();
 
   Map<String, dynamic>? _report;
+  int? _orderId;
   bool _loading = false;
   String? _error;
 
@@ -47,7 +49,12 @@ class _LabReportScreenState extends State<LabReportScreen> {
         '/api/v1/lab/orders/$id/report',
         fromJson: (json) => json as Map<String, dynamic>,
       );
-      if (mounted) setState(() => _report = report);
+      if (mounted) {
+        setState(() {
+          _report = report;
+          _orderId = id;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -118,6 +125,18 @@ class _LabReportScreenState extends State<LabReportScreen> {
                       style: theme.textTheme.titleMedium),
                   const SizedBox(width: Space.sm),
                   StatusChip.auto('${report['orderStatus']}'),
+                  const Spacer(),
+                  if (_orderId != null)
+                    TextButton.icon(
+                      onPressed: () => openPdfFromApi(
+                        context,
+                        context.read<ApiClient>(),
+                        '/api/v1/lab/orders/$_orderId/report.pdf',
+                        'lab-report-${report['orderNumber']}.pdf',
+                      ),
+                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                      label: const Text('Open PDF'),
+                    ),
                 ],
               ),
               const SizedBox(height: Space.xs),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -52,6 +53,32 @@ class ApiClient {
     return _retryable<T>(() async {
       final response = await _client.get(uri, headers: _headers(correlationId));
       return _handleResponse(response, fromJson);
+    });
+  }
+
+  /// GET raw bytes (e.g. a PDF) with the usual auth + tenant headers, so
+  /// secured binary endpoints (bill receipt, expense voucher, payslip, lab
+  /// report) work. The caller decides what to do with the bytes (open/print/
+  /// save). Retried like [get]; non-2xx bodies are parsed as the standard
+  /// JSON error envelope.
+  Future<Uint8List> getBytes(
+    String endpoint, {
+    String accept = 'application/pdf',
+    String? correlationId,
+  }) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
+    return _retryable<Uint8List>(() async {
+      final headers = _headers(correlationId);
+      headers['Accept'] = accept;
+      final response = await _client.get(uri, headers: headers);
+      if (response.statusCode == 401) {
+        onUnauthorized?.call();
+        throw UnauthorizedException('Session expired');
+      }
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      throw ApiException(_parseError(response));
     });
   }
 

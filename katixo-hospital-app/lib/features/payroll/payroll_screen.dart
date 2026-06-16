@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_action.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -460,8 +461,26 @@ class _PayrollScreenState extends State<PayrollScreen> {
                         'TDS ₹${p['tds']}',
                         style: theme.textTheme.bodySmall,
                       ),
-                      trailing: Text('Net ₹${p['netPay']}',
-                          style: theme.textTheme.titleSmall),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Net ₹${p['netPay']}',
+                              style: theme.textTheme.titleSmall),
+                          if (p['employeeId'] != null)
+                            IconButton(
+                              tooltip: 'Payslip PDF',
+                              onPressed: () => openPdfFromApi(
+                                this.context,
+                                this.context.read<ApiClient>(),
+                                '/api/v1/payroll/runs/${run['id']}'
+                                    '/payslips/${p['employeeId']}.pdf',
+                                'payslip-${run['period']}-${p['employeeName']}.pdf',
+                              ),
+                              icon: const Icon(Icons.picture_as_pdf_outlined,
+                                  size: 20),
+                            ),
+                        ],
+                      ),
                     );
                   },
                 ),

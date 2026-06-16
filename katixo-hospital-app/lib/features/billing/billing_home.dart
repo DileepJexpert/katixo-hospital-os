@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_action.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../expense/expense_screen.dart';
@@ -294,7 +295,7 @@ class _BillingHomeState extends State<BillingHome> {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (context) => _ReceiptDialog(receipt: receipt),
+        builder: (context) => _ReceiptDialog(receipt: receipt, billId: billId),
       );
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
@@ -608,9 +609,10 @@ class _ConsolidatedBillCard extends StatelessWidget {
 }
 
 class _ReceiptDialog extends StatelessWidget {
-  const _ReceiptDialog({required this.receipt});
+  const _ReceiptDialog({required this.receipt, this.billId});
 
   final Map<String, dynamic> receipt;
+  final dynamic billId;
 
   @override
   Widget build(BuildContext context) {
@@ -629,6 +631,17 @@ class _ReceiptDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        if (billId != null)
+          TextButton.icon(
+            onPressed: () => openPdfFromApi(
+              context,
+              context.read<ApiClient>(),
+              '/api/v1/billing/bills/$billId/receipt.pdf',
+              'bill-${receipt['billNumber'] ?? billId}.pdf',
+            ),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Open PDF'),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Close'),
