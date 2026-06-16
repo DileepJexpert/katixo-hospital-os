@@ -91,6 +91,20 @@ public class PatientService {
     }
 
     /**
+     * Search patients by name / mobile / UHID. Blank query returns recent active patients.
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Patient> search(String q) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        if (q == null || q.isBlank()) {
+            return patientRepository.findByTenantIdAndBranchIdAndStatus(context.getTenantId(), branchId,
+                    com.katixo.hospital.common.entity.BaseEntity.EntityStatus.ACTIVE);
+        }
+        return patientRepository.search(context.getTenantId(), branchId, q.trim());
+    }
+
+    /**
      * Update patient details
      */
     public Patient updatePatient(Long patientId, Patient updates) {

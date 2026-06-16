@@ -66,6 +66,23 @@ public class PatientController {
     }
 
     /**
+     * Search patients by name / mobile / UHID (blank query returns recent active patients).
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'PHARMACIST', 'LAB_TECH', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<PatientDTO>>> search(
+            @RequestParam(name = "q", required = false) String q) {
+        java.util.List<PatientDTO> results = patientService.search(q).stream().map(this::toDTO).toList();
+        return ResponseEntity.ok(ApiResponse.<java.util.List<PatientDTO>>builder()
+                .success(true)
+                .status(HttpStatus.OK.value())
+                .message("Patients")
+                .correlationId(UUID.randomUUID())
+                .data(results)
+                .build());
+    }
+
+    /**
      * Get patient by UHID
      */
     @GetMapping("/uhid/{uhid}")

@@ -7,6 +7,7 @@ import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../patient/patient_picker.dart';
 
 /// IPD module: current inpatients, bed board, admit, and admission detail with
 /// bed transfer + discharge. Role-aware actions (backend also enforces).
@@ -386,7 +387,7 @@ class _IpdScreenState extends State<IpdScreen> {
       setState(() => _error = 'No vacant beds available');
       return;
     }
-    final patientId = TextEditingController();
+    Map<String, dynamic>? selectedPatient;
     final doctorId = TextEditingController();
     final diagnosis = TextEditingController();
     final notes = TextEditingController();
@@ -402,7 +403,30 @@ class _IpdScreenState extends State<IpdScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _field(patientId, 'Patient ID *', number: true),
+                  selectedPatient == null
+                      ? Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final p = await showPatientPicker(context);
+                              if (p != null) setD(() => selectedPatient = p);
+                            },
+                            icon: const Icon(Icons.search, size: 18),
+                            label: const Text('Select patient *'),
+                          ),
+                        )
+                      : ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('${selectedPatient!['fullName']}'),
+                          subtitle: Text('UHID ${selectedPatient!['uhid']}'),
+                          trailing: TextButton(
+                            onPressed: () async {
+                              final p = await showPatientPicker(context);
+                              if (p != null) setD(() => selectedPatient = p);
+                            },
+                            child: const Text('Change'),
+                          ),
+                        ),
                   _field(doctorId, 'Doctor ID *', number: true),
                   DropdownButtonFormField<String>(
                     value: bedId,
@@ -436,14 +460,13 @@ class _IpdScreenState extends State<IpdScreen> {
       ),
     );
     if (ok != true) return;
-    final pid = int.tryParse(patientId.text.trim());
     final did = int.tryParse(doctorId.text.trim());
-    if (pid == null || did == null) {
-      setState(() => _error = 'Enter valid patient and doctor IDs');
+    if (selectedPatient == null || did == null) {
+      setState(() => _error = 'Select a patient and enter a valid doctor ID');
       return;
     }
     await _post('/api/v1/ipd/admissions', {
-      'patientId': pid,
+      'patientId': selectedPatient!['id'],
       'doctorId': did,
       'bedId': int.parse(bedId),
       if (diagnosis.text.trim().isNotEmpty) 'diagnosis': diagnosis.text.trim(),

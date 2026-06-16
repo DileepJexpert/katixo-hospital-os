@@ -29,6 +29,17 @@ public interface PatientRepository extends BaseRepository<Patient> {
                                     @Param("branchId") Long branchId,
                                     @Param("minDob") LocalDate minDob);
 
+    /** Lookup by name / mobile / UHID (case-insensitive contains). DB-backed; ES search is separate. */
+    @Query("SELECT p FROM Patient p WHERE p.tenantId = :tenantId AND p.branchId = :branchId " +
+            "AND p.status = 'ACTIVE' AND (" +
+            "LOWER(p.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "p.mobile LIKE CONCAT('%', :q, '%') OR " +
+            "LOWER(p.uhid) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+            "ORDER BY p.firstName ASC, p.lastName ASC")
+    List<Patient> search(@Param("tenantId") String tenantId, @Param("branchId") Long branchId,
+                         @Param("q") String q);
+
     @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
     Long nextUhidSequence();
 }
