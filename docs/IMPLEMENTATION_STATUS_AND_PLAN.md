@@ -152,9 +152,14 @@ design tokens, provider + setState, raw-map API calls).
   `flutter analyze` = **0 errors** (22 info lints) and `flutter build web --release`
   **succeeds**. Visual/interaction testing (click-through, screenshots) still needs a
   real browser/device run.
-- **PDF download/print** in-app: backend PDFs exist (bill, voucher, payslip, lab
-  report) but the app shows data inline only (`ApiClient` is JSON-only). Needs a
-  binary GET path + `url_launcher`.
+- ~~**PDF download/print** in-app~~ **DONE (2026-06-16):** `ApiClient.getBytes()`
+  fetches the server-rendered PDF (authenticated, same retry policy); a
+  dependency-free conditional-import launcher (`core/util/pdf_launcher*.dart`,
+  `dart:html` Blob URL on web, stub elsewhere) opens it in a new tab via the
+  reusable `openPdf()` helper (`core/util/pdf_actions.dart`). Wired: bill receipt
+  (Bills "PDF" button), expense voucher (list + dialog), payslip (payroll run
+  detail row), lab report (report viewer). Backend `slipView` now exposes
+  `employeeId` for the payslip URL.
 - **Lab viewer access** limited to AdminHome; DOCTOR/LAB_TECH have no dedicated home
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
@@ -170,8 +175,9 @@ design tokens, provider + setState, raw-map API calls).
 1. **Visual QA of the Flutter screens** — run the app against a live backend and
    click through expense, payroll, item master, OTC sale, lab report (compiles, but
    not yet visually exercised).
-2. **Wire real PDF open/print** — add a binary GET to `ApiClient` + `url_launcher`;
-   hook bill receipt, expense voucher, payslip, lab report buttons.
+2. ~~**Wire real PDF open/print**~~ **DONE (2026-06-16)** — `ApiClient.getBytes()`
+   + conditional-import browser launcher + `openPdf()` helper; bill receipt,
+   expense voucher, payslip and lab report all open the real PDF in a new tab.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
    result entry, approve) + router role for LAB_TECH; expose report viewer to DOCTOR.
 4. **Expense approval workflow** via policy engine (spend thresholds → approval).

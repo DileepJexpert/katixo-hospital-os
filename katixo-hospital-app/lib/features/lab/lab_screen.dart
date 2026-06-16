@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
@@ -27,6 +28,7 @@ class _LabScreenState extends State<LabScreen> {
   List<Map<String, dynamic>> _tests = const [];
   Map<String, dynamic>? _order; // last created/loaded order view
   Map<String, dynamic>? _report;
+  int? _reportOrderId; // order id backing the loaded report (for PDF)
 
   bool _loading = false;
   String? _error;
@@ -416,6 +418,15 @@ class _LabScreenState extends State<LabScreen> {
       subtitle: '${r['patientName']} · UHID ${r['uhid']} · ${r['orderStatus']}',
       child: Column(
         children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _reportOrderId == null ? null : _openReportPdf,
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: const Text('Open PDF'),
+            ),
+          ),
+          const SizedBox(height: Space.sm),
           Row(
             children: [
               Expanded(flex: 3, child: _h(theme, 'Test')),
@@ -606,12 +617,28 @@ class _LabScreenState extends State<LabScreen> {
       final api = context.read<ApiClient>();
       final r = await api.get<Map<String, dynamic>>('/api/v1/lab/orders/$orderId/report',
           fromJson: (j) => j as Map<String, dynamic>);
-      if (mounted) setState(() => _report = r);
+      if (mounted) {
+        setState(() {
+          _report = r;
+          _reportOrderId = orderId;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _openReportPdf() async {
+    final orderId = _reportOrderId;
+    if (orderId == null) return;
+    await openPdf(
+      context,
+      context.read<ApiClient>(),
+      '/api/v1/lab/orders/$orderId/report.pdf',
+      filename: 'lab-report-$orderId.pdf',
+    );
   }
 
   Future<void> _post(String path, Map<String, dynamic> body, String ok) async {

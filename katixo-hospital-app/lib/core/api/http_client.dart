@@ -24,13 +24,13 @@ class ApiClient {
   static const _retryDelayMs = 500;
 
   /// Common headers: JWT + tenant context + correlation ID.
-  Map<String, String> _headers([String? correlationId]) {
+  Map<String, String> _headers([String? correlationId, String accept = 'application/json']) {
     final token = authState.token;
     final user = authState.currentUser;
 
     return {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      'Accept': accept,
       if (token != null) 'Authorization': 'Bearer $token',
       if (user != null) ...{
         'X-Tenant-Id': user.tenantId,
@@ -52,6 +52,30 @@ class ApiClient {
     return _retryable<T>(() async {
       final response = await _client.get(uri, headers: _headers(correlationId));
       return _handleResponse(response, fromJson);
+    });
+  }
+
+  /// GET raw bytes (e.g. a PDF) with the same auth + tenant headers and retry
+  /// policy as [get]. Returns the response body bytes on 2xx, otherwise throws
+  /// [ApiException]/[UnauthorizedException] like the JSON path. Used for the
+  /// server-rendered PDFs (bill receipt, expense voucher, payslip, lab report).
+  Future<Uint8List> getBytes(
+    String endpoint, {
+    String accept = 'application/pdf',
+    String? correlationId,
+  }) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
+    return _retryable<Uint8List>(() async {
+      final response =
+          await _client.get(uri, headers: _headers(correlationId, accept));
+      if (response.statusCode == 401) {
+        onUnauthorized?.call();
+        throw UnauthorizedException('Session expired');
+      }
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.bodyBytes;
+      }
+      throw ApiException(_parseError(response));
     });
   }
 

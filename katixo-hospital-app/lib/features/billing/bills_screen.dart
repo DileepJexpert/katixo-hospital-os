@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -260,6 +261,17 @@ class _BillsScreenState extends State<BillsScreen> {
     }
   }
 
+  Future<void> _openReceiptPdf() async {
+    final billId = _billId;
+    if (billId == null) return;
+    await openPdf(
+      context,
+      context.read<ApiClient>(),
+      '/api/v1/billing/bills/$billId/receipt.pdf',
+      filename: 'bill-$billId.pdf',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -323,6 +335,7 @@ class _BillsScreenState extends State<BillsScreen> {
               onDiscount: _discountDialog,
               onFinalize: _finalize,
               onReceipt: _showReceipt,
+              onReceiptPdf: _openReceiptPdf,
               onPayment: _paymentDialog,
             ),
           ],
@@ -340,6 +353,7 @@ class _ConsolidatedBillCard extends StatelessWidget {
     required this.onDiscount,
     required this.onFinalize,
     required this.onReceipt,
+    required this.onReceiptPdf,
     required this.onPayment,
   });
 
@@ -349,6 +363,7 @@ class _ConsolidatedBillCard extends StatelessWidget {
   final VoidCallback onDiscount;
   final VoidCallback onFinalize;
   final VoidCallback onReceipt;
+  final VoidCallback onReceiptPdf;
   final VoidCallback onPayment;
 
   @override
@@ -391,8 +406,14 @@ class _ConsolidatedBillCard extends StatelessWidget {
                   ],
                   OutlinedButton.icon(
                     onPressed: onReceipt,
-                    icon: const Icon(Icons.print_outlined, size: 18),
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
                     label: const Text('Receipt'),
+                  ),
+                  const SizedBox(width: Space.sm),
+                  FilledButton.icon(
+                    onPressed: onReceiptPdf,
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                    label: const Text('PDF'),
                   ),
                 ],
               ],
