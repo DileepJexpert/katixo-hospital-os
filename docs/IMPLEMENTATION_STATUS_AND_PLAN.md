@@ -84,6 +84,14 @@ integration was removed). Katasticho and Katixo are now two separate products.
   audit trail. Endpoints at `/api/v1/tpa`. _Note: this is the internal TPA workflow; ABDM/
   ABHA + NHCX electronic claims exchange are still pending (see competitive gap doc)._
 
+### Financial reports (`report/`)
+- Read-only statutory statements from the ledger at `/api/v1/reports`: **trial balance**
+  (`/trial-balance?asOf=`), **profit & loss** (`/profit-and-loss?from=&to=`), **balance sheet**
+  (`/balance-sheet?asOf=`). Debit-normal (ASSET/EXPENSE) vs credit-normal (LIABILITY/EQUITY/INCOME)
+  handled per account type; current-period surplus folds into equity so the balance sheet ties out.
+  Reversal mirror-entries net to zero, so no special-casing. Statement-assembly logic is pure and
+  unit-tested independently of the DB.
+
 ### Owner / MIS dashboard (`dashboard/`)
 - Read-only KPI summary at `/api/v1/dashboard/summary?from=&to=`, aggregated from the
   ledger + operational tables (tenant-scoped native queries): **financial** (revenue,
@@ -203,8 +211,8 @@ a group is rough priority.
 - **Vendor master + purchase** (GRN/purchase bills feeding pharmacy stock and AP),
   replacing free-text expense payees.
 - **Package billing** (fixed / itemized-internal / excess-billing).
-- **Financial reports**: P&L, balance sheet, trial balance, GST returns (GSTR-1/3B),
-  day book, cash/bank book — exportable (PDF/Excel).
+- **Financial reports**: ~~P&L, balance sheet, trial balance~~ **done** (`report/`); GST returns
+  (GSTR-1/3B), day book, cash/bank book, and PDF/Excel export still pending.
 - **Patient credit accounts** with configurable limits + warn/block.
 
 ### Platform & scale
