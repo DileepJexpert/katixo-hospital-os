@@ -115,6 +115,14 @@ public class IPDController {
         return respond(AdmissionView.from(a), "Patient admitted", HttpStatus.CREATED);
     }
 
+    @GetMapping("/admissions")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<AdmissionView>>> listAdmissions(
+            @RequestParam(required = false) IPDAdmission.AdmissionStatus status) {
+        return respond(ipdService.listAdmissions(status).stream().map(AdmissionView::from).toList(),
+                "Admissions", HttpStatus.OK);
+    }
+
     @GetMapping("/admissions/{id}")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<AdmissionView>> getAdmission(@PathVariable Long id) {

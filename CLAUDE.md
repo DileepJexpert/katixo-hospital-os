@@ -93,7 +93,7 @@ and patient credit limit (see those sections). Do NOT rebuild it as HTTP endpoin
 - **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
 - **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
 - **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
-- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (**dashboard** · expenses · payroll · lab report). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen).
+- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in, **IPD**), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (**dashboard** · expenses · payroll · lab report · **IPD**). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen), `features/ipd/` (ipd_screen: inpatients · bed board · admit/transfer/discharge, role-aware).
 - **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
 - **No Flutter SDK in the Claude Code env** — Dart changes can't be compile-checked here; run `flutter analyze` / build locally.
 
@@ -182,6 +182,10 @@ katixo-hospital-service/
 ### IPD
 - Three bed charging models simultaneously: daily (general), hourly (ICU), package
 - Bed transfer recalculates tariff at exact timestamp
+- **UI (Flutter `features/ipd/`):** current-inpatients list, bed board (status-coloured),
+  admit (vacant-bed picker), admission detail with allocations, transfer + discharge
+  (role-aware: admit FRONT_DESK/ADMIN, transfer FRONT_DESK/NURSE/ADMIN, discharge DOCTOR/ADMIN).
+  Backend added `GET /api/v1/ipd/admissions?status=ADMITTED` (list current inpatients).
 - Indent approval per item category from policy engine (not binary high/low).
   **IMPLEMENTED:** `NursingIndentService` @ `/api/v1/nursing/indents` — categories in policy
   `ipd.indent.approval.required_categories` (default IMPLANT,NARCOTIC) need DOCTOR/ADMIN

@@ -132,7 +132,12 @@ substance already lives in-process. Three residual functional gaps were closed:
 | DoctorHome | Queue worklist + prescription panel |
 | PharmacistHome | Dispense queue · **Item master** · **OTC sale** |
 | BillingHome | Bill generate/finalize/pay/receipt · **Expenses** · **TPA / Insurance** |
-| AdminHome | **Dashboard** · **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+| FrontDeskHome | Registration · Walk-in · **IPD** (admit) |
+| AdminHome | **Dashboard** · **Expenses** · **Payroll** · **Lab report** · **IPD** (full lifecycle) |
+
+IPD screen (Track-1 UI build, 2026-06-16): current inpatients, bed board, admit, admission
+detail with bed transfer + discharge — role-aware. Backend gained
+`GET /api/v1/ipd/admissions?status=` to list current inpatients.
 
 The TPA screen has payer master, case lifecycle actions (approve/submit/settle), and an ageing summary.
 The Dashboard screen shows financial/receivables/volume/occupancy KPI tiles for a selectable date range.

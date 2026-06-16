@@ -326,6 +326,15 @@ public class IPDService {
                 .orElseThrow(() -> new BusinessException("ADMISSION_NOT_FOUND", "Admission not found: " + admissionId));
     }
 
+    /** Lists admissions by status (defaults to current inpatients) for the ward/front-desk worklist. */
+    @Transactional(readOnly = true)
+    public List<IPDAdmission> listAdmissions(IPDAdmission.AdmissionStatus status) {
+        var ctx = TenantContext.get();
+        return admissionRepository.findByTenantIdAndBranchIdAndAdmissionStatusOrderByAdmittedAtDesc(
+                ctx.getTenantId(), branchId(),
+                status == null ? IPDAdmission.AdmissionStatus.ADMITTED : status);
+    }
+
     @Transactional(readOnly = true)
     public List<BedAllocation> getAllocations(Long admissionId) {
         var ctx = TenantContext.get();

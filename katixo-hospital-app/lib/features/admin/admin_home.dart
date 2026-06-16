@@ -6,6 +6,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../expense/expense_screen.dart';
+import '../ipd/ipd_screen.dart';
 import '../lab/lab_report_screen.dart';
 import '../payroll/payroll_screen.dart';
 
@@ -47,6 +48,11 @@ class _AdminHomeState extends State<AdminHome> {
           icon: Icons.science_outlined,
           selectedIcon: Icons.science,
         ),
+        ShellDestination(
+          label: 'IPD',
+          icon: Icons.local_hotel_outlined,
+          selectedIcon: Icons.local_hotel,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -71,7 +77,8 @@ class _AdminHomeState extends State<AdminHome> {
         0 => const DashboardScreen(),
         1 => const ExpenseScreen(),
         2 => const PayrollScreen(),
-        _ => const LabReportScreen(),
+        3 => const LabReportScreen(),
+        _ => const IpdScreen(),
       },
     );
   }
