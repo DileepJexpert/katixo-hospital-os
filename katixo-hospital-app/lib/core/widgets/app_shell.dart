@@ -77,21 +77,31 @@ class AppShell extends StatelessWidget {
       appBar: appBar,
       body: Row(
         children: [
-          NavigationRail(
-            extended: extended,
-            minExtendedWidth: Metrics.navRailExtendedWidth,
-            minWidth: Metrics.navRailWidth,
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            labelType: extended ? null : NavigationRailLabelType.none,
-            destinations: [
-              for (final d in destinations)
-                NavigationRailDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: Text(d.label),
+          // Scrollable rail so homes with many modules never overflow vertically.
+          LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: NavigationRail(
+                    extended: extended,
+                    minExtendedWidth: Metrics.navRailExtendedWidth,
+                    minWidth: Metrics.navRailWidth,
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: onDestinationSelected,
+                    labelType: extended ? null : NavigationRailLabelType.none,
+                    destinations: [
+                      for (final d in destinations)
+                        NavigationRailDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: Text(d.label),
+                        ),
+                    ],
+                  ),
                 ),
-            ],
+              ),
+            ),
           ),
           const VerticalDivider(),
           Expanded(child: body),

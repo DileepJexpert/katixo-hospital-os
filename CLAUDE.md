@@ -92,9 +92,10 @@ and patient credit limit (see those sections). Do NOT rebuild it as HTTP endpoin
 - **API:** single `core/api/http_client.dart` `ApiClient` (raw `http`, JWT + `X-Tenant-Id`/`X-Group-Id`/`X-Branch-Id` headers, retries). Call `context.read<ApiClient>().get/post<T>(path, body, fromJson:)`. Paths are hardcoded `/api/v1/...` strings; responses are handled as raw `Map<String,dynamic>`/`List` (no DTO layer yet).
 - **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
 - **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
-- **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
-- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (**dashboard** · expenses · payroll · lab report). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen).
-- **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
+- **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters; pass `scrollable:false` when the body has a top-level `Expanded`/`ListView`), `KpiTile`, **`SectionCard`** (titled content card), **`EmptyState`** (icon+title+message+action). Reusable pickers: `showPatientPicker(context)`, `showDoctorPicker(context)`. Money rendered as `'₹$value'`.
+- **Role homes & screens implemented:** FrontDeskHome (registration, walk-in, **IPD**, **patients**), DoctorHome (queue + prescription · **lab** · **ward indents**), PharmacistHome (dispense queue · **item master** · **OTC sale** · **ward indents**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (owner cockpit — **dashboard** · expenses · payroll · lab · IPD · nursing · **pharmacy** · **OTC** · **TPA**), **LabTechHome** (**lab console**), **NurseHome** (**indents** + **IPD**), **SuperAdminHome** (every module in one login — testing/owner). The `AppShell` nav rail is **scrollable** (homes can hold many modules without overflow). Router `_roleHome` maps `LAB_TECH → LabTechHome`, `NURSE → NurseHome`, `SUPER_ADMIN → SuperAdminHome`. **SUPER_ADMIN** is granted ALL role authorities in `JwtAuthenticationToken` (passes every `@PreAuthorize`); dev seed `superadmin / super123`. Bills UI is standalone `features/billing/bills_screen.dart` (BillingHome is a thin tab shell). Nursing screen `features/nursing/nursing_screen.dart` is role-aware (raise NURSE/DOCTOR/ADMIN, approve/reject DOCTOR/ADMIN, dispense PHARMACIST/ADMIN). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (**lab_screen**: worklist→sample→result→approval · order creation · test master · report, role-aware), `features/tpa/` (tpa_screen), `features/ipd/` (ipd_screen), `features/notification/` (**notifications_screen**: SMS/WhatsApp provider settings, per-(type,channel) templates, manual send, delivery log — Admin/SuperAdmin), `features/patient/` (patients_screen + **`showPatientPicker(context)`** — reusable patient-search dialog used by IPD admit; reuse for TPA/billing/lab).
+- **Patient search:** `GET /api/v1/patients?q=` (name/mobile/UHID, DB LIKE, ACTIVE only) added — blank `q` returns recent active patients.
+- **PDF open/print (wired 2026-06-16):** `ApiClient.getBytes(path)` does an authenticated binary GET (same headers/retry as `get`); `core/util/pdf_launcher.dart` (conditional export — `dart:html` Blob URL on web, stub elsewhere) + the `openPdf(context, api, path, filename:)` helper in `core/util/pdf_actions.dart` open the server PDF in a new browser tab. Wired on bill receipt, expense voucher, payslip, lab report. Dependency-free (no `url_launcher`/`printing`). Inline JSON data dialogs are kept alongside.
 - **No Flutter SDK in the Claude Code env** — Dart changes can't be compile-checked here; run `flutter analyze` / build locally.
 
 ### Infrastructure
@@ -182,6 +183,13 @@ katixo-hospital-service/
 ### IPD
 - Three bed charging models simultaneously: daily (general), hourly (ICU), package
 - Bed transfer recalculates tariff at exact timestamp
+- **UI (Flutter `features/ipd/` — production-grade):** occupancy KPI strip
+  (total/occupied/vacant/isolation/occupancy%), current-inpatients cards, **ward-grouped
+  bed board** with legend + colour-coded tiles, admission detail (allocations) with
+  transfer + discharge, and an **admin Setup tab** to add wards/rooms/beds. Admit uses the
+  reusable **patient picker + doctor picker**. Role-aware (admit FRONT_DESK/ADMIN, transfer
+  FRONT_DESK/NURSE/ADMIN, discharge DOCTOR/ADMIN). Backend added: `GET /ipd/admissions?status=`,
+  `GET /ipd/wards`, `GET /ipd/rooms`. Doctor picker uses `GET /api/v1/staff?role=DOCTOR`.
 - Indent approval per item category from policy engine (not binary high/low).
   **IMPLEMENTED:** `NursingIndentService` @ `/api/v1/nursing/indents` — categories in policy
   `ipd.indent.approval.required_categories` (default IMPLANT,NARCOTIC) need DOCTOR/ADMIN
@@ -195,6 +203,12 @@ katixo-hospital-service/
 - Discharge checklist: some items block, others warn (from policy engine)
 
 ### Pharmacy
+- **In-house pharmacy is OPTIONAL per hospital** (some run their own, some outsource): policy
+  `pharmacy.enabled` (default true, seeded in V2) toggles the whole module. `GET/PUT
+  /api/v1/settings/features` (read any authed / write ADMIN) exposes it via `PolicyService.setPolicy`.
+  Flutter `core/config/feature_flags.dart` (`FeatureFlags` provider, loaded on login) hides the
+  pharmacy menus when off; admin toggles it in **AdminHome → Settings**. "Pharmacy" = the hospital's
+  OWN dispensary (OPD cash dispense, OTC walk-in, IPD credit indent) — not a third-party shop.
 - OPD dispense → local **CASH** `PharmacySale` on FULLY_DISPENSED (`PharmacyQueueService`):
   FEFO issue + GST + DR Cash / CR Sales+GST + COGS journal, in the same transaction. The
   dispense records saleId/saleNumber/saleTotal. Item-not-in-master or short stock rolls the
@@ -252,6 +266,12 @@ katixo-hospital-service/
 - **AP loop:** `POST /api/v1/expenses/{id}/pay` settles a CREDIT expense — DR Trade Payables (2010) /
   CR Cash|Bank, marks it paid. Only CREDIT-mode, unpaid, non-reversed expenses can be paid. Reverse
   undoes BOTH the payment journal and the original expense journal.
+- **Approval gate (2026-06-16):** policy `expense.approval.threshold` (0 = disabled). On record, an amount
+  **above** the threshold is saved `approvalStatus=PENDING` and **NOT posted** to the ledger; an admin
+  `POST /api/v1/expenses/{id}/approve` posts the journal (DR category / CR money, settles CASH/BANK) or
+  `…/reject` (never posts, records reason). `pay`/`reverse` reject un-posted (PENDING/REJECTED) expenses
+  (`EXPENSE_NOT_APPROVED`/`EXPENSE_NOT_POSTED`). Threshold get/set via `/api/v1/settings/features`
+  (`expenseApprovalThreshold`). At/below threshold (or 0) behaves exactly as before — posts on record.
 - **No GST input credit:** hospital expenses are booked **gross (inclusive of GST)** — under GST law ITC
   is not available against GST-exempt healthcare supplies, so expenses carry no input-credit split.
 - **Printable voucher:** `GET /api/v1/expenses/{id}/voucher.pdf` (A4 via openhtmltopdf, `ExpenseVoucherPdfService`).
@@ -289,11 +309,10 @@ katixo-hospital-service/
 - Design/roadmap: `docs/NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`. **Built fresh here — never call katasticho.**
 
 ## WebSocket / Real-time
-- OPD queue board: WebSocket, sub-2-second refresh
-- Bed availability board: WebSocket, sub-2-second refresh  
-- Pharmacy prescription queue: WebSocket, sub-2-second refresh
+- **IMPLEMENTED (2026-06-16) — `realtime/` package:** raw-text WebSocket at `/ws/board`. Handshake is JWT-authenticated via `?token=` query param (browsers can't set Authorization on a WS upgrade); `BoardHandshakeInterceptor` validates via `JwtTokenProvider` and stamps the session with its `tenantId:branchId` key. `BoardWebSocketHandler` keeps sessions per key and pushes one-line topic nudges (`{"topic":"queue|beds|pharmacy"}`) — broadcasts are tenant-isolated. `BoardBroadcaster` (called by OPDService/IPDService/PharmacyQueueService at mutation points) fires the nudge **after transaction commit** (so clients never re-fetch stale data) and is fail-soft. SecurityConfig permits `/ws/**`. Flutter `core/realtime/board_socket.dart` (`BoardSocket`, uses `web_socket_channel`) connects with the JWT, re-fetches the REST data on the matching topic, auto-reconnects (5s), and is **additive** — board screens keep a 30s safety poll so a dropped socket degrades to polling, never breaks. Wired into doctor worklist (`queue`), pharmacy dispense queue (`pharmacy`), IPD bed board (`beds`).
 - Owner analytics dashboard: polling every 30 seconds OR SSE from read model
 - Dashboard data comes from read model (materialized views), NEVER from transactional tables
+- _Client pattern: nudge-then-refetch (the WS payload is just a topic; the screen re-uses its existing REST load). Don't serialise full board state over the socket._
 
 ## File Storage
 - Lab reports, radiology images, consent scans, TPA documents, certificates → S3 object storage

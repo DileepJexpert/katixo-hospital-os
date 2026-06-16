@@ -21,6 +21,7 @@ public enum HospitalPolicyCode {
     RX_ALLERGY_CHECK_ENABLED("rx.allergy.check_enabled", "Block prescribing medicines that match patient allergies"),
 
     // Pharmacy Policies
+    PHARMACY_ENABLED("pharmacy.enabled", "Hospital runs its own in-house pharmacy (module + menus on/off)"),
     PHARMACY_SUBSTITUTION_ALLOWED("pharmacy.substitution.allowed", "Allow medicine substitution"),
     PHARMACY_GENERIC_SUBSTITUTION("pharmacy.generic.substitution", "Auto-suggest generic medicines"),
 
@@ -31,6 +32,10 @@ public enum HospitalPolicyCode {
     BILLING_DISCOUNT_THRESHOLD_LEVEL_1("billing.discount.threshold_level_1", "Threshold for 1st level discount approval"),
     BILLING_DISCOUNT_LEVEL_1_PERCENTAGE("billing.discount.level_1_percentage", "Percentage discount for level 1"),
     BILLING_DISCOUNT_THRESHOLD_LEVEL_2("billing.discount.threshold_level_2", "Threshold for 2nd level discount approval"),
+
+    // Expense Policies
+    EXPENSE_APPROVAL_THRESHOLD("expense.approval.threshold",
+            "Expense amount above which admin approval is required before it posts (0 = no approval needed)"),
 
     // TPA Policies
     TPA_PREAUTH_AUTO_APPROVE_AMOUNT("tpa.preauth.auto_approve_amount", "Auto-approve preauth below this amount"),

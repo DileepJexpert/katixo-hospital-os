@@ -41,6 +41,7 @@ public class IPDService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
 
     // ------------------------------------------------------------
     // Masters (ward / room / bed)
@@ -89,6 +90,18 @@ public class IPDService {
         return bedRepository.findBedBoard(ctx.getTenantId(), branchId());
     }
 
+    @Transactional(readOnly = true)
+    public List<Ward> listWards() {
+        var ctx = TenantContext.get();
+        return wardRepository.findByTenantIdAndBranchIdOrderByName(ctx.getTenantId(), branchId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Room> listRooms() {
+        var ctx = TenantContext.get();
+        return roomRepository.findByTenantIdAndBranchIdOrderByRoomNumber(ctx.getTenantId(), branchId());
+    }
+
     // ------------------------------------------------------------
     // Admission lifecycle
     // ------------------------------------------------------------
@@ -127,6 +140,7 @@ public class IPDService {
                 null, snapshot(saved), UUID.randomUUID().toString());
 
         log.info("Admission {} created: patient {} → bed {}", saved.getAdmissionNumber(), patientId, bedId);
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
@@ -164,6 +178,7 @@ public class IPDService {
 
         log.info("Admission {} transferred bed {} → {} (closed charge {})",
                 saved.getAdmissionNumber(), closed.getBedId(), newBedId, closed.getAllocationCharge());
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
@@ -214,6 +229,7 @@ public class IPDService {
 
         log.info("Admission {} discharged ({}) total bed charge {}",
                 saved.getAdmissionNumber(), dischargeType, saved.getTotalBedCharge());
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
@@ -324,6 +340,15 @@ public class IPDService {
         var ctx = TenantContext.get();
         return admissionRepository.findByIdAndTenantIdAndBranchId(admissionId, ctx.getTenantId(), branchId())
                 .orElseThrow(() -> new BusinessException("ADMISSION_NOT_FOUND", "Admission not found: " + admissionId));
+    }
+
+    /** Lists admissions by status (defaults to current inpatients) for the ward/front-desk worklist. */
+    @Transactional(readOnly = true)
+    public List<IPDAdmission> listAdmissions(IPDAdmission.AdmissionStatus status) {
+        var ctx = TenantContext.get();
+        return admissionRepository.findByTenantIdAndBranchIdAndAdmissionStatusOrderByAdmittedAtDesc(
+                ctx.getTenantId(), branchId(),
+                status == null ? IPDAdmission.AdmissionStatus.ADMITTED : status);
     }
 
     @Transactional(readOnly = true)

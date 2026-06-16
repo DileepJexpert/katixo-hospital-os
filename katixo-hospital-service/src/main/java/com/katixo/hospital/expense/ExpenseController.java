@@ -102,6 +102,20 @@ public class ExpenseController {
                 "Expense reversed", HttpStatus.OK);
     }
 
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> approve(@PathVariable Long id) {
+        return respond(view(expenseService.approve(id)), "Expense approved", HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> reject(@PathVariable Long id,
+                                                      @RequestBody(required = false) ReasonRequest req) {
+        return respond(view(expenseService.reject(id, req == null ? null : req.getReason())),
+                "Expense rejected", HttpStatus.OK);
+    }
+
     private Map<String, Object> view(Expense e) {
         Map<String, Object> view = new java.util.LinkedHashMap<>();
         view.put("id", e.getId());
@@ -117,6 +131,8 @@ public class ExpenseController {
         view.put("paidMode", e.getPaidMode() == null ? null : e.getPaidMode().name());
         view.put("paidJournalNumber", e.getPaidJournalNumber());
         view.put("reversed", e.isReversed());
+        view.put("approvalStatus", e.getApprovalStatus().name());
+        view.put("rejectionReason", e.getRejectionReason());
         return view;
     }
 

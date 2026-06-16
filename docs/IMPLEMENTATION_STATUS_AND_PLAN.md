@@ -132,7 +132,12 @@ substance already lives in-process. Three residual functional gaps were closed:
 | DoctorHome | Queue worklist + prescription panel |
 | PharmacistHome | Dispense queue · **Item master** · **OTC sale** |
 | BillingHome | Bill generate/finalize/pay/receipt · **Expenses** · **TPA / Insurance** |
-| AdminHome | **Dashboard** · **Expenses** · **Payroll** (employees + runs + statutory) · **Lab report** |
+| FrontDeskHome | Registration · Walk-in · **IPD** (admit) |
+| AdminHome | **Dashboard** · **Expenses** · **Payroll** · **Lab report** · **IPD** (full lifecycle) |
+
+IPD screen (Track-1 UI build, 2026-06-16): current inpatients, bed board, admit, admission
+detail with bed transfer + discharge — role-aware. Backend gained
+`GET /api/v1/ipd/admissions?status=` to list current inpatients.
 
 The TPA screen has payer master, case lifecycle actions (approve/submit/settle), and an ageing summary.
 The Dashboard screen shows financial/receivables/volume/occupancy KPI tiles for a selectable date range.
@@ -147,13 +152,25 @@ design tokens, provider + setState, raw-map API calls).
   `flutter analyze` = **0 errors** (22 info lints) and `flutter build web --release`
   **succeeds**. Visual/interaction testing (click-through, screenshots) still needs a
   real browser/device run.
-- **PDF download/print** in-app: backend PDFs exist (bill, voucher, payslip, lab
-  report) but the app shows data inline only (`ApiClient` is JSON-only). Needs a
-  binary GET path + `url_launcher`.
+- ~~**PDF download/print** in-app~~ **DONE (2026-06-16):** `ApiClient.getBytes()`
+  fetches the server-rendered PDF (authenticated, same retry policy); a
+  dependency-free conditional-import launcher (`core/util/pdf_launcher*.dart`,
+  `dart:html` Blob URL on web, stub elsewhere) opens it in a new tab via the
+  reusable `openPdf()` helper (`core/util/pdf_actions.dart`). Wired: bill receipt
+  (Bills "PDF" button), expense voucher (list + dialog), payslip (payroll run
+  detail row), lab report (report viewer). Backend `slipView` now exposes
+  `employeeId` for the payslip URL.
 - **Lab viewer access** limited to AdminHome; DOCTOR/LAB_TECH have no dedicated home
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
-- **Expense approval thresholds** (policy-driven spend limits) not built.
+- ~~**Expense approval thresholds** (policy-driven spend limits)~~ **DONE
+  (2026-06-16):** policy `expense.approval.threshold` (0 = disabled). Expenses
+  above it are recorded PENDING and held **un-posted** until an admin approves
+  (posts DR category / CR money) or rejects (never posts). `pay`/`reverse`
+  guarded against un-posted expenses. Endpoints `POST /api/v1/expenses/{id}/
+  approve|reject` (ADMIN). Threshold configurable via `/api/v1/settings/features`
+  (`expenseApprovalThreshold`). Flutter: status chip + admin Approve/Reject in
+  the expense list, threshold field in Settings.
 - **Vendor master** — expenses use free-text payee, no recurring-supplier entity.
 - **TPA, consent, certificates, NABH, dashboards, notifications, WebSocket queue
   boards, Elasticsearch search** — per `CLAUDE.md` package map; status varies, not
@@ -165,14 +182,29 @@ design tokens, provider + setState, raw-map API calls).
 1. **Visual QA of the Flutter screens** — run the app against a live backend and
    click through expense, payroll, item master, OTC sale, lab report (compiles, but
    not yet visually exercised).
-2. **Wire real PDF open/print** — add a binary GET to `ApiClient` + `url_launcher`;
-   hook bill receipt, expense voucher, payslip, lab report buttons.
+2. ~~**Wire real PDF open/print**~~ **DONE (2026-06-16)** — `ApiClient.getBytes()`
+   + conditional-import browser launcher + `openPdf()` helper; bill receipt,
+   expense voucher, payslip and lab report all open the real PDF in a new tab.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
    result entry, approve) + router role for LAB_TECH; expose report viewer to DOCTOR.
-4. **Expense approval workflow** via policy engine (spend thresholds → approval).
-5. **Surface remaining backend in Flutter** — IPD/nursing/discharge/TPA screens,
-   owner dashboard (read model), notifications.
-6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.
+4. ~~**Expense approval workflow** via policy engine (spend thresholds → approval).~~
+   **DONE (2026-06-16)** — see §4. Threshold policy gates large expenses to a
+   PENDING/approve/reject flow; nothing posts to the books until approved.
+5. **Surface remaining backend in Flutter** — IPD/nursing/TPA screens, owner
+   dashboard (read model) and ~~notifications~~ **(notifications DONE 2026-06-16:
+   `features/notification/notifications_screen.dart` — SMS/WhatsApp provider
+   settings, per-(type,channel) templates, manual send, delivery log; mounted in
+   Admin + SuperAdmin homes)**. _Discharge has no standalone backend yet (only
+   IPD's bed-freeing discharge) — building that module is future work._
+6. ~~**Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.~~
+   **DONE (2026-06-16):** raw-text WebSocket at `/ws/board` (JWT in the handshake
+   query param, tenant:branch-isolated sessions). `BoardBroadcaster` pushes a
+   topic nudge after commit when OPD queue / IPD beds / pharmacy queue change;
+   the Flutter `BoardSocket` re-fetches on the matching topic, with a 30s safety
+   poll + auto-reconnect so polling still covers a dropped socket. Wired into the
+   doctor worklist, pharmacy dispense queue, and IPD bed board.
+   _Runtime smoke test (browser + live backend) still recommended — the WS path
+   can't be exercised in the headless Claude env._
 7. **i18n** Hindi pass for patient-facing outputs.
 
 ## 6. Future roadmap (longer-term, planned — not yet built)

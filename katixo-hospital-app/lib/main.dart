@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'core/api/http_client.dart';
 import 'core/auth/auth_state.dart';
+import 'core/config/feature_flags.dart';
 import 'core/theme/theme_controller.dart';
 
 // Backend dev port (see katixo-hospital-service application.yml).
@@ -28,11 +29,25 @@ Future<void> main() async {
     onUnauthorized: () => authState.logout(),
   );
 
+  // Per-hospital feature flags — (re)loaded whenever the user signs in.
+  final featureFlags = FeatureFlags();
+  void syncFeatures() {
+    if (authState.isAuthenticated) {
+      featureFlags.load(apiClient);
+    } else {
+      featureFlags.reset();
+    }
+  }
+
+  authState.addListener(syncFeatures);
+  syncFeatures(); // restored session on cold start
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeController(prefs)),
         ChangeNotifierProvider(create: (_) => authState),
+        ChangeNotifierProvider<FeatureFlags>.value(value: featureFlags),
         Provider(create: (_) => apiClient),
       ],
       child: const KatixoHospitalApp(),

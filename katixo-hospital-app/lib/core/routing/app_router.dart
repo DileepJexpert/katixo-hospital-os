@@ -3,9 +3,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
 import '../../features/admin/admin_home.dart';
+import '../../features/admin/super_admin_home.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
+import '../../features/lab/lab_tech_home.dart';
+import '../../features/nursing/nurse_home.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
 import '../auth/auth_state.dart';
 
@@ -40,10 +43,13 @@ GoRouter createRouter(AuthState authState) {
 /// dedicated module yet land on the front-desk home.
 Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
+    'SUPER_ADMIN' => const SuperAdminHome(),
     'DOCTOR' => const DoctorHome(),
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
     'ADMIN' => const AdminHome(),
+    'LAB_TECH' => const LabTechHome(),
+    'NURSE' => const NurseHome(),
     _ => const FrontDeskHome(),
   };
 }

@@ -3,10 +3,12 @@ package com.katixo.hospital.policy;
 import com.katixo.hospital.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import static com.katixo.hospital.tenant.TenantContext.get;
 
@@ -91,5 +93,34 @@ public class PolicyService {
     public String getTenantContextBranchKey() {
         var context = get();
         return context.getTenantId() + ":" + context.getBranchId();
+    }
+
+    /** Upsert a policy value for the current tenant/branch (admin config). Evicts the cache. */
+    @CacheEvict(value = "hospital_policy", allEntries = true)
+    public void setPolicy(HospitalPolicyCode code, String value) {
+        var context = get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        Long userId = Long.parseLong(context.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+        HospitalPolicy policy = policyRepository
+                .findActivePolicy(context.getTenantId(), branchId, code.getCode())
+                .orElseGet(() -> {
+                    HospitalPolicy p = new HospitalPolicy();
+                    p.setTenantId(context.getTenantId());
+                    p.setHospitalGroupId(Long.parseLong(context.getHospitalGroupId()));
+                    p.setBranchId(branchId);
+                    p.setPolicyCode(code.getCode());
+                    p.setDescription(code.getDescription());
+                    p.setEffectiveFrom(now);
+                    p.setVersion(1);
+                    p.setCreatedAt(now);
+                    p.setCreatedBy(userId);
+                    return p;
+                });
+        policy.setPolicyValue(value);
+        policy.setUpdatedAt(now);
+        policy.setUpdatedBy(userId);
+        policyRepository.save(policy);
+        log.info("Policy {} set to '{}'", code.getCode(), value);
     }
 }

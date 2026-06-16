@@ -4,6 +4,8 @@ import com.katixo.hospital.accounting.JournalEntry;
 import com.katixo.hospital.accounting.JournalService;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,13 +38,17 @@ class ExpenseServiceTest {
     @Mock ExpenseRepository expenseRepository;
     @Mock JournalService journalService;
     @Mock AuditService auditService;
+    @Mock PolicyService policyService;
 
     private ExpenseService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseService(expenseRepository, journalService, auditService);
+        service = new ExpenseService(expenseRepository, journalService, auditService, policyService);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "billing"));
+        // Approval disabled by default (threshold 0); approval tests override this.
+        lenient().when(policyService.getPolicyAsBigDecimal(
+                eq(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD), any())).thenReturn(BigDecimal.ZERO);
         lenient().when(expenseRepository.nextExpenseSequence()).thenReturn(100001L);
         lenient().when(expenseRepository.save(any())).thenAnswer(inv -> {
             Expense e = inv.getArgument(0);
@@ -136,5 +143,104 @@ class ExpenseServiceTest {
                 LocalDate.now(), Expense.ExpenseCategory.MISCELLANEOUS, "x", BigDecimal.ZERO,
                 Expense.PaymentMode.CASH, null, null));
         assertEquals("INVALID_AMOUNT", ex.getCode());
+    }
+
+    @Test
+    void aboveThresholdIsHeldPendingAndNotPosted() {
+        when(policyService.getPolicyAsBigDecimal(eq(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD), any()))
+                .thenReturn(new BigDecimal("10000"));
+
+        Expense e = service.record(LocalDate.now(), Expense.ExpenseCategory.MAINTENANCE, "Vendor",
+                new BigDecimal("25000.00"), Expense.PaymentMode.BANK, null, null);
+
+        assertEquals(Expense.ApprovalStatus.PENDING, e.getApprovalStatus());
+        assertEquals(false, e.isPaid());
+        verify(journalService, never()).post(any(), anyString(), eq("EXPENSE"), anyString(), any());
+    }
+
+    @Test
+    void belowThresholdPostsImmediately() {
+        when(policyService.getPolicyAsBigDecimal(eq(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD), any()))
+                .thenReturn(new BigDecimal("10000"));
+
+        Expense e = service.record(LocalDate.now(), Expense.ExpenseCategory.SUPPLIES, "Vendor",
+                new BigDecimal("5000.00"), Expense.PaymentMode.BANK, null, null);
+
+        assertEquals(Expense.ApprovalStatus.NOT_REQUIRED, e.getApprovalStatus());
+        assertEquals("JE-700", e.getJournalNumber());
+        verify(journalService).post(any(), anyString(), eq("EXPENSE"), anyString(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void approvePostsJournalForPendingExpense() {
+        Expense pending = new Expense();
+        pending.setExpenseNumber("EXP-100003");
+        pending.setExpenseDate(LocalDate.of(2026, 6, 16));
+        pending.setCategory(Expense.ExpenseCategory.MAINTENANCE);
+        pending.setAmount(new BigDecimal("25000.00"));
+        pending.setPaymentMode(Expense.PaymentMode.BANK);
+        pending.setApprovalStatus(Expense.ApprovalStatus.PENDING);
+        ReflectionTestUtils.setField(pending, "id", 3L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(3L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(pending));
+
+        Expense approved = service.approve(3L);
+
+        assertEquals(Expense.ApprovalStatus.APPROVED, approved.getApprovalStatus());
+        assertEquals("JE-700", approved.getJournalNumber());
+        assertEquals(true, approved.isPaid()); // BANK settles on approval
+        ArgumentCaptor<List<JournalService.Line>> captor = ArgumentCaptor.forClass(List.class);
+        verify(journalService).post(any(), anyString(), eq("EXPENSE"), anyString(), captor.capture());
+        assertEquals("5230", captor.getValue().get(0).accountCode()); // Maintenance (DR)
+        assertEquals("1020", captor.getValue().get(1).accountCode()); // Bank (CR)
+    }
+
+    @Test
+    void rejectDoesNotPostAndRecordsReason() {
+        Expense pending = new Expense();
+        pending.setExpenseNumber("EXP-100004");
+        pending.setCategory(Expense.ExpenseCategory.MISCELLANEOUS);
+        pending.setAmount(new BigDecimal("25000.00"));
+        pending.setPaymentMode(Expense.PaymentMode.BANK);
+        pending.setApprovalStatus(Expense.ApprovalStatus.PENDING);
+        ReflectionTestUtils.setField(pending, "id", 4L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(4L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(pending));
+
+        Expense rejected = service.reject(4L, "Over budget");
+
+        assertEquals(Expense.ApprovalStatus.REJECTED, rejected.getApprovalStatus());
+        assertEquals("Over budget", rejected.getRejectionReason());
+        verify(journalService, never()).post(any(), anyString(), eq("EXPENSE"), anyString(), any());
+    }
+
+    @Test
+    void cannotApproveAnAlreadyApprovedExpense() {
+        Expense done = new Expense();
+        done.setExpenseNumber("EXP-100005");
+        done.setApprovalStatus(Expense.ApprovalStatus.NOT_REQUIRED);
+        ReflectionTestUtils.setField(done, "id", 5L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(5L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(done));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.approve(5L));
+        assertEquals("EXPENSE_NOT_PENDING", ex.getCode());
+    }
+
+    @Test
+    void cannotPayAPendingExpense() {
+        Expense pending = new Expense();
+        pending.setExpenseNumber("EXP-100006");
+        pending.setAmount(new BigDecimal("25000.00"));
+        pending.setPaymentMode(Expense.PaymentMode.CREDIT);
+        pending.setApprovalStatus(Expense.ApprovalStatus.PENDING);
+        ReflectionTestUtils.setField(pending, "id", 6L);
+        when(expenseRepository.findByIdAndTenantIdAndBranchId(6L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(pending));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.pay(6L, Expense.PaymentMode.BANK, null, null));
+        assertEquals("EXPENSE_NOT_APPROVED", ex.getCode());
     }
 }

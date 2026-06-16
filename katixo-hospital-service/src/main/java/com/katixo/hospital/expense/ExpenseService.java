@@ -1,10 +1,13 @@
 package com.katixo.hospital.expense;
 
+import com.katixo.hospital.accounting.JournalEntry;
 import com.katixo.hospital.accounting.JournalService;
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.policy.HospitalPolicyCode;
+import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +38,7 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final JournalService journalService;
     private final AuditService auditService;
+    private final PolicyService policyService;
 
     public Expense record(LocalDate date, Expense.ExpenseCategory category, String payeeName,
                           BigDecimal amount, Expense.PaymentMode paymentMode, String reference, String notes) {
@@ -57,22 +61,33 @@ public class ExpenseService {
         expense.setPaymentMode(paymentMode);
         expense.setReference(reference);
         expense.setNotes(notes);
+        stamp(expense);
+
+        // Spend-approval gate: amounts above the policy threshold are held un-posted
+        // (PENDING) until an admin approves; threshold 0 (or unset) disables it.
+        BigDecimal threshold = policyService.getPolicyAsBigDecimal(
+                HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD, BigDecimal.ZERO);
+        boolean needsApproval = threshold.signum() > 0 && amount.compareTo(threshold) > 0;
+
+        if (needsApproval) {
+            expense.setApprovalStatus(Expense.ApprovalStatus.PENDING);
+            expense.setPaid(false); // nothing settles until it is on the books
+            Expense pending = expenseRepository.save(expense);
+            auditService.audit("Expense", String.valueOf(pending.getId()), AuditLog.AuditAction.CREATE,
+                    null, Map.of("expenseNumber", pending.getExpenseNumber(), "category", category.name(),
+                            "amount", amount, "mode", paymentMode.name(), "approvalStatus", "PENDING"),
+                    UUID.randomUUID().toString());
+            log.info("Expense {} recorded PENDING approval: {} {} (> threshold {})",
+                    pending.getExpenseNumber(), category, amount, threshold);
+            return pending;
+        }
+
+        expense.setApprovalStatus(Expense.ApprovalStatus.NOT_REQUIRED);
         // CASH/BANK expenses are settled the moment they are recorded; CREDIT stays unpaid in Trade Payables.
         expense.setPaid(paymentMode != Expense.PaymentMode.CREDIT);
-        stamp(expense);
         Expense saved = expenseRepository.save(expense);
 
-        String creditAccount = switch (paymentMode) {
-            case CASH -> CASH_ACCOUNT;
-            case BANK -> BANK_ACCOUNT;
-            case CREDIT -> TRADE_PAYABLES_ACCOUNT;
-        };
-        var entry = journalService.post(saved.getExpenseDate(),
-                category.name() + " expense " + saved.getExpenseNumber()
-                        + (payeeName == null ? "" : " (" + payeeName + ")"),
-                "EXPENSE", saved.getExpenseNumber(), List.of(
-                        JournalService.Line.debit(category.accountCode(), amount, category.name()),
-                        JournalService.Line.credit(creditAccount, amount, paymentMode.name())));
+        JournalEntry entry = postCategoryJournal(saved);
         saved.setJournalEntryId(entry.getId());
         saved.setJournalNumber(entry.getEntryNumber());
         Expense finalExpense = expenseRepository.save(saved);
@@ -84,6 +99,64 @@ public class ExpenseService {
         return finalExpense;
     }
 
+    /** Posts DR category expense / CR Cash|Bank|Trade Payables for an expense. */
+    private JournalEntry postCategoryJournal(Expense e) {
+        String creditAccount = switch (e.getPaymentMode()) {
+            case CASH -> CASH_ACCOUNT;
+            case BANK -> BANK_ACCOUNT;
+            case CREDIT -> TRADE_PAYABLES_ACCOUNT;
+        };
+        return journalService.post(e.getExpenseDate(),
+                e.getCategory().name() + " expense " + e.getExpenseNumber()
+                        + (e.getPayeeName() == null ? "" : " (" + e.getPayeeName() + ")"),
+                "EXPENSE", e.getExpenseNumber(), List.of(
+                        JournalService.Line.debit(e.getCategory().accountCode(), e.getAmount(), e.getCategory().name()),
+                        JournalService.Line.credit(creditAccount, e.getAmount(), e.getPaymentMode().name())));
+    }
+
+    /**
+     * Approves a PENDING expense: posts its journal now (DR category / CR money
+     * account), marks CASH/BANK as paid, and records the approver. Idempotent
+     * guard — only PENDING expenses can be approved.
+     */
+    public Expense approve(Long expenseId) {
+        Expense expense = getOwned(expenseId);
+        if (expense.getApprovalStatus() != Expense.ApprovalStatus.PENDING) {
+            throw new BusinessException("EXPENSE_NOT_PENDING", "Only a pending expense can be approved");
+        }
+        JournalEntry entry = postCategoryJournal(expense);
+        expense.setJournalEntryId(entry.getId());
+        expense.setJournalNumber(entry.getEntryNumber());
+        expense.setApprovalStatus(Expense.ApprovalStatus.APPROVED);
+        expense.setApprovedBy(userId());
+        expense.setApprovedDate(LocalDate.now());
+        expense.setPaid(expense.getPaymentMode() != Expense.PaymentMode.CREDIT);
+        expense.setUpdatedBy(userId());
+        Expense saved = expenseRepository.save(expense);
+        auditService.audit("Expense", String.valueOf(expenseId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("approvalStatus", "APPROVED", "journalNumber", entry.getEntryNumber()),
+                UUID.randomUUID().toString());
+        log.info("Expense {} approved (journal {})", expense.getExpenseNumber(), entry.getEntryNumber());
+        return saved;
+    }
+
+    /** Rejects a PENDING expense: no journal is ever posted. Only PENDING can be rejected. */
+    public Expense reject(Long expenseId, String reason) {
+        Expense expense = getOwned(expenseId);
+        if (expense.getApprovalStatus() != Expense.ApprovalStatus.PENDING) {
+            throw new BusinessException("EXPENSE_NOT_PENDING", "Only a pending expense can be rejected");
+        }
+        expense.setApprovalStatus(Expense.ApprovalStatus.REJECTED);
+        expense.setRejectionReason(reason);
+        expense.setUpdatedBy(userId());
+        Expense saved = expenseRepository.save(expense);
+        auditService.audit("Expense", String.valueOf(expenseId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("approvalStatus", "REJECTED", "reason", reason == null ? "" : reason),
+                UUID.randomUUID().toString());
+        log.info("Expense {} rejected", expense.getExpenseNumber());
+        return saved;
+    }
+
     /**
      * Settles a CREDIT expense that is sitting in Trade Payables: posts
      * DR Trade Payables (2010) / CR Cash (1010) | Bank (1020) and marks it paid.
@@ -93,6 +166,10 @@ public class ExpenseService {
         Expense expense = getOwned(expenseId);
         if (expense.isReversed()) {
             throw new BusinessException("EXPENSE_REVERSED", "Cannot pay a reversed expense");
+        }
+        if (expense.getApprovalStatus() == Expense.ApprovalStatus.PENDING
+                || expense.getApprovalStatus() == Expense.ApprovalStatus.REJECTED) {
+            throw new BusinessException("EXPENSE_NOT_APPROVED", "Expense must be approved before it can be paid");
         }
         if (expense.getPaymentMode() != Expense.PaymentMode.CREDIT) {
             throw new BusinessException("EXPENSE_NOT_CREDIT", "Only credit expenses can be paid later");
@@ -131,6 +208,10 @@ public class ExpenseService {
         Expense expense = getOwned(expenseId);
         if (expense.isReversed()) {
             throw new BusinessException("EXPENSE_ALREADY_REVERSED", "Expense is already reversed");
+        }
+        if (expense.getJournalEntryId() == null) {
+            throw new BusinessException("EXPENSE_NOT_POSTED",
+                    "Expense has no journal to reverse (pending or rejected)");
         }
         if (expense.getPaidJournalEntryId() != null) {
             journalService.reverse(expense.getPaidJournalEntryId(), reason);

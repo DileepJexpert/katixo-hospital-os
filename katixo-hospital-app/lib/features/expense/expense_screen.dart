@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
+import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -225,6 +227,70 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     }
   }
 
+  Future<void> _approve(Map<String, dynamic> expense) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<Map<String, dynamic>>(
+        '/api/v1/expenses/${expense['id']}/approve',
+        const <String, dynamic>{},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() => _info = '${expense['expenseNumber']} approved');
+      await _load();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _rejectDialog(Map<String, dynamic> expense) async {
+    final reasonCtrl = TextEditingController();
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Reject ${expense['expenseNumber']}'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<Map<String, dynamic>>(
+        '/api/v1/expenses/${expense['id']}/reject',
+        {'reason': reasonCtrl.text.trim()},
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      setState(() => _info = '${expense['expenseNumber']} rejected');
+      await _load();
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -367,16 +433,24 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         final reversed = e['reversed'] == true;
         final paid = e['paid'] == true;
         final mode = '${e['paymentMode']}';
-        final canPay = mode == 'CREDIT' && !paid && !reversed;
+        final approval = '${e['approvalStatus'] ?? 'NOT_REQUIRED'}';
+        final isPending = approval == 'PENDING';
+        final isRejected = approval == 'REJECTED';
+        final canPay = mode == 'CREDIT' && !paid && !reversed && !isPending && !isRejected;
+        final role = context.read<AuthState>().currentUser?.role ?? '';
+        final canApprove = role == 'ADMIN' || role == 'SUPER_ADMIN';
         return ListTile(
           title: Row(
             children: [
               Text('${e['expenseNumber']}',
                   style: theme.textTheme.titleSmall),
               const SizedBox(width: Space.sm),
-              StatusChip.auto(reversed
-                  ? 'REVERSED'
-                  : (paid ? 'PAID' : 'UNPAID')),
+              if (isPending || isRejected)
+                StatusChip.auto(approval)
+              else
+                StatusChip.auto(reversed
+                    ? 'REVERSED'
+                    : (paid ? 'PAID' : 'UNPAID')),
             ],
           ),
           subtitle: Text(
@@ -389,17 +463,33 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             children: [
               Text('₹${e['amount']}', style: theme.textTheme.titleSmall),
               const SizedBox(width: Space.sm),
+              if (isPending && canApprove) ...[
+                FilledButton(
+                  onPressed: _loading ? null : () => _approve(e),
+                  child: const Text('Approve'),
+                ),
+                const SizedBox(width: Space.xs),
+                OutlinedButton(
+                  onPressed: _loading ? null : () => _rejectDialog(e),
+                  child: const Text('Reject'),
+                ),
+              ],
               if (canPay)
                 OutlinedButton(
                   onPressed: _loading ? null : () => _payDialog(e),
                   child: const Text('Pay'),
                 ),
               IconButton(
-                tooltip: 'Voucher',
+                tooltip: 'Voucher details',
                 onPressed: () => _voucherDialog(e),
                 icon: const Icon(Icons.description_outlined, size: 20),
               ),
-              if (!reversed)
+              IconButton(
+                tooltip: 'Open PDF',
+                onPressed: () => _openVoucherPdf(e),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+              ),
+              if (!reversed && !isPending && !isRejected)
                 IconButton(
                   tooltip: 'Reverse',
                   onPressed: _loading ? null : () => _reverseDialog(e),
@@ -433,12 +523,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               if (e['paid'] == true)
                 _kv(theme, 'Paid via',
                     '${e['paidMode'] ?? ''} ${e['paidJournalNumber'] ?? ''}'),
-              const SizedBox(height: Space.sm),
-              Text(
-                'PDF voucher: GET /api/v1/expenses/${e['id']}/voucher.pdf',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant),
-              ),
             ],
           ),
         ),
@@ -447,8 +531,25 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
           ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              _openVoucherPdf(e);
+            },
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Open PDF'),
+          ),
         ],
       ),
+    );
+  }
+
+  Future<void> _openVoucherPdf(Map<String, dynamic> e) async {
+    await openPdf(
+      context,
+      context.read<ApiClient>(),
+      '/api/v1/expenses/${e['id']}/voucher.pdf',
+      filename: 'expense-voucher-${e['id']}.pdf',
     );
   }
 

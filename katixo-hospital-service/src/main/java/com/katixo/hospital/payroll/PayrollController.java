@@ -179,6 +179,7 @@ public class PayrollController {
 
     private Map<String, Object> slipView(Payslip p) {
         Map<String, Object> v = new java.util.LinkedHashMap<>();
+        v.put("employeeId", p.getEmployeeId());
         v.put("employeeName", p.getEmployeeName());
         v.put("gross", p.getGross());
         v.put("pf", p.getPfEmployee());
