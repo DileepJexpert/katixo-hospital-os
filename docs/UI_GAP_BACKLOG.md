@@ -36,12 +36,19 @@ the working backlog for the UI-completeness program.
       new overflow menu on the bill card (BILLING/ADMIN), with reason
       dialog.
 
-### 2. Patient credit & patient profile (P1)
-- [ ] **Patient credit account** UI: balance, transactions, adjust, set limit,
-      change status — every endpoint on `PatientCreditController` exists, no
-      screen. (Patient search/list already done.)
-- [ ] **Patient profile update** — `GET/PUT /api/v1/patients/{id}` are wired
-      backend-side; the Flutter patients screen is search-only, no edit view.
+### 2. Patient credit & patient profile (DONE — 2026-06-16)
+- [x] **Patient credit account** UI — new `PatientCreditPanel`
+      (`features/patient/patient_credit_panel.dart`) shown on the patient
+      detail: balance / limit / status metrics, recent transactions, and
+      role-gated actions (Adjust = BILLING/ADMIN; Set limit + Status = ADMIN).
+      Recovers from a missing account via the new `POST /api/v1/patients/{id}/
+      credit` (get-or-create) — added because SQL-seeded demo patients have no
+      account.
+- [x] **Patient profile update** — Edit button on the patient detail opens a
+      partial-update form (`PUT /api/v1/patients/{id}`), FRONT_DESK/ADMIN.
+      Backend `updatePatient` extended from 7 → 24 editable fields (name parts,
+      gender, DOB, marital status, occupation, nationality, full address,
+      emergency contact, medications, notes); `toDTO` round-trips the new ones.
 
 ### 3. Pharmacy / prescription gaps (P1)
 - [ ] **Partial pharmacy return** UI for the existing `POST /api/v1/pharmacy-
