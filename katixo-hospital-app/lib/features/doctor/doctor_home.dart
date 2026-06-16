@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../lab/lab_screen.dart';
 import 'prescription_panel.dart';
 
 /// Doctor role home: live queue worklist with call-next / start / complete.
@@ -32,6 +33,7 @@ class _DoctorHomeState extends State<DoctorHome> {
   VisitResponse? _activeVisit;
   final _diagnosisCtrl = TextEditingController();
   final _adviceCtrl = TextEditingController();
+  int _index = 0;
 
   int? get _doctorId => context.read<AuthState>().currentUser?.staffId;
 
@@ -171,9 +173,14 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.list_alt_outlined,
           selectedIcon: Icons.list_alt,
         ),
+        ShellDestination(
+          label: 'Lab',
+          icon: Icons.science_outlined,
+          selectedIcon: Icons.science,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _index,
+      onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -189,7 +196,9 @@ class _DoctorHomeState extends State<DoctorHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: PageContainer(
+      body: _index == 1
+          ? const LabScreen()
+          : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

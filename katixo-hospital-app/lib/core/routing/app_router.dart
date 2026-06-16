@@ -6,6 +6,7 @@ import '../../features/admin/admin_home.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
+import '../../features/lab/lab_tech_home.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
 import '../auth/auth_state.dart';
 
@@ -44,6 +45,7 @@ Widget _roleHome(AuthState authState) {
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),
     'ADMIN' => const AdminHome(),
+    'LAB_TECH' => const LabTechHome(),
     _ => const FrontDeskHome(),
   };
 }
