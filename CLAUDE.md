@@ -203,6 +203,12 @@ katixo-hospital-service/
 - Discharge checklist: some items block, others warn (from policy engine)
 
 ### Pharmacy
+- **In-house pharmacy is OPTIONAL per hospital** (some run their own, some outsource): policy
+  `pharmacy.enabled` (default true, seeded in V2) toggles the whole module. `GET/PUT
+  /api/v1/settings/features` (read any authed / write ADMIN) exposes it via `PolicyService.setPolicy`.
+  Flutter `core/config/feature_flags.dart` (`FeatureFlags` provider, loaded on login) hides the
+  pharmacy menus when off; admin toggles it in **AdminHome → Settings**. "Pharmacy" = the hospital's
+  OWN dispensary (OPD cash dispense, OTC walk-in, IPD credit indent) — not a third-party shop.
 - OPD dispense → local **CASH** `PharmacySale` on FULLY_DISPENSED (`PharmacyQueueService`):
   FEFO issue + GST + DR Cash / CR Sales+GST + COGS journal, in the same transaction. The
   dispense records saleId/saleNumber/saleTotal. Item-not-in-master or short stock rolls the

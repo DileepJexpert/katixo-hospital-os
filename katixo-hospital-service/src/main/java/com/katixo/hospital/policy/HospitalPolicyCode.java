@@ -21,6 +21,7 @@ public enum HospitalPolicyCode {
     RX_ALLERGY_CHECK_ENABLED("rx.allergy.check_enabled", "Block prescribing medicines that match patient allergies"),
 
     // Pharmacy Policies
+    PHARMACY_ENABLED("pharmacy.enabled", "Hospital runs its own in-house pharmacy (module + menus on/off)"),
     PHARMACY_SUBSTITUTION_ALLOWED("pharmacy.substitution.allowed", "Allow medicine substitution"),
     PHARMACY_GENERIC_SUBSTITUTION("pharmacy.generic.substitution", "Auto-suggest generic medicines"),
 

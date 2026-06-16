@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_state.dart';
+import '../../core/config/feature_flags.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../dashboard/dashboard_screen.dart';
@@ -12,9 +13,11 @@ import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../payroll/payroll_screen.dart';
+import '../settings/settings_screen.dart';
 import '../tpa/tpa_screen.dart';
 
-/// Admin role home: back-office accounting — operating expenses and HR/payroll.
+/// Admin / owner cockpit: finance, clinical, pharmacy (if enabled), insurance,
+/// and hospital settings. Pharmacy tabs respect the in-house-pharmacy flag.
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key});
 
@@ -28,57 +31,28 @@ class _AdminHomeState extends State<AdminHome> {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthState>();
+    final flags = context.watch<FeatureFlags>();
+
+    final tabs = <({ShellDestination dest, Widget body})>[
+      (dest: const ShellDestination(label: 'Dashboard', icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard), body: const DashboardScreen()),
+      (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),
+      (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
+      (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
+      (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
+      (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
+      if (flags.pharmacyEnabled)
+        (dest: const ShellDestination(label: 'Pharmacy', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const ItemMasterScreen()),
+      if (flags.pharmacyEnabled)
+        (dest: const ShellDestination(label: 'OTC Sale', icon: Icons.point_of_sale_outlined, selectedIcon: Icons.point_of_sale), body: const OtcSaleScreen()),
+      (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
+    ];
+    final index = _index.clamp(0, tabs.length - 1);
 
     return AppShell(
       title: 'Admin',
-      destinations: const [
-        ShellDestination(
-          label: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-          selectedIcon: Icons.dashboard,
-        ),
-        ShellDestination(
-          label: 'Expenses',
-          icon: Icons.receipt_outlined,
-          selectedIcon: Icons.receipt,
-        ),
-        ShellDestination(
-          label: 'Payroll',
-          icon: Icons.payments_outlined,
-          selectedIcon: Icons.payments,
-        ),
-        ShellDestination(
-          label: 'Lab',
-          icon: Icons.science_outlined,
-          selectedIcon: Icons.science,
-        ),
-        ShellDestination(
-          label: 'IPD',
-          icon: Icons.local_hotel_outlined,
-          selectedIcon: Icons.local_hotel,
-        ),
-        ShellDestination(
-          label: 'Nursing',
-          icon: Icons.assignment_outlined,
-          selectedIcon: Icons.assignment,
-        ),
-        ShellDestination(
-          label: 'Pharmacy',
-          icon: Icons.inventory_2_outlined,
-          selectedIcon: Icons.inventory_2,
-        ),
-        ShellDestination(
-          label: 'OTC Sale',
-          icon: Icons.point_of_sale_outlined,
-          selectedIcon: Icons.point_of_sale,
-        ),
-        ShellDestination(
-          label: 'TPA',
-          icon: Icons.health_and_safety_outlined,
-          selectedIcon: Icons.health_and_safety,
-        ),
-      ],
-      selectedIndex: _index,
+      destinations: [for (final t in tabs) t.dest],
+      selectedIndex: index,
       onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
@@ -97,17 +71,7 @@ class _AdminHomeState extends State<AdminHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: switch (_index) {
-        0 => const DashboardScreen(),
-        1 => const ExpenseScreen(),
-        2 => const PayrollScreen(),
-        3 => const LabScreen(),
-        4 => const IpdScreen(),
-        5 => const NursingScreen(),
-        6 => const ItemMasterScreen(),
-        7 => const OtcSaleScreen(),
-        _ => const TpaScreen(),
-      },
+      body: tabs[index].body,
     );
   }
 }
