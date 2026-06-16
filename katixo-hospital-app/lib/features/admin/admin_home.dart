@@ -7,7 +7,7 @@ import '../../core/widgets/app_shell.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../expense/expense_screen.dart';
 import '../ipd/ipd_screen.dart';
-import '../lab/lab_report_screen.dart';
+import '../lab/lab_screen.dart';
 import '../payroll/payroll_screen.dart';
 
 /// Admin role home: back-office accounting — operating expenses and HR/payroll.
@@ -44,7 +44,7 @@ class _AdminHomeState extends State<AdminHome> {
           selectedIcon: Icons.payments,
         ),
         ShellDestination(
-          label: 'Lab Report',
+          label: 'Lab',
           icon: Icons.science_outlined,
           selectedIcon: Icons.science,
         ),
@@ -77,7 +77,7 @@ class _AdminHomeState extends State<AdminHome> {
         0 => const DashboardScreen(),
         1 => const ExpenseScreen(),
         2 => const PayrollScreen(),
-        3 => const LabReportScreen(),
+        3 => const LabScreen(),
         _ => const IpdScreen(),
       },
     );
