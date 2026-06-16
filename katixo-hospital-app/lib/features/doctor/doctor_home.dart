@@ -12,6 +12,7 @@ import '../../core/widgets/app_shell.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../lab/lab_screen.dart';
+import '../nursing/nursing_screen.dart';
 import 'prescription_panel.dart';
 
 /// Doctor role home: live queue worklist with call-next / start / complete.
@@ -178,6 +179,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.science_outlined,
           selectedIcon: Icons.science,
         ),
+        ShellDestination(
+          label: 'Ward Indents',
+          icon: Icons.assignment_outlined,
+          selectedIcon: Icons.assignment,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -196,9 +202,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: _index == 1
-          ? const LabScreen()
-          : PageContainer(
+      body: _index == 2
+          ? const NursingScreen()
+          : _index == 1
+              ? const LabScreen()
+              : PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

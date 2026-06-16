@@ -12,6 +12,7 @@ import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../inventory/item_master_screen.dart';
 import '../inventory/otc_sale_screen.dart';
+import '../nursing/nursing_screen.dart';
 
 /// Pharmacist role home: FIFO dispense queue with audited priority override.
 class PharmacistHome extends StatefulWidget {
@@ -185,6 +186,11 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           icon: Icons.point_of_sale_outlined,
           selectedIcon: Icons.point_of_sale,
         ),
+        ShellDestination(
+          label: 'Ward Indents',
+          icon: Icons.assignment_outlined,
+          selectedIcon: Icons.assignment,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -206,6 +212,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       body: switch (_index) {
         1 => const ItemMasterScreen(),
         2 => const OtcSaleScreen(),
+        3 => const NursingScreen(),
         _ => PageContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

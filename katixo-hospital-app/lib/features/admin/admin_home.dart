@@ -8,6 +8,7 @@ import '../dashboard/dashboard_screen.dart';
 import '../expense/expense_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
+import '../nursing/nursing_screen.dart';
 import '../payroll/payroll_screen.dart';
 
 /// Admin role home: back-office accounting — operating expenses and HR/payroll.
@@ -53,6 +54,11 @@ class _AdminHomeState extends State<AdminHome> {
           icon: Icons.local_hotel_outlined,
           selectedIcon: Icons.local_hotel,
         ),
+        ShellDestination(
+          label: 'Nursing',
+          icon: Icons.assignment_outlined,
+          selectedIcon: Icons.assignment,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -78,7 +84,8 @@ class _AdminHomeState extends State<AdminHome> {
         1 => const ExpenseScreen(),
         2 => const PayrollScreen(),
         3 => const LabScreen(),
-        _ => const IpdScreen(),
+        4 => const IpdScreen(),
+        _ => const NursingScreen(),
       },
     );
   }
