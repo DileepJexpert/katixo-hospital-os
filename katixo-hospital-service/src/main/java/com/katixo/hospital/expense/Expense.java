@@ -86,6 +86,24 @@ public class Expense extends BaseEntity {
     @Column(length = 30)
     private String paidJournalNumber;
 
+    /**
+     * Spend-approval gate (policy {@code expense.approval.threshold}). NOT_REQUIRED
+     * expenses post to the ledger on record; PENDING ones are held un-posted until
+     * an admin APPROVES (which posts the journal) or REJECTS them.
+     */
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus approvalStatus = ApprovalStatus.NOT_REQUIRED;
+
+    @Column
+    private Long approvedBy;
+
+    @Column
+    private LocalDate approvedDate;
+
+    @Column(length = 300)
+    private String rejectionReason;
+
     /** Category → expense account in the chart of accounts. */
     public enum ExpenseCategory {
         RENT("5200"),
@@ -108,5 +126,10 @@ public class Expense extends BaseEntity {
     /** CASH/BANK settle immediately; CREDIT books to Trade Payables. */
     public enum PaymentMode {
         CASH, BANK, CREDIT
+    }
+
+    /** Spend-approval gate state. */
+    public enum ApprovalStatus {
+        NOT_REQUIRED, PENDING, APPROVED, REJECTED
     }
 }

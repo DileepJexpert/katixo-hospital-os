@@ -33,6 +33,10 @@ public enum HospitalPolicyCode {
     BILLING_DISCOUNT_LEVEL_1_PERCENTAGE("billing.discount.level_1_percentage", "Percentage discount for level 1"),
     BILLING_DISCOUNT_THRESHOLD_LEVEL_2("billing.discount.threshold_level_2", "Threshold for 2nd level discount approval"),
 
+    // Expense Policies
+    EXPENSE_APPROVAL_THRESHOLD("expense.approval.threshold",
+            "Expense amount above which admin approval is required before it posts (0 = no approval needed)"),
+
     // TPA Policies
     TPA_PREAUTH_AUTO_APPROVE_AMOUNT("tpa.preauth.auto_approve_amount", "Auto-approve preauth below this amount"),
     TPA_DOCUMENT_REMINDER_DAYS("tpa.document.reminder_days", "Days to remind about overdue documents"),

@@ -9,6 +9,7 @@ class FeatureFlags extends ChangeNotifier {
   bool smsEnabled = false;
   bool whatsappEnabled = false;
   bool patientPortalEnabled = false;
+  double expenseApprovalThreshold = 0; // 0 = approval disabled
   bool loaded = false;
 
   void _apply(Map<String, dynamic> m) {
@@ -16,6 +17,8 @@ class FeatureFlags extends ChangeNotifier {
     smsEnabled = m['smsEnabled'] == true;
     whatsappEnabled = m['whatsappEnabled'] == true;
     patientPortalEnabled = m['patientPortalEnabled'] == true;
+    expenseApprovalThreshold =
+        num.tryParse('${m['expenseApprovalThreshold'] ?? 0}')?.toDouble() ?? 0;
     loaded = true;
     notifyListeners();
   }
@@ -36,7 +39,8 @@ class FeatureFlags extends ChangeNotifier {
 
   /// Admin update. Returns true on success.
   Future<bool> update(ApiClient api, {bool? pharmacyEnabled, bool? smsEnabled,
-      bool? whatsappEnabled, bool? patientPortalEnabled}) async {
+      bool? whatsappEnabled, bool? patientPortalEnabled,
+      double? expenseApprovalThreshold}) async {
     try {
       final m = await api.put<Map<String, dynamic>>(
         '/api/v1/settings/features',
@@ -45,6 +49,8 @@ class FeatureFlags extends ChangeNotifier {
           if (smsEnabled != null) 'smsEnabled': smsEnabled,
           if (whatsappEnabled != null) 'whatsappEnabled': whatsappEnabled,
           if (patientPortalEnabled != null) 'patientPortalEnabled': patientPortalEnabled,
+          if (expenseApprovalThreshold != null)
+            'expenseApprovalThreshold': expenseApprovalThreshold,
         },
         fromJson: (j) => j as Map<String, dynamic>,
       );
@@ -60,6 +66,7 @@ class FeatureFlags extends ChangeNotifier {
     smsEnabled = false;
     whatsappEnabled = false;
     patientPortalEnabled = false;
+    expenseApprovalThreshold = 0;
     loaded = false;
     notifyListeners();
   }

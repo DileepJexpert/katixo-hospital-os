@@ -21,7 +21,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _info;
   String? _error;
 
-  Future<void> _set({bool? pharmacy, bool? sms, bool? whatsapp, bool? portal}) async {
+  final _thresholdCtrl = TextEditingController();
+  bool _thresholdInit = false;
+
+  @override
+  void dispose() {
+    _thresholdCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _set({bool? pharmacy, bool? sms, bool? whatsapp, bool? portal,
+      double? expenseApprovalThreshold}) async {
     setState(() {
       _saving = true;
       _info = null;
@@ -31,7 +41,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final api = context.read<ApiClient>();
     final ok = await flags.update(api,
         pharmacyEnabled: pharmacy, smsEnabled: sms,
-        whatsappEnabled: whatsapp, patientPortalEnabled: portal);
+        whatsappEnabled: whatsapp, patientPortalEnabled: portal,
+        expenseApprovalThreshold: expenseApprovalThreshold);
     if (mounted) {
       setState(() {
         _saving = false;
@@ -44,10 +55,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _saveThreshold() {
+    final v = double.tryParse(_thresholdCtrl.text.trim());
+    if (v == null || v < 0) {
+      setState(() => _error = 'Enter a valid amount (0 disables approval)');
+      return;
+    }
+    _set(expenseApprovalThreshold: v);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final flags = context.watch<FeatureFlags>();
+    if (!_thresholdInit && flags.loaded) {
+      _thresholdCtrl.text = flags.expenseApprovalThreshold == 0
+          ? ''
+          : flags.expenseApprovalThreshold.toStringAsFixed(0);
+      _thresholdInit = true;
+    }
     return PageContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,6 +125,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Patient portal'),
                   value: flags.patientPortalEnabled,
                   onChanged: _saving ? null : (v) => _set(portal: v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: Space.md),
+          SectionCard(
+            title: 'Expense approval',
+            icon: Icons.rule_outlined,
+            subtitle: 'Expenses above this amount need admin approval before they '
+                'post to the books. Leave blank or 0 to disable approval.',
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _thresholdCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Approval threshold (₹)',
+                      hintText: '0 = no approval needed',
+                    ),
+                    onSubmitted: (_) => _saveThreshold(),
+                  ),
+                ),
+                const SizedBox(width: Space.md),
+                FilledButton(
+                  onPressed: _saving ? null : _saveThreshold,
+                  child: const Text('Save'),
                 ),
               ],
             ),

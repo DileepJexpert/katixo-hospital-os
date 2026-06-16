@@ -163,7 +163,14 @@ design tokens, provider + setState, raw-map API calls).
 - **Lab viewer access** limited to AdminHome; DOCTOR/LAB_TECH have no dedicated home
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
-- **Expense approval thresholds** (policy-driven spend limits) not built.
+- ~~**Expense approval thresholds** (policy-driven spend limits)~~ **DONE
+  (2026-06-16):** policy `expense.approval.threshold` (0 = disabled). Expenses
+  above it are recorded PENDING and held **un-posted** until an admin approves
+  (posts DR category / CR money) or rejects (never posts). `pay`/`reverse`
+  guarded against un-posted expenses. Endpoints `POST /api/v1/expenses/{id}/
+  approve|reject` (ADMIN). Threshold configurable via `/api/v1/settings/features`
+  (`expenseApprovalThreshold`). Flutter: status chip + admin Approve/Reject in
+  the expense list, threshold field in Settings.
 - **Vendor master** — expenses use free-text payee, no recurring-supplier entity.
 - **TPA, consent, certificates, NABH, dashboards, notifications, WebSocket queue
   boards, Elasticsearch search** — per `CLAUDE.md` package map; status varies, not
@@ -180,7 +187,9 @@ design tokens, provider + setState, raw-map API calls).
    expense voucher, payslip and lab report all open the real PDF in a new tab.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
    result entry, approve) + router role for LAB_TECH; expose report viewer to DOCTOR.
-4. **Expense approval workflow** via policy engine (spend thresholds → approval).
+4. ~~**Expense approval workflow** via policy engine (spend thresholds → approval).~~
+   **DONE (2026-06-16)** — see §4. Threshold policy gates large expenses to a
+   PENDING/approve/reject flow; nothing posts to the books until approved.
 5. **Surface remaining backend in Flutter** — IPD/nursing/discharge/TPA screens,
    owner dashboard (read model), notifications.
 6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.

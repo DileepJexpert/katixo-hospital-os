@@ -266,6 +266,12 @@ katixo-hospital-service/
 - **AP loop:** `POST /api/v1/expenses/{id}/pay` settles a CREDIT expense — DR Trade Payables (2010) /
   CR Cash|Bank, marks it paid. Only CREDIT-mode, unpaid, non-reversed expenses can be paid. Reverse
   undoes BOTH the payment journal and the original expense journal.
+- **Approval gate (2026-06-16):** policy `expense.approval.threshold` (0 = disabled). On record, an amount
+  **above** the threshold is saved `approvalStatus=PENDING` and **NOT posted** to the ledger; an admin
+  `POST /api/v1/expenses/{id}/approve` posts the journal (DR category / CR money, settles CASH/BANK) or
+  `…/reject` (never posts, records reason). `pay`/`reverse` reject un-posted (PENDING/REJECTED) expenses
+  (`EXPENSE_NOT_APPROVED`/`EXPENSE_NOT_POSTED`). Threshold get/set via `/api/v1/settings/features`
+  (`expenseApprovalThreshold`). At/below threshold (or 0) behaves exactly as before — posts on record.
 - **No GST input credit:** hospital expenses are booked **gross (inclusive of GST)** — under GST law ITC
   is not available against GST-exempt healthcare supplies, so expenses carry no input-credit split.
 - **Printable voucher:** `GET /api/v1/expenses/{id}/voucher.pdf` (A4 via openhtmltopdf, `ExpenseVoucherPdfService`).

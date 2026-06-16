@@ -37,6 +37,9 @@ public class SettingsController {
                 policyService.getPolicyAsBoolean(HospitalPolicyCode.ENABLE_WHATSAPP_NOTIFICATION, false));
         v.put("patientPortalEnabled",
                 policyService.getPolicyAsBoolean(HospitalPolicyCode.ENABLE_PATIENT_PORTAL, false));
+        v.put("expenseApprovalThreshold",
+                policyService.getPolicyAsBigDecimal(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD,
+                        java.math.BigDecimal.ZERO));
         return respond(v, "Feature flags");
     }
 
@@ -48,6 +51,7 @@ public class SettingsController {
         private Boolean smsEnabled;
         private Boolean whatsappEnabled;
         private Boolean patientPortalEnabled;
+        private java.math.BigDecimal expenseApprovalThreshold;
     }
 
     @PutMapping("/features")
@@ -64,6 +68,10 @@ public class SettingsController {
         }
         if (req.getPatientPortalEnabled() != null) {
             policyService.setPolicy(HospitalPolicyCode.ENABLE_PATIENT_PORTAL, req.getPatientPortalEnabled().toString());
+        }
+        if (req.getExpenseApprovalThreshold() != null) {
+            policyService.setPolicy(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD,
+                    req.getExpenseApprovalThreshold().toPlainString());
         }
         return features();
     }
