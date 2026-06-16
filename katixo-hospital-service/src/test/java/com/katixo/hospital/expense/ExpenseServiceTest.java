@@ -39,12 +39,13 @@ class ExpenseServiceTest {
     @Mock JournalService journalService;
     @Mock AuditService auditService;
     @Mock PolicyService policyService;
+    @Mock com.katixo.hospital.vendor.VendorRepository vendorRepository;
 
     private ExpenseService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseService(expenseRepository, journalService, auditService, policyService);
+        service = new ExpenseService(expenseRepository, journalService, auditService, policyService, vendorRepository);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "billing"));
         // Approval disabled by default (threshold 0); approval tests override this.
         lenient().when(policyService.getPolicyAsBigDecimal(
