@@ -59,6 +59,23 @@ the working backlog for the UI-completeness program.
       `PrescriptionService` supports all of these; only "create" is wired in
       the doctor consultation panel.
 
+### Extracted from parallel branch `claude/laughing-thompson-si53wy` (DONE — 2026-06-16)
+That branch (off old main, pre-PR#10) had 4 commits; 2 duplicated already-merged
+work (expense approval, PDF wiring — with incompatible column names + a V2
+policy-id collision + edits to the deleted `lab_report_screen.dart`), so those
+were dropped. The 2 genuinely-new features were re-applied cleanly on current
+main:
+- [x] **Vendor / supplier master** — `vendor/` backend (entity/service/
+      controller/repo/test, `vendor` table + `vendor_seq`) + Flutter
+      `features/vendor/vendors_screen.dart` (list, create/edit, activate/
+      deactivate). Expenses now carry an optional `vendor_id` link (payee
+      defaults from the vendor); selectable on the expense record form. Mounted
+      in Billing/Admin/SuperAdmin homes.
+- [x] **Financial reports** — `report/FinancialReportService` + controller +
+      test (trial balance, P&L, balance sheet from the ledger) + Flutter
+      `features/report/financial_reports_screen.dart` (3 tabs, date pickers).
+      `/api/v1/reports/{trial-balance,profit-and-loss,balance-sheet}`.
+
 ### 4. Platform & operations (P1)
 - [ ] **Tenant provisioning UI** — `TenantAdminController` exposes create /
       suspend / activate / update-ERP-config. No PLATFORM_ADMIN screen yet.
