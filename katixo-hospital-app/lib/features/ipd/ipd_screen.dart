@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/realtime/board_socket.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/empty_state.dart';
@@ -36,14 +37,30 @@ class _IpdScreenState extends State<IpdScreen> {
   String? _error;
   String? _info;
   String _role = '';
+  BoardSocket? _socket;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _role = context.read<AuthState>().currentUser?.role ?? '';
       _loadAll();
+      // Real-time bed-board nudge (admit / transfer / discharge).
+      _socket = BoardSocket(
+        baseUrl: context.read<ApiClient>().baseUrl,
+        token: context.read<AuthState>().token ?? '',
+        onTopic: (t) {
+          if (t == 'beds' && mounted) _loadAll();
+        },
+      )..connect();
     });
+  }
+
+  @override
+  void dispose() {
+    _socket?.dispose();
+    super.dispose();
   }
 
   bool get _isAdmin => _role == 'ADMIN';

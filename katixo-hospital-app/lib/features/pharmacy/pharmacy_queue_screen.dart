@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
+import '../../core/auth/auth_state.dart';
+import '../../core/realtime/board_socket.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/status_chip.dart';
@@ -22,17 +24,27 @@ class _PharmacyQueueScreenState extends State<PharmacyQueueScreen> {
   bool _loading = false;
   String? _error;
   Timer? _refreshTimer;
+  BoardSocket? _socket;
 
   @override
   void initState() {
     super.initState();
     _loadQueue();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadQueue());
+    // Real-time nudge on pharmacy changes; the timer is a safety net.
+    _socket = BoardSocket(
+      baseUrl: context.read<ApiClient>().baseUrl,
+      token: context.read<AuthState>().token ?? '',
+      onTopic: (t) {
+        if (t == 'pharmacy' && mounted) _loadQueue();
+      },
+    )..connect();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadQueue());
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _socket?.dispose();
     super.dispose();
   }
 

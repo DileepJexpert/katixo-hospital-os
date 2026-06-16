@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/api/opd_models.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/realtime/board_socket.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/status_chip.dart';
@@ -27,6 +28,7 @@ class _DoctorWorklistScreenState extends State<DoctorWorklistScreen> {
   String? _error;
   String? _info;
   Timer? _refreshTimer;
+  BoardSocket? _socket;
 
   /// Visit currently being consulted (start → complete flow).
   VisitResponse? _activeVisit;
@@ -39,14 +41,22 @@ class _DoctorWorklistScreenState extends State<DoctorWorklistScreen> {
   void initState() {
     super.initState();
     _loadWorklist();
-    // Poll until WebSocket queue board lands.
+    // Real-time queue nudge; the timer is a safety net.
+    _socket = BoardSocket(
+      baseUrl: context.read<ApiClient>().baseUrl,
+      token: context.read<AuthState>().token ?? '',
+      onTopic: (t) {
+        if (t == 'queue' && mounted) _loadWorklist();
+      },
+    )..connect();
     _refreshTimer =
-        Timer.periodic(const Duration(seconds: 10), (_) => _loadWorklist());
+        Timer.periodic(const Duration(seconds: 30), (_) => _loadWorklist());
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _socket?.dispose();
     _diagnosisCtrl.dispose();
     _adviceCtrl.dispose();
     super.dispose();

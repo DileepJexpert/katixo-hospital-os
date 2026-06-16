@@ -41,6 +41,7 @@ public class OPDService {
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
     private final NotificationService notificationService;
+    private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
 
     private static final List<QueueToken.QueueStatus> OPEN_QUEUE_STATUSES =
             List.of(QueueToken.QueueStatus.WAITING, QueueToken.QueueStatus.CALLED, QueueToken.QueueStatus.IN_PROGRESS);
@@ -85,6 +86,7 @@ public class OPDService {
                 token.getTokenNumber(), doctorId);
 
         notifyWalkIn(patient, saved, token);
+        boardBroadcaster.queueChanged();
         return saved;
     }
 
@@ -195,6 +197,7 @@ public class OPDService {
         outboxEventService.publish("OPDVisit", String.valueOf(savedVisit.getId()), "OPDVisitCreated", savedVisit);
         auditService.audit("Appointment", String.valueOf(appointment.getId()), AuditLog.AuditAction.UPDATE,
                 null, appointment, UUID.randomUUID().toString());
+        boardBroadcaster.queueChanged();
         return savedVisit;
     }
 
@@ -221,7 +224,9 @@ public class OPDService {
         token.setQueueStatus(QueueToken.QueueStatus.CALLED);
         token.setCalledAt(LocalDateTime.now());
         token.setUpdatedBy(Long.parseLong(context.getUserId()));
-        return tokenRepository.save(token);
+        QueueToken called = tokenRepository.save(token);
+        boardBroadcaster.queueChanged();
+        return called;
     }
 
     /**
@@ -247,7 +252,9 @@ public class OPDService {
             tokenRepository.save(token);
         });
 
-        return visitRepository.save(visit);
+        OPDVisit started = visitRepository.save(visit);
+        boardBroadcaster.queueChanged();
+        return started;
     }
 
     /**
@@ -285,6 +292,7 @@ public class OPDService {
         outboxEventService.publish("OPDVisit", String.valueOf(saved.getId()), "OPDVisitCompleted", saved);
         auditService.audit("OPDVisit", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, saved, UUID.randomUUID().toString());
+        boardBroadcaster.queueChanged();
         return saved;
     }
 

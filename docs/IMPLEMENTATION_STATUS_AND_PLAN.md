@@ -196,7 +196,15 @@ design tokens, provider + setState, raw-map API calls).
    settings, per-(type,channel) templates, manual send, delivery log; mounted in
    Admin + SuperAdmin homes)**. _Discharge has no standalone backend yet (only
    IPD's bed-freeing discharge) — building that module is future work._
-6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.
+6. ~~**Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.~~
+   **DONE (2026-06-16):** raw-text WebSocket at `/ws/board` (JWT in the handshake
+   query param, tenant:branch-isolated sessions). `BoardBroadcaster` pushes a
+   topic nudge after commit when OPD queue / IPD beds / pharmacy queue change;
+   the Flutter `BoardSocket` re-fetches on the matching topic, with a 30s safety
+   poll + auto-reconnect so polling still covers a dropped socket. Wired into the
+   doctor worklist, pharmacy dispense queue, and IPD bed board.
+   _Runtime smoke test (browser + live backend) still recommended — the WS path
+   can't be exercised in the headless Claude env._
 7. **i18n** Hindi pass for patient-facing outputs.
 
 ## 6. Future roadmap (longer-term, planned — not yet built)

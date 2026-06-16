@@ -309,11 +309,10 @@ katixo-hospital-service/
 - Design/roadmap: `docs/NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`. **Built fresh here — never call katasticho.**
 
 ## WebSocket / Real-time
-- OPD queue board: WebSocket, sub-2-second refresh
-- Bed availability board: WebSocket, sub-2-second refresh  
-- Pharmacy prescription queue: WebSocket, sub-2-second refresh
+- **IMPLEMENTED (2026-06-16) — `realtime/` package:** raw-text WebSocket at `/ws/board`. Handshake is JWT-authenticated via `?token=` query param (browsers can't set Authorization on a WS upgrade); `BoardHandshakeInterceptor` validates via `JwtTokenProvider` and stamps the session with its `tenantId:branchId` key. `BoardWebSocketHandler` keeps sessions per key and pushes one-line topic nudges (`{"topic":"queue|beds|pharmacy"}`) — broadcasts are tenant-isolated. `BoardBroadcaster` (called by OPDService/IPDService/PharmacyQueueService at mutation points) fires the nudge **after transaction commit** (so clients never re-fetch stale data) and is fail-soft. SecurityConfig permits `/ws/**`. Flutter `core/realtime/board_socket.dart` (`BoardSocket`, uses `web_socket_channel`) connects with the JWT, re-fetches the REST data on the matching topic, auto-reconnects (5s), and is **additive** — board screens keep a 30s safety poll so a dropped socket degrades to polling, never breaks. Wired into doctor worklist (`queue`), pharmacy dispense queue (`pharmacy`), IPD bed board (`beds`).
 - Owner analytics dashboard: polling every 30 seconds OR SSE from read model
 - Dashboard data comes from read model (materialized views), NEVER from transactional tables
+- _Client pattern: nudge-then-refetch (the WS payload is just a topic; the screen re-uses its existing REST load). Don't serialise full board state over the socket._
 
 ## File Storage
 - Lab reports, radiology images, consent scans, TPA documents, certificates → S3 object storage

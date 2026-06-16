@@ -28,6 +28,7 @@ public class PharmacyQueueService {
     private final PrescriptionRepository prescriptionRepository;
     private final AuditService auditService;
     private final com.katixo.hospital.inventory.PharmacySaleService pharmacySaleService;
+    private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
 
     public PrescriptionDispense sendToPharmaQueue(Long prescriptionId) {
         TenantContext tenantContext = TenantContext.get();
@@ -88,6 +89,7 @@ public class PharmacyQueueService {
         auditService.audit("PrescriptionDispense", String.valueOf(dispense.getId()),
                 AuditLog.AuditAction.CREATE, null, dispense, java.util.UUID.randomUUID().toString());
 
+        boardBroadcaster.pharmacyChanged();
         return dispense;
     }
 
@@ -132,6 +134,7 @@ public class PharmacyQueueService {
         auditService.audit("PharmacyQueueItem", String.valueOf(item.getId()),
                 AuditLog.AuditAction.UPDATE, null, item, java.util.UUID.randomUUID().toString());
 
+        boardBroadcaster.pharmacyChanged();
         return item;
     }
 
@@ -162,6 +165,7 @@ public class PharmacyQueueService {
         auditService.audit("PharmacyQueueItem", String.valueOf(item.getId()),
                 AuditLog.AuditAction.UPDATE, null, item, java.util.UUID.randomUUID().toString());
 
+        boardBroadcaster.pharmacyChanged();
         return item;
     }
 
@@ -195,6 +199,7 @@ public class PharmacyQueueService {
         auditService.audit("PharmacyQueueItem", String.valueOf(item.getId()),
                 AuditLog.AuditAction.UPDATE, null, item, java.util.UUID.randomUUID().toString());
 
+        boardBroadcaster.pharmacyChanged();
         return item;
     }
 
@@ -221,6 +226,7 @@ public class PharmacyQueueService {
         auditService.audit("PharmacyQueueItem", String.valueOf(item.getId()),
                 AuditLog.AuditAction.UPDATE, null, item, java.util.UUID.randomUUID().toString());
 
+        boardBroadcaster.pharmacyChanged();
         return item;
     }
 

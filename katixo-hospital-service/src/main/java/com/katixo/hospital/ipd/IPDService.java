@@ -41,6 +41,7 @@ public class IPDService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
 
     // ------------------------------------------------------------
     // Masters (ward / room / bed)
@@ -139,6 +140,7 @@ public class IPDService {
                 null, snapshot(saved), UUID.randomUUID().toString());
 
         log.info("Admission {} created: patient {} → bed {}", saved.getAdmissionNumber(), patientId, bedId);
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
@@ -176,6 +178,7 @@ public class IPDService {
 
         log.info("Admission {} transferred bed {} → {} (closed charge {})",
                 saved.getAdmissionNumber(), closed.getBedId(), newBedId, closed.getAllocationCharge());
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
@@ -226,6 +229,7 @@ public class IPDService {
 
         log.info("Admission {} discharged ({}) total bed charge {}",
                 saved.getAdmissionNumber(), dischargeType, saved.getTotalBedCharge());
+        boardBroadcaster.bedsChanged();
         return saved;
     }
 
