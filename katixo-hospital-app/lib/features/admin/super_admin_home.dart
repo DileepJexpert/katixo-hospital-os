@@ -6,6 +6,7 @@ import '../../core/config/feature_flags.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../billing/bills_screen.dart';
+import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../doctor/doctor_worklist_screen.dart';
 import '../expense/expense_screen.dart';
@@ -59,6 +60,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),
       (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];

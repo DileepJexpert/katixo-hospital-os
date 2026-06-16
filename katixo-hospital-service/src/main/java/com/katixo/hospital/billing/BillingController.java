@@ -265,6 +265,7 @@ public class BillingController {
         view.put("paymentMode", p.getPaymentMode().name());
         view.put("reference", p.getReference());
         view.put("journalNumber", p.getJournalNumber());
+        view.put("reversed", p.isReversed());
         view.put("createdAt", p.getCreatedAt() == null ? null : p.getCreatedAt().toString());
         return view;
     }
