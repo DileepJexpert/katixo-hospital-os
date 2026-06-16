@@ -44,6 +44,10 @@ public class Expense extends BaseEntity {
     @Column(length = 150)
     private String payeeName;
 
+    /** Optional link to the vendor master. Free-text {@link #payeeName} stays as a fallback when null. */
+    @Column
+    private Long vendorId;
+
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;
 

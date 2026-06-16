@@ -6,6 +6,8 @@ import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.tenant.TenantContext;
+import com.katixo.hospital.vendor.Vendor;
+import com.katixo.hospital.vendor.VendorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,9 +37,17 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final JournalService journalService;
     private final AuditService auditService;
+    private final VendorRepository vendorRepository;
 
+    /** Backward-compatible overload: record an expense with a free-text payee and no vendor link. */
     public Expense record(LocalDate date, Expense.ExpenseCategory category, String payeeName,
                           BigDecimal amount, Expense.PaymentMode paymentMode, String reference, String notes) {
+        return record(date, category, payeeName, amount, paymentMode, reference, notes, null);
+    }
+
+    public Expense record(LocalDate date, Expense.ExpenseCategory category, String payeeName,
+                          BigDecimal amount, Expense.PaymentMode paymentMode, String reference, String notes,
+                          Long vendorId) {
         if (amount == null || amount.signum() <= 0) {
             throw new BusinessException("INVALID_AMOUNT", "Expense amount must be positive");
         }
@@ -48,11 +58,17 @@ public class ExpenseService {
             throw new BusinessException("PAYMENT_MODE_REQUIRED", "Payment mode is required");
         }
 
+        // Optional vendor link — validate it belongs to this tenant/branch and default the payee from it.
+        Vendor vendor = vendorId == null ? null : requireVendor(vendorId);
+        String effectivePayee = (payeeName == null || payeeName.isBlank()) && vendor != null
+                ? vendor.getName() : payeeName;
+
         Expense expense = new Expense();
         expense.setExpenseNumber("EXP-" + expenseRepository.nextExpenseSequence());
         expense.setExpenseDate(date == null ? LocalDate.now() : date);
         expense.setCategory(category);
-        expense.setPayeeName(payeeName);
+        expense.setPayeeName(effectivePayee);
+        expense.setVendorId(vendor == null ? null : vendor.getId());
         expense.setAmount(amount);
         expense.setPaymentMode(paymentMode);
         expense.setReference(reference);
@@ -69,7 +85,7 @@ public class ExpenseService {
         };
         var entry = journalService.post(saved.getExpenseDate(),
                 category.name() + " expense " + saved.getExpenseNumber()
-                        + (payeeName == null ? "" : " (" + payeeName + ")"),
+                        + (effectivePayee == null ? "" : " (" + effectivePayee + ")"),
                 "EXPENSE", saved.getExpenseNumber(), List.of(
                         JournalService.Line.debit(category.accountCode(), amount, category.name()),
                         JournalService.Line.credit(creditAccount, amount, paymentMode.name())));
@@ -160,6 +176,12 @@ public class ExpenseService {
         var ctx = TenantContext.get();
         return expenseRepository.findByIdAndTenantIdAndBranchId(id, ctx.getTenantId(), branchId())
                 .orElseThrow(() -> new BusinessException("EXPENSE_NOT_FOUND", "Expense not found: " + id));
+    }
+
+    private Vendor requireVendor(Long vendorId) {
+        var ctx = TenantContext.get();
+        return vendorRepository.findByIdAndTenantIdAndBranchId(vendorId, ctx.getTenantId(), branchId())
+                .orElseThrow(() -> new BusinessException("VENDOR_NOT_FOUND", "Vendor not found: " + vendorId));
     }
 
     private void stamp(BaseEntity entity) {

@@ -35,12 +35,13 @@ class ExpenseServiceTest {
     @Mock ExpenseRepository expenseRepository;
     @Mock JournalService journalService;
     @Mock AuditService auditService;
+    @Mock com.katixo.hospital.vendor.VendorRepository vendorRepository;
 
     private ExpenseService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseService(expenseRepository, journalService, auditService);
+        service = new ExpenseService(expenseRepository, journalService, auditService, vendorRepository);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "billing"));
         lenient().when(expenseRepository.nextExpenseSequence()).thenReturn(100001L);
         lenient().when(expenseRepository.save(any())).thenAnswer(inv -> {

@@ -64,6 +64,9 @@ integration was removed). Katasticho and Katixo are now two separate products.
   MAINTENANCE 5230 / MISC 5290). CASH/BANK paid on record; CREDIT → Trade Payables.
 - **AP loop** (`pay`): settles credit expenses (DR Trade Payables / CR Cash|Bank).
 - Booked **gross of GST** (no ITC on exempt-supply inputs). **Voucher PDF**. Reversible.
+- **Vendor master** (`vendor/`): reusable supplier/payee records (GSTIN/PAN, contact, address,
+  bank details), never hard-deleted (deactivate). Expenses optionally link a `vendorId`
+  (`/api/v1/vendors`); free-text `payeeName` stays as a fallback, defaulted from the vendor name.
 
 ### TPA / Insurance claims (`tpa/`)
 - Payer master (insurer / TPA / govt scheme). Case lifecycle: **PREAUTH_REQUESTED →
@@ -154,7 +157,7 @@ design tokens, provider + setState, raw-map API calls).
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
 - **Expense approval thresholds** (policy-driven spend limits) not built.
-- **Vendor master** — expenses use free-text payee, no recurring-supplier entity.
+- ~~**Vendor master**~~ — **done** (`vendor/`); purchase/GRN bills feeding stock + AP still pending.
 - **TPA, consent, certificates, NABH, dashboards, notifications, WebSocket queue
   boards, Elasticsearch search** — per `CLAUDE.md` package map; status varies, not
   all surfaced in the Flutter app yet.

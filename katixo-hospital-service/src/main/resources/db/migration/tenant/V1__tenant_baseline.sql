@@ -3865,6 +3865,7 @@ CREATE TABLE expense (
     expense_date        DATE         NOT NULL,
     category            VARCHAR(30)  NOT NULL,
     payee_name          VARCHAR(150),
+    vendor_id           BIGINT,
     amount              NUMERIC(14,2) NOT NULL,
     payment_mode        VARCHAR(20)  NOT NULL,
     reference           VARCHAR(100),
@@ -3886,6 +3887,44 @@ CREATE TABLE expense (
 );
 CREATE INDEX idx_expense_tenant_branch ON expense(tenant_id, branch_id);
 CREATE INDEX idx_expense_date ON expense(tenant_id, expense_date);
+CREATE INDEX idx_expense_vendor ON expense(tenant_id, vendor_id);
+
+-- ============================================================
+-- VENDOR / SUPPLIER MASTER (reusable payee for expenses & purchases)
+-- ============================================================
+CREATE SEQUENCE vendor_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE vendor (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    vendor_code         VARCHAR(30)  NOT NULL,
+    name                VARCHAR(150) NOT NULL,
+    vendor_type         VARCHAR(30)  NOT NULL,   -- SUPPLIER / SERVICE_PROVIDER / LANDLORD / UTILITY / CONTRACTOR / GOVERNMENT / OTHER
+    gstin               VARCHAR(15),
+    pan                 VARCHAR(10),
+    contact_person      VARCHAR(150),
+    contact_phone       VARCHAR(20),
+    contact_email       VARCHAR(150),
+    address_line        VARCHAR(300),
+    city                VARCHAR(100),
+    state               VARCHAR(100),
+    pincode             VARCHAR(10),
+    bank_account_name   VARCHAR(150),
+    bank_account_number VARCHAR(30),
+    bank_ifsc           VARCHAR(15),
+    notes               VARCHAR(300),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_vendor_tenant_code UNIQUE (tenant_id, vendor_code)
+);
+CREATE INDEX idx_vendor_tenant_branch ON vendor(tenant_id, branch_id);
+CREATE INDEX idx_vendor_name ON vendor(tenant_id, name);
 
 -- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)

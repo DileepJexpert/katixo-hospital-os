@@ -41,13 +41,15 @@ public class ExpenseController {
         private Expense.PaymentMode paymentMode;
         private String reference;
         private String notes;
+        /** Optional vendor master link; payee is defaulted from the vendor when not supplied. */
+        private Long vendorId;
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> record(@Valid @RequestBody RecordExpenseRequest req) {
         Expense e = expenseService.record(req.getExpenseDate(), req.getCategory(), req.getPayeeName(),
-                req.getAmount(), req.getPaymentMode(), req.getReference(), req.getNotes());
+                req.getAmount(), req.getPaymentMode(), req.getReference(), req.getNotes(), req.getVendorId());
         return respond(view(e), "Expense recorded", HttpStatus.CREATED);
     }
 
@@ -109,6 +111,7 @@ public class ExpenseController {
         view.put("expenseDate", e.getExpenseDate().toString());
         view.put("category", e.getCategory().name());
         view.put("payeeName", e.getPayeeName());
+        view.put("vendorId", e.getVendorId());
         view.put("amount", e.getAmount());
         view.put("paymentMode", e.getPaymentMode().name());
         view.put("journalNumber", e.getJournalNumber());
