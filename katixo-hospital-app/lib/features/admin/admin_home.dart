@@ -6,10 +6,13 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../expense/expense_screen.dart';
+import '../inventory/item_master_screen.dart';
+import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../payroll/payroll_screen.dart';
+import '../tpa/tpa_screen.dart';
 
 /// Admin role home: back-office accounting — operating expenses and HR/payroll.
 class AdminHome extends StatefulWidget {
@@ -59,6 +62,21 @@ class _AdminHomeState extends State<AdminHome> {
           icon: Icons.assignment_outlined,
           selectedIcon: Icons.assignment,
         ),
+        ShellDestination(
+          label: 'Pharmacy',
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2,
+        ),
+        ShellDestination(
+          label: 'OTC Sale',
+          icon: Icons.point_of_sale_outlined,
+          selectedIcon: Icons.point_of_sale,
+        ),
+        ShellDestination(
+          label: 'TPA',
+          icon: Icons.health_and_safety_outlined,
+          selectedIcon: Icons.health_and_safety,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -85,7 +103,10 @@ class _AdminHomeState extends State<AdminHome> {
         2 => const PayrollScreen(),
         3 => const LabScreen(),
         4 => const IpdScreen(),
-        _ => const NursingScreen(),
+        5 => const NursingScreen(),
+        6 => const ItemMasterScreen(),
+        7 => const OtcSaleScreen(),
+        _ => const TpaScreen(),
       },
     );
   }
