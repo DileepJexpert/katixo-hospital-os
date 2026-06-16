@@ -12,6 +12,7 @@ import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
+import '../notification/notifications_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../settings/settings_screen.dart';
 import '../tpa/tpa_screen.dart';
@@ -45,6 +46,7 @@ class _AdminHomeState extends State<AdminHome> {
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'OTC Sale', icon: Icons.point_of_sale_outlined, selectedIcon: Icons.point_of_sale), body: const OtcSaleScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
     final index = _index.clamp(0, tabs.length - 1);

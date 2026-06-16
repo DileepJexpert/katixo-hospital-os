@@ -15,6 +15,7 @@ import '../inventory/item_master_screen.dart';
 import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
+import '../notification/notifications_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../patient/patients_screen.dart';
 import '../payroll/payroll_screen.dart';
@@ -58,6 +59,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),
       (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
     final index = _index.clamp(0, tabs.length - 1);

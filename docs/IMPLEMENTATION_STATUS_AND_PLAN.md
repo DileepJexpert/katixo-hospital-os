@@ -190,8 +190,12 @@ design tokens, provider + setState, raw-map API calls).
 4. ~~**Expense approval workflow** via policy engine (spend thresholds → approval).~~
    **DONE (2026-06-16)** — see §4. Threshold policy gates large expenses to a
    PENDING/approve/reject flow; nothing posts to the books until approved.
-5. **Surface remaining backend in Flutter** — IPD/nursing/discharge/TPA screens,
-   owner dashboard (read model), notifications.
+5. **Surface remaining backend in Flutter** — IPD/nursing/TPA screens, owner
+   dashboard (read model) and ~~notifications~~ **(notifications DONE 2026-06-16:
+   `features/notification/notifications_screen.dart` — SMS/WhatsApp provider
+   settings, per-(type,channel) templates, manual send, delivery log; mounted in
+   Admin + SuperAdmin homes)**. _Discharge has no standalone backend yet (only
+   IPD's bed-freeing discharge) — building that module is future work._
 6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.
 7. **i18n** Hindi pass for patient-facing outputs.
 
