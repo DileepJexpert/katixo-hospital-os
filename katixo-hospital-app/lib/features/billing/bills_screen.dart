@@ -116,7 +116,7 @@ class _BillsScreenState extends State<BillsScreen> {
               ),
               const SizedBox(height: Space.md),
               DropdownButtonFormField<String>(
-                initialValue: mode,
+                value: mode,
                 decoration: const InputDecoration(labelText: 'Payment mode *'),
                 items: const [
                   DropdownMenuItem(value: 'CASH', child: Text('Cash')),
@@ -285,7 +285,7 @@ class _BillsScreenState extends State<BillsScreen> {
                   SizedBox(
                     width: 180,
                     child: DropdownButtonFormField<String>(
-                      initialValue: _sourceType,
+                      value: _sourceType,
                       decoration: const InputDecoration(labelText: 'Source'),
                       items: const [
                         DropdownMenuItem(value: 'OPD_VISIT', child: Text('OPD Visit')),

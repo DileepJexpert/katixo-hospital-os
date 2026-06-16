@@ -398,7 +398,7 @@ class _NursingScreenState extends State<NursingScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
-                        initialValue: code,
+                        value: code,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Medicine / item *'),
                         items: [
@@ -413,7 +413,7 @@ class _NursingScreenState extends State<NursingScreen> {
                           decoration: const InputDecoration(labelText: 'Quantity *')),
                       const SizedBox(height: Space.sm),
                       DropdownButtonFormField<String>(
-                        initialValue: category,
+                        value: category,
                         decoration: const InputDecoration(labelText: 'Category'),
                         items: const [
                           DropdownMenuItem(value: 'MEDICINE', child: Text('Medicine')),
@@ -454,7 +454,7 @@ class _NursingScreenState extends State<NursingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<String>(
-                      initialValue: admissionId,
+                      value: admissionId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Inpatient (admission) *'),
                       items: [

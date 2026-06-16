@@ -610,7 +610,7 @@ class _IpdScreenState extends State<IpdScreen> {
                       }),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    initialValue: bedId,
+                    value: bedId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Bed *'),
                     items: [
@@ -696,7 +696,7 @@ class _IpdScreenState extends State<IpdScreen> {
         builder: (context, setD) => AlertDialog(
           title: const Text('Transfer bed'),
           content: DropdownButtonFormField<String>(
-            initialValue: bedId,
+            value: bedId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'New bed *'),
             items: [
@@ -730,7 +730,7 @@ class _IpdScreenState extends State<IpdScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: type,
+                value: type,
                 decoration: const InputDecoration(labelText: 'Discharge type *'),
                 items: const [
                   DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
@@ -776,7 +776,7 @@ class _IpdScreenState extends State<IpdScreen> {
               TextField(controller: name, decoration: const InputDecoration(labelText: 'Ward name *')),
               const SizedBox(height: Space.sm),
               DropdownButtonFormField<String>(
-                initialValue: type,
+                value: type,
                 decoration: const InputDecoration(labelText: 'Ward type'),
                 items: const [
                   DropdownMenuItem(value: 'GENERAL', child: Text('General')),
@@ -812,7 +812,7 @@ class _IpdScreenState extends State<IpdScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: wardId,
+                value: wardId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Ward *'),
                 items: [
@@ -851,7 +851,7 @@ class _IpdScreenState extends State<IpdScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: roomId,
+                value: roomId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Room *'),
                 items: [
@@ -864,7 +864,7 @@ class _IpdScreenState extends State<IpdScreen> {
               TextField(controller: bedNumber, decoration: const InputDecoration(labelText: 'Bed number *')),
               const SizedBox(height: Space.sm),
               DropdownButtonFormField<String>(
-                initialValue: model,
+                value: model,
                 decoration: const InputDecoration(labelText: 'Charge model'),
                 items: const [
                   DropdownMenuItem(value: 'DAILY', child: Text('Daily')),
