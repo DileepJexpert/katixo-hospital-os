@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
+import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/util/pdf_actions.dart';
@@ -272,6 +273,241 @@ class _BillsScreenState extends State<BillsScreen> {
     );
   }
 
+  /// Admin approves the cashier's discount request — the threshold gate fires
+  /// when `discountStatus == PENDING_APPROVAL`; the cashier sees that chip and
+  /// the admin sees the Approve button.
+  Future<void> _approveDiscount() async {
+    final billId = _billId;
+    if (billId == null) return;
+    await _postAction('/api/v1/billing/bills/$billId/discount/approve',
+        const <String, dynamic>{}, 'Discount approved');
+  }
+
+  /// Manually link a pharmacy sale to this bill (used when auto-attach missed
+  /// one — e.g. a sale recorded after the bill was generated). Pharmacist /
+  /// billing / admin can do this.
+  Future<void> _pharmacyRefDialog() async {
+    final billId = _billId;
+    if (billId == null) return;
+    final saleNumberCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    String docType = 'INVOICE';
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Link pharmacy sale'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: saleNumberCtrl,
+                decoration: const InputDecoration(labelText: 'Sale number *'),
+              ),
+              const SizedBox(height: Space.sm),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Amount (₹) *'),
+              ),
+              const SizedBox(height: Space.sm),
+              DropdownButtonFormField<String>(
+                value: docType,
+                decoration: const InputDecoration(labelText: 'Doc type'),
+                items: const [
+                  DropdownMenuItem(value: 'INVOICE', child: Text('Invoice')),
+                  DropdownMenuItem(value: 'OTC', child: Text('OTC')),
+                  DropdownMenuItem(value: 'IPD_INDENT', child: Text('IPD indent')),
+                ],
+                onChanged: (v) => docType = v ?? 'INVOICE',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Link')),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    final amount = double.tryParse(amountCtrl.text.trim());
+    if (saleNumberCtrl.text.trim().isEmpty || amount == null || amount <= 0) {
+      setState(() => _error = 'Sale number and a positive amount are required');
+      return;
+    }
+    await _postAction('/api/v1/billing/bills/$billId/pharmacy-refs', {
+      'saleNumber': saleNumberCtrl.text.trim(),
+      'amount': amount,
+      'docType': docType,
+    }, 'Pharmacy sale linked');
+  }
+
+  /// Add a manual hospital charge to a DRAFT bill (the auto-charge path covers
+  /// the typical OPD/IPD lines; manual is for one-offs or corrections).
+  Future<void> _addChargeDialog() async {
+    final billId = _billId;
+    final bill = _consolidated?['bill'] as Map<String, dynamic>?;
+    if (billId == null || bill == null) return;
+    final sourceType = '${bill['sourceType']}';
+    final sourceId = bill['sourceId'] as int?;
+    final patientId = bill['patientId'] as int?;
+    if (sourceId == null || patientId == null) return;
+
+    final codeCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController(text: '1');
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add charge'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('On $sourceType #$sourceId',
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: Space.sm),
+              TextField(
+                controller: codeCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Service code *',
+                  hintText: 'e.g. CONSULT_DOC, NURSE_VISIT',
+                ),
+              ),
+              const SizedBox(height: Space.sm),
+              TextField(
+                controller: qtyCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Quantity'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    final code = codeCtrl.text.trim();
+    final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
+    if (code.isEmpty) {
+      setState(() => _error = 'Service code is required');
+      return;
+    }
+    // The charge endpoint adds an UNBILLED charge to the patient. To see it on
+    // this bill we regenerate the consolidated view after adding.
+    await _postAction('/api/v1/billing/charges', {
+      'patientId': patientId,
+      'sourceType': sourceType,
+      'sourceId': sourceId,
+      'serviceCode': code,
+      'quantity': qty,
+    }, 'Charge added');
+  }
+
+  /// Cancel a bill — reverses its AR/income journal. Backend rejects this if
+  /// payments are still posted, so the UI surfaces that error.
+  Future<void> _cancelBillDialog() async {
+    final billId = _billId;
+    if (billId == null) return;
+    final reasonCtrl = TextEditingController();
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel bill'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Back')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancel bill'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    await _postAction('/api/v1/billing/bills/$billId/cancel',
+        {'reason': reasonCtrl.text.trim()}, 'Bill cancelled');
+  }
+
+  /// Void a posted payment — reverses its ledger journal and restores the
+  /// bill's balance. Required before a bill can be cancelled.
+  Future<void> _voidPaymentDialog(Map<String, dynamic> payment) async {
+    final paymentId = payment['id'];
+    if (paymentId == null) return;
+    final reasonCtrl = TextEditingController();
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Void payment of ₹${payment['amount']}'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(labelText: 'Reason'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Back')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Void'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+    await _postAction('/api/v1/billing/payments/$paymentId/void',
+        {'reason': reasonCtrl.text.trim()}, 'Payment voided');
+  }
+
+  /// Small fan-out for the admin actions above — sets loading, posts, refreshes
+  /// the consolidated view, surfaces the server message.
+  Future<void> _postAction(
+      String path, Object body, String successMessage) async {
+    final billId = _billId;
+    if (billId == null) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _info = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.post<dynamic>(path, body, fromJson: (json) => json);
+      setState(() => _info = successMessage);
+      await _loadConsolidated(billId);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } catch (e) {
+      setState(() => _error = 'Action failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -332,11 +568,17 @@ class _BillsScreenState extends State<BillsScreen> {
               consolidated: _consolidated!,
               payments: _payments,
               loading: _loading,
+              role: context.watch<AuthState>().currentUser?.role ?? '',
               onDiscount: _discountDialog,
+              onApproveDiscount: _approveDiscount,
               onFinalize: _finalize,
               onReceipt: _showReceipt,
               onReceiptPdf: _openReceiptPdf,
               onPayment: _paymentDialog,
+              onAddCharge: _addChargeDialog,
+              onLinkPharmacy: _pharmacyRefDialog,
+              onCancelBill: _cancelBillDialog,
+              onVoidPayment: _voidPaymentDialog,
             ),
           ],
         ],
@@ -350,21 +592,39 @@ class _ConsolidatedBillCard extends StatelessWidget {
     required this.consolidated,
     required this.payments,
     required this.loading,
+    required this.role,
     required this.onDiscount,
+    required this.onApproveDiscount,
     required this.onFinalize,
     required this.onReceipt,
     required this.onReceiptPdf,
     required this.onPayment,
+    required this.onAddCharge,
+    required this.onLinkPharmacy,
+    required this.onCancelBill,
+    required this.onVoidPayment,
   });
 
   final Map<String, dynamic> consolidated;
   final List<Map<String, dynamic>> payments;
   final bool loading;
+  final String role;
   final VoidCallback onDiscount;
+  final VoidCallback onApproveDiscount;
   final VoidCallback onFinalize;
   final VoidCallback onReceipt;
   final VoidCallback onReceiptPdf;
   final VoidCallback onPayment;
+  final VoidCallback onAddCharge;
+  final VoidCallback onLinkPharmacy;
+  final VoidCallback onCancelBill;
+  final void Function(Map<String, dynamic> payment) onVoidPayment;
+
+  bool get _isAdmin => role == 'ADMIN' || role == 'SUPER_ADMIN';
+  bool get _isBilling =>
+      role == 'BILLING' || role == 'ADMIN' || role == 'SUPER_ADMIN';
+  bool get _canLinkPharmacy =>
+      role == 'PHARMACIST' || _isBilling;
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +634,8 @@ class _ConsolidatedBillCard extends StatelessWidget {
     final billStatus = bill['billStatus'] as String;
     final isDraft = billStatus == 'DRAFT';
     final isFinal = billStatus == 'FINAL';
+    final isCancelled = billStatus == 'CANCELLED';
+    final discountPending = '${bill['discountStatus']}' == 'PENDING_APPROVAL';
     final balanceDue = num.tryParse('${bill['balanceDue'] ?? bill['netAmount']}') ?? 0;
     final journalNumber = bill['journalNumber'] as String?;
 
@@ -383,39 +645,67 @@ class _ConsolidatedBillCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: Space.sm,
+              runSpacing: Space.sm,
               children: [
                 Text('${bill['billNumber']}', style: theme.textTheme.titleMedium),
-                const SizedBox(width: Space.sm),
                 StatusChip.auto(billStatus),
-                const SizedBox(width: Space.sm),
                 StatusChip.auto('${bill['discountStatus']}'),
-                const Spacer(),
                 if (isDraft) ...[
-                  OutlinedButton(onPressed: loading ? null : onDiscount, child: const Text('Discount')),
-                  const SizedBox(width: Space.sm),
-                  FilledButton(onPressed: loading ? null : onFinalize, child: const Text('Finalize')),
+                  if (_isBilling)
+                    OutlinedButton(
+                      onPressed: loading ? null : onAddCharge,
+                      child: const Text('Add charge'),
+                    ),
+                  if (_canLinkPharmacy)
+                    OutlinedButton(
+                      onPressed: loading ? null : onLinkPharmacy,
+                      child: const Text('Link pharmacy'),
+                    ),
+                  OutlinedButton(
+                      onPressed: loading ? null : onDiscount,
+                      child: const Text('Discount')),
+                  if (discountPending && _isAdmin)
+                    FilledButton.icon(
+                      onPressed: loading ? null : onApproveDiscount,
+                      icon: const Icon(Icons.verified_outlined, size: 18),
+                      label: const Text('Approve discount'),
+                    ),
+                  FilledButton(
+                      onPressed: loading ? null : onFinalize,
+                      child: const Text('Finalize')),
                 ] else ...[
-                  if (isFinal && balanceDue > 0) ...[
+                  if (isFinal && balanceDue > 0)
                     FilledButton.icon(
                       onPressed: loading ? null : onPayment,
                       icon: const Icon(Icons.payments_outlined, size: 18),
                       label: const Text('Record Payment'),
                     ),
-                    const SizedBox(width: Space.sm),
-                  ],
                   OutlinedButton.icon(
                     onPressed: onReceipt,
                     icon: const Icon(Icons.visibility_outlined, size: 18),
                     label: const Text('Receipt'),
                   ),
-                  const SizedBox(width: Space.sm),
                   FilledButton.icon(
                     onPressed: onReceiptPdf,
                     icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                     label: const Text('PDF'),
                   ),
                 ],
+                if (!isCancelled && _isBilling)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'More',
+                    onSelected: (v) {
+                      if (v == 'cancel') onCancelBill();
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                          value: 'cancel', child: Text('Cancel bill…')),
+                    ],
+                  ),
               ],
             ),
             if (isFinal && journalNumber != null) ...[
@@ -470,24 +760,38 @@ class _ConsolidatedBillCard extends StatelessWidget {
               const SizedBox(height: Space.md),
               Text('Payments', style: theme.textTheme.titleSmall),
               const SizedBox(height: Space.xs),
-              for (final p in payments)
+              for (final p in payments) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: Space.xxs),
                   child: Row(
                     children: [
+                      if (p['reversed'] == true) ...[
+                        StatusChip.auto('VOIDED'),
+                        const SizedBox(width: Space.sm),
+                      ],
                       Text('₹${p['amount']} · ${p['paymentMode']}'
                           '${p['reference'] != null ? ' · ${p['reference']}' : ''}'),
                       if (p['journalNumber'] != null) ...[
                         const SizedBox(width: Space.sm),
                         Text('(${p['journalNumber']})',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
                       ],
                       const Spacer(),
-                      Text('${p['createdAt'] ?? ''}'.split('T').first, style: theme.textTheme.bodySmall),
+                      Text('${p['createdAt'] ?? ''}'.split('T').first,
+                          style: theme.textTheme.bodySmall),
+                      if (_isBilling && p['reversed'] != true) ...[
+                        const SizedBox(width: Space.sm),
+                        IconButton(
+                          tooltip: 'Void payment',
+                          icon: const Icon(Icons.undo, size: 18),
+                          onPressed: loading ? null : () => onVoidPayment(p),
+                        ),
+                      ],
                     ],
                   ),
                 ),
+              ],
             ],
           ],
         ),

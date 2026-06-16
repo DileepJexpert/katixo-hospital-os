@@ -7,6 +7,7 @@ import '../../core/widgets/app_shell.dart';
 import '../expense/expense_screen.dart';
 import '../tpa/tpa_screen.dart';
 import 'bills_screen.dart';
+import 'tariffs_screen.dart';
 
 /// Billing role home: bills, expenses and TPA/insurance.
 class BillingHome extends StatefulWidget {
@@ -22,26 +23,37 @@ class _BillingHomeState extends State<BillingHome> {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthState>();
+    final role = authState.currentUser?.role ?? '';
+    final isAdmin = role == 'ADMIN' || role == 'SUPER_ADMIN';
+
+    final destinations = <ShellDestination>[
+      const ShellDestination(
+        label: 'Bills',
+        icon: Icons.receipt_long_outlined,
+        selectedIcon: Icons.receipt_long,
+      ),
+      const ShellDestination(
+        label: 'Expenses',
+        icon: Icons.receipt_outlined,
+        selectedIcon: Icons.receipt,
+      ),
+      const ShellDestination(
+        label: 'TPA / Insurance',
+        icon: Icons.health_and_safety_outlined,
+        selectedIcon: Icons.health_and_safety,
+      ),
+      if (isAdmin)
+        const ShellDestination(
+          label: 'Tariffs',
+          icon: Icons.price_change_outlined,
+          selectedIcon: Icons.price_change,
+        ),
+    ];
+    final selected = _index.clamp(0, destinations.length - 1);
     return AppShell(
       title: 'Billing',
-      destinations: const [
-        ShellDestination(
-          label: 'Bills',
-          icon: Icons.receipt_long_outlined,
-          selectedIcon: Icons.receipt_long,
-        ),
-        ShellDestination(
-          label: 'Expenses',
-          icon: Icons.receipt_outlined,
-          selectedIcon: Icons.receipt,
-        ),
-        ShellDestination(
-          label: 'TPA / Insurance',
-          icon: Icons.health_and_safety_outlined,
-          selectedIcon: Icons.health_and_safety,
-        ),
-      ],
-      selectedIndex: _index,
+      destinations: destinations,
+      selectedIndex: selected,
       onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
@@ -58,9 +70,10 @@ class _BillingHomeState extends State<BillingHome> {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: switch (_index) {
+      body: switch (selected) {
         1 => const ExpenseScreen(),
         2 => const TpaScreen(),
+        3 => const TariffsScreen(),
         _ => const BillsScreen(),
       },
     );
