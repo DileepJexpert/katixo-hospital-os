@@ -9,16 +9,22 @@ import java.util.List;
 
 public class JwtAuthenticationToken implements Authentication {
 
+    /** SUPER_ADMIN is granted every role so it passes all @PreAuthorize checks (testing/superuser). */
+    private static final List<String> ALL_ROLES = List.of(
+            "SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "PHARMACIST", "LAB_TECH", "BILLING", "FRONT_DESK");
+
     private final JwtClaims claims;
     private final List<SimpleGrantedAuthority> authorities;
     private boolean authenticated = true;
 
     public JwtAuthenticationToken(JwtClaims claims) {
         this.claims = claims;
-        this.authorities = claims.getRoles() == null ? List.of()
-                : claims.getRoles().stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                        .toList();
+        List<String> roles = claims.getRoles();
+        List<String> effective = (roles != null && roles.contains("SUPER_ADMIN")) ? ALL_ROLES
+                : (roles == null ? List.of() : roles);
+        this.authorities = effective.stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .toList();
     }
 
     @Override

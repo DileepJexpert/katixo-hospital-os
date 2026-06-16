@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_screen.dart';
 import '../../features/admin/admin_home.dart';
+import '../../features/admin/super_admin_home.dart';
 import '../../features/billing/billing_home.dart';
 import '../../features/doctor/doctor_home.dart';
 import '../../features/front_desk/front_desk_home.dart';
@@ -42,6 +43,7 @@ GoRouter createRouter(AuthState authState) {
 /// dedicated module yet land on the front-desk home.
 Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
+    'SUPER_ADMIN' => const SuperAdminHome(),
     'DOCTOR' => const DoctorHome(),
     'PHARMACIST' => const PharmacistHome(),
     'BILLING' => const BillingHome(),

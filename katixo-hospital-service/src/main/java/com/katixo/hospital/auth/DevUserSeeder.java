@@ -53,6 +53,7 @@ public class DevUserSeeder implements CommandLineRunner {
 
     private void seedUsers() {
         List<Seed> seeds = List.of(
+                new Seed("superadmin", "super123", "Super Admin", "SUPER_ADMIN", "8"),
                 new Seed("admin", "admin123", "System Admin", "ADMIN", "1"),
                 new Seed("reception", "desk123", "Front Desk", "FRONT_DESK", "2"),
                 new Seed("doctor1", "pass123", "Dr. Sharma", "DOCTOR", "3"),
