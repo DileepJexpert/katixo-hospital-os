@@ -51,6 +51,25 @@ public class PatientCreditService {
                         "Credit account not found for patient: " + patientId));
     }
 
+    /**
+     * Returns the patient's credit account, creating an empty ACTIVE one on first
+     * access. Registration already initializes accounts; this covers patients
+     * created outside that path (e.g. seeded/migrated records).
+     */
+    public PatientCreditAccount getOrCreateAccount(Long patientId) {
+        var context = TenantContext.get();
+        return creditAccountRepository.findByTenantIdAndBranchIdAndPatientId(
+                        context.getTenantId(), Long.parseLong(context.getBranchId()), patientId)
+                .orElseGet(() -> {
+                    Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                                    patientId, context.getTenantId(), Long.parseLong(context.getBranchId()))
+                            .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND",
+                                    "Patient not found: " + patientId));
+                    initializeCreditAccount(patient);
+                    return getAccount(patientId);
+                });
+    }
+
     public PatientCreditAccount deductFromBalance(Long patientId, BigDecimal amount, String billId) {
         var context = TenantContext.get();
         var account = getAccount(patientId);

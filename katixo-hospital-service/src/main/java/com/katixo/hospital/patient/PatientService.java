@@ -118,12 +118,29 @@ public class PatientService {
 
         // Update fields
         if (updates.getFirstName() != null) existing.setFirstName(updates.getFirstName());
+        if (updates.getMiddleName() != null) existing.setMiddleName(updates.getMiddleName());
         if (updates.getLastName() != null) existing.setLastName(updates.getLastName());
         if (updates.getEmail() != null) existing.setEmail(updates.getEmail());
         if (updates.getMobile() != null) existing.setMobile(updates.getMobile());
+        if (updates.getGender() != null) existing.setGender(updates.getGender());
+        if (updates.getDateOfBirth() != null) existing.setDateOfBirth(updates.getDateOfBirth());
+        if (updates.getMaritalStatus() != null) existing.setMaritalStatus(updates.getMaritalStatus());
+        if (updates.getOccupation() != null) existing.setOccupation(updates.getOccupation());
+        if (updates.getNationality() != null) existing.setNationality(updates.getNationality());
         if (updates.getBloodGroup() != null) existing.setBloodGroup(updates.getBloodGroup());
+        if (updates.getAddressLine1() != null) existing.setAddressLine1(updates.getAddressLine1());
+        if (updates.getAddressLine2() != null) existing.setAddressLine2(updates.getAddressLine2());
+        if (updates.getCity() != null) existing.setCity(updates.getCity());
+        if (updates.getState() != null) existing.setState(updates.getState());
+        if (updates.getPincode() != null) existing.setPincode(updates.getPincode());
+        if (updates.getCountry() != null) existing.setCountry(updates.getCountry());
+        if (updates.getEmergencyContactName() != null) existing.setEmergencyContactName(updates.getEmergencyContactName());
+        if (updates.getEmergencyContactPhone() != null) existing.setEmergencyContactPhone(updates.getEmergencyContactPhone());
+        if (updates.getEmergencyContactRelation() != null) existing.setEmergencyContactRelation(updates.getEmergencyContactRelation());
         if (updates.getAllergies() != null) existing.setAllergies(updates.getAllergies());
         if (updates.getChronicConditions() != null) existing.setChronicConditions(updates.getChronicConditions());
+        if (updates.getMedications() != null) existing.setMedications(updates.getMedications());
+        if (updates.getNotes() != null) existing.setNotes(updates.getNotes());
 
         existing.setUpdatedBy(Long.parseLong(context.getUserId()));
 

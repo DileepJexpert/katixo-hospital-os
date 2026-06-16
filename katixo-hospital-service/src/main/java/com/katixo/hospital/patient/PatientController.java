@@ -138,12 +138,29 @@ public class PatientController {
 
         Patient update = new Patient();
         update.setFirstName(request.getFirstName());
+        update.setMiddleName(request.getMiddleName());
         update.setLastName(request.getLastName());
         update.setEmail(request.getEmail());
         update.setMobile(request.getMobile());
+        update.setGender(request.getGender());
+        update.setDateOfBirth(request.getDateOfBirth());
+        update.setMaritalStatus(request.getMaritalStatus());
+        update.setOccupation(request.getOccupation());
+        update.setNationality(request.getNationality());
         update.setBloodGroup(request.getBloodGroup());
+        update.setAddressLine1(request.getAddressLine1());
+        update.setAddressLine2(request.getAddressLine2());
+        update.setCity(request.getCity());
+        update.setState(request.getState());
+        update.setPincode(request.getPincode());
+        update.setCountry(request.getCountry());
+        update.setEmergencyContactName(request.getEmergencyContactName());
+        update.setEmergencyContactPhone(request.getEmergencyContactPhone());
+        update.setEmergencyContactRelation(request.getEmergencyContactRelation());
         update.setAllergies(request.getAllergies());
         update.setChronicConditions(request.getChronicConditions());
+        update.setMedications(request.getMedications());
+        update.setNotes(request.getNotes());
 
         Patient updated = patientService.updatePatient(patientId, update);
 
@@ -173,15 +190,21 @@ public class PatientController {
                 .email(patient.getEmail())
                 .bloodGroup(patient.getBloodGroup())
                 .maritalStatus(patient.getMaritalStatus())
+                .occupation(patient.getOccupation())
+                .nationality(patient.getNationality())
                 .addressLine1(patient.getAddressLine1())
                 .addressLine2(patient.getAddressLine2())
                 .city(patient.getCity())
                 .state(patient.getState())
                 .pincode(patient.getPincode())
+                .country(patient.getCountry())
                 .emergencyContactName(patient.getEmergencyContactName())
                 .emergencyContactPhone(patient.getEmergencyContactPhone())
+                .emergencyContactRelation(patient.getEmergencyContactRelation())
                 .allergies(patient.getAllergies())
                 .chronicConditions(patient.getChronicConditions())
+                .medications(patient.getMedications())
+                .notes(patient.getNotes())
                 .privacyConsentGiven(patient.getPrivacyConsentGiven())
                 .privacyConsentAt(patient.getPrivacyConsentAt())
                 .dataSharingConsent(patient.getDataSharingConsent())

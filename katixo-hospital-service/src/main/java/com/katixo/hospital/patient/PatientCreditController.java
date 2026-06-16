@@ -35,6 +35,14 @@ public class PatientCreditController {
         return respond(response, "Patient credit account retrieved", HttpStatus.OK);
     }
 
+    /** Ensures a credit account exists (creating an empty one if needed) and returns it. */
+    @PostMapping
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<CreditAccountResponse>> openCreditAccount(@PathVariable Long patientId) {
+        var account = creditService.getOrCreateAccount(patientId);
+        return respond(CreditAccountResponse.from(account), "Credit account ready", HttpStatus.OK);
+    }
+
     @GetMapping("/transactions")
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getCreditTransactions(
