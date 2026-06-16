@@ -57,6 +57,10 @@ public class Expense extends BaseEntity {
     @Column(length = 300)
     private String notes;
 
+    /** Optional link to the vendor master. Free-text {@link #payeeName} stays as a fallback when null. */
+    @Column
+    private Long vendorId;
+
     @Column
     private Long journalEntryId;
 

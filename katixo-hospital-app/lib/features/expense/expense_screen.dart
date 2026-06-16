@@ -37,6 +37,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   String _paymentMode = 'CASH';
 
   List<Map<String, dynamic>> _expenses = const [];
+  List<Map<String, dynamic>> _vendors = const [];
+  int? _vendorId; // optional vendor link for the new expense
   bool _loading = false;
   String? _error;
   String? _info;
@@ -68,7 +70,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         fromJson: (json) =>
             List<Map<String, dynamic>>.from(json as List? ?? const []),
       );
-      if (mounted) setState(() => _expenses = list);
+      // Active vendors for the optional link on the record form (best-effort).
+      List<Map<String, dynamic>> vendors = const [];
+      try {
+        vendors = await api.get<List<Map<String, dynamic>>>(
+          '/api/v1/vendors',
+          fromJson: (json) =>
+              List<Map<String, dynamic>>.from(json as List? ?? const []),
+        );
+      } catch (_) {
+        // vendor list is optional; ignore (e.g. role without vendor read)
+      }
+      if (mounted) setState(() {
+        _expenses = list;
+        _vendors = vendors;
+      });
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -95,6 +111,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           'category': _category,
           'amount': amount,
           'paymentMode': _paymentMode,
+          if (_vendorId != null) 'vendorId': _vendorId,
           if (_payeeCtrl.text.trim().isNotEmpty)
             'payeeName': _payeeCtrl.text.trim(),
           if (_referenceCtrl.text.trim().isNotEmpty)
@@ -107,7 +124,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _amountCtrl.clear();
       _referenceCtrl.clear();
       _notesCtrl.clear();
-      setState(() => _info = 'Expense ${e['expenseNumber']} recorded');
+      setState(() {
+        _vendorId = null;
+        _info = 'Expense ${e['expenseNumber']} recorded';
+      });
       await _load();
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
@@ -369,6 +389,25 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ),
               ],
             ),
+            if (_vendors.isNotEmpty) ...[
+              const SizedBox(height: Space.md),
+              DropdownButtonFormField<int?>(
+                value: _vendorId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Vendor (optional — fills "Paid to" if blank)',
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('— none —')),
+                  for (final v in _vendors)
+                    DropdownMenuItem<int?>(
+                      value: v['id'] as int?,
+                      child: Text('${v['name']} (${v['vendorCode']})'),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _vendorId = v),
+              ),
+            ],
             const SizedBox(height: Space.md),
             Row(
               children: [

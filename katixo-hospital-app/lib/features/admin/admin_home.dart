@@ -8,6 +8,8 @@ import '../../core/widgets/app_shell.dart';
 import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../expense/expense_screen.dart';
+import '../report/financial_reports_screen.dart';
+import '../vendor/vendors_screen.dart';
 import '../inventory/item_master_screen.dart';
 import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
@@ -47,7 +49,9 @@ class _AdminHomeState extends State<AdminHome> {
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'OTC Sale', icon: Icons.point_of_sale_outlined, selectedIcon: Icons.point_of_sale), body: const OtcSaleScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
+      (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
