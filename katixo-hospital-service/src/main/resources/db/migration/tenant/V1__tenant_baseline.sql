@@ -3873,6 +3873,10 @@ CREATE TABLE expense (
     journal_entry_id    BIGINT,
     journal_number      VARCHAR(30),
     reversed            BOOLEAN      NOT NULL DEFAULT FALSE,
+    approval_status     VARCHAR(20)  NOT NULL DEFAULT 'NOT_REQUIRED',  -- NOT_REQUIRED / PENDING / APPROVED / REJECTED
+    approved_by         BIGINT,
+    approved_at         TIMESTAMP,
+    approval_reason     VARCHAR(300),
     paid                BOOLEAN      NOT NULL DEFAULT FALSE,
     paid_date           DATE,
     paid_mode           VARCHAR(20),

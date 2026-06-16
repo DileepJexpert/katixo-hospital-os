@@ -42,6 +42,7 @@ INSERT INTO hospital_policy VALUES (21, '${tenantId}', 1, 1, 'billing.patient.cr
 INSERT INTO hospital_policy VALUES (22, '${tenantId}', 1, 1, 'opd.doctor.leave_requires_approval', 'true', 'Require admin approval for doctor leave before it becomes active', '2026-06-12 10:32:37.545521', NULL, 1, 1, '2026-06-12 10:32:37.545521', 1, '2026-06-12 10:32:37.545521');
 INSERT INTO hospital_policy VALUES (23, '${tenantId}', 1, 1, 'opd.referral.fee_percentage', '25', 'Percentage of consultation fee to referral doctor (remaining goes to primary)', '2026-06-12 10:32:37.553398', NULL, 1, 1, '2026-06-12 10:32:37.553398', 1, '2026-06-12 10:32:37.553398');
 INSERT INTO hospital_policy VALUES (24, '${tenantId}', 1, 1, 'ipd.bed.isolation_default_hours', '24', 'Default bed isolation duration in hours when no explicit end time is given', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
+INSERT INTO hospital_policy VALUES (25, '${tenantId}', 1, 1, 'expense.approval.threshold', '0', 'Expense amount at or above which approval is required before it posts to the ledger (0 = disabled)', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
 
 
 --

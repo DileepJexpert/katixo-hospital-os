@@ -67,6 +67,11 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **Vendor master** (`vendor/`): reusable supplier/payee records (GSTIN/PAN, contact, address,
   bank details), never hard-deleted (deactivate). Expenses optionally link a `vendorId`
   (`/api/v1/vendors`); free-text `payeeName` stays as a fallback, defaulted from the vendor name.
+- **Approval workflow** (policy `expense.approval.threshold`, 0 = disabled): at/above the
+  threshold an expense is recorded **PENDING and does NOT post to the ledger** until an ADMIN
+  approves it (`POST /{id}/approve` posts the journal + settles CASH/BANK; `/{id}/reject` never
+  posts). Below the threshold it posts on record as before. Pending queue at `GET /expenses/pending`;
+  pay/reverse are blocked while PENDING.
 
 ### TPA / Insurance claims (`tpa/`)
 - Payer master (insurer / TPA / govt scheme). Case lifecycle: **PREAUTH_REQUESTED →
@@ -156,7 +161,8 @@ design tokens, provider + setState, raw-map API calls).
 - **Lab viewer access** limited to AdminHome; DOCTOR/LAB_TECH have no dedicated home
   (LAB_TECH falls through to FrontDesk).
 - **OTC sale** picks items via dropdown only — no barcode/typeahead.
-- **Expense approval thresholds** (policy-driven spend limits) not built.
+- ~~**Expense approval thresholds**~~ — **done** (policy `expense.approval.threshold`); Flutter
+  approval queue UI still pending.
 - ~~**Vendor master**~~ — **done** (`vendor/`); purchase/GRN bills feeding stock + AP still pending.
 - **TPA, consent, certificates, NABH, dashboards, notifications, WebSocket queue
   boards, Elasticsearch search** — per `CLAUDE.md` package map; status varies, not
@@ -172,7 +178,8 @@ design tokens, provider + setState, raw-map API calls).
    hook bill receipt, expense voucher, payslip, lab report buttons.
 3. **Lab access for clinical roles** — `LabHome` (order worklist, sample collect,
    result entry, approve) + router role for LAB_TECH; expose report viewer to DOCTOR.
-4. **Expense approval workflow** via policy engine (spend thresholds → approval).
+4. ~~**Expense approval workflow** via policy engine (spend thresholds → approval).~~ **Backend done**
+   — Flutter approval-queue screen (list pending → approve/reject) still to wire.
 5. **Surface remaining backend in Flutter** — IPD/nursing/discharge/TPA screens,
    owner dashboard (read model), notifications.
 6. **Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.

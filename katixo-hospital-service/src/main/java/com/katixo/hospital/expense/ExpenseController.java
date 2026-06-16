@@ -79,6 +79,29 @@ public class ExpenseController {
                 "Expense paid", HttpStatus.OK);
     }
 
+    @GetMapping("/pending")
+    @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> pending() {
+        return respond(expenseService.listPending().stream().map(this::view).toList(),
+                "Expenses awaiting approval", HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> approve(@PathVariable Long id,
+                                                       @RequestBody(required = false) ReasonRequest req) {
+        return respond(view(expenseService.approve(id, req == null ? null : req.getReason())),
+                "Expense approved", HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> reject(@PathVariable Long id,
+                                                      @RequestBody(required = false) ReasonRequest req) {
+        return respond(view(expenseService.reject(id, req == null ? null : req.getReason())),
+                "Expense rejected", HttpStatus.OK);
+    }
+
     @GetMapping("/{id}/voucher.pdf")
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<byte[]> voucherPdf(@PathVariable Long id) {
@@ -120,6 +143,10 @@ public class ExpenseController {
         view.put("paidMode", e.getPaidMode() == null ? null : e.getPaidMode().name());
         view.put("paidJournalNumber", e.getPaidJournalNumber());
         view.put("reversed", e.isReversed());
+        view.put("approvalStatus", e.getApprovalStatus().name());
+        view.put("approvedBy", e.getApprovedBy());
+        view.put("approvedAt", e.getApprovedAt() == null ? null : e.getApprovedAt().toString());
+        view.put("approvalReason", e.getApprovalReason());
         return view;
     }
 

@@ -16,6 +16,9 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     List<Expense> findByTenantIdAndBranchIdAndExpenseDateBetweenOrderByExpenseDateDescIdDesc(
             String tenantId, Long branchId, LocalDate from, LocalDate to);
 
+    List<Expense> findByTenantIdAndBranchIdAndApprovalStatusOrderByExpenseDateDescIdDesc(
+            String tenantId, Long branchId, Expense.ApprovalStatus approvalStatus);
+
     @Query(value = "SELECT nextval('expense_seq')", nativeQuery = true)
     long nextExpenseSequence();
 }

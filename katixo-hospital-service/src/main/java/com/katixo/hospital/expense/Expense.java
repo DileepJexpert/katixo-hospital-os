@@ -70,6 +70,24 @@ public class Expense extends BaseEntity {
     @Column(nullable = false)
     private boolean reversed = false;
 
+    /**
+     * Approval gate driven by policy {@code expense.approval.threshold}. Below the
+     * threshold (or when disabled) an expense is NOT_REQUIRED and posts on record;
+     * at/above it the expense is PENDING and posts to the ledger only once APPROVED.
+     */
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus approvalStatus = ApprovalStatus.NOT_REQUIRED;
+
+    @Column
+    private Long approvedBy;
+
+    @Column
+    private java.time.LocalDateTime approvedAt;
+
+    @Column(length = 300)
+    private String approvalReason;
+
     /** CASH/BANK expenses are paid on record; CREDIT expenses are paid later (clears Trade Payables). */
     @Column(nullable = false)
     private boolean paid = false;
@@ -112,5 +130,10 @@ public class Expense extends BaseEntity {
     /** CASH/BANK settle immediately; CREDIT books to Trade Payables. */
     public enum PaymentMode {
         CASH, BANK, CREDIT
+    }
+
+    /** Approval lifecycle. NOT_REQUIRED expenses post on record; PENDING ones wait for APPROVED. */
+    public enum ApprovalStatus {
+        NOT_REQUIRED, PENDING, APPROVED, REJECTED
     }
 }
