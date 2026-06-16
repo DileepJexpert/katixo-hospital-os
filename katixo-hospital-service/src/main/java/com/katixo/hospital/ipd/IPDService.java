@@ -89,6 +89,18 @@ public class IPDService {
         return bedRepository.findBedBoard(ctx.getTenantId(), branchId());
     }
 
+    @Transactional(readOnly = true)
+    public List<Ward> listWards() {
+        var ctx = TenantContext.get();
+        return wardRepository.findByTenantIdAndBranchIdOrderByName(ctx.getTenantId(), branchId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Room> listRooms() {
+        var ctx = TenantContext.get();
+        return roomRepository.findByTenantIdAndBranchIdOrderByRoomNumber(ctx.getTenantId(), branchId());
+    }
+
     // ------------------------------------------------------------
     // Admission lifecycle
     // ------------------------------------------------------------

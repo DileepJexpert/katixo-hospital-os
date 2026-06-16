@@ -91,6 +91,22 @@ public class IPDController {
         return respond(ipdService.getBedBoard().stream().map(BedView::from).toList(), "Bed board", HttpStatus.OK);
     }
 
+    @GetMapping("/wards")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<java.util.Map<String, Object>>>> wards() {
+        return respond(ipdService.listWards().stream().map(w -> java.util.Map.<String, Object>of(
+                "id", w.getId(), "name", w.getName(), "wardType", w.getWardType().name())).toList(),
+                "Wards", HttpStatus.OK);
+    }
+
+    @GetMapping("/rooms")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<java.util.Map<String, Object>>>> rooms() {
+        return respond(ipdService.listRooms().stream().map(r -> java.util.Map.<String, Object>of(
+                "id", r.getId(), "wardId", r.getWardId(), "roomNumber", r.getRoomNumber())).toList(),
+                "Rooms", HttpStatus.OK);
+    }
+
     // ---------- admission lifecycle ----------
 
     @Getter

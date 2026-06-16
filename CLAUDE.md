@@ -92,7 +92,7 @@ and patient credit limit (see those sections). Do NOT rebuild it as HTTP endpoin
 - **API:** single `core/api/http_client.dart` `ApiClient` (raw `http`, JWT + `X-Tenant-Id`/`X-Group-Id`/`X-Branch-Id` headers, retries). Call `context.read<ApiClient>().get/post<T>(path, body, fromJson:)`. Paths are hardcoded `/api/v1/...` strings; responses are handled as raw `Map<String,dynamic>`/`List` (no DTO layer yet).
 - **Routing:** `go_router` with `_roleHome()` switch in `core/routing/app_router.dart` mapping role → home (DOCTOR/PHARMACIST/BILLING/ADMIN, else FrontDesk). Each home is a `StatefulWidget` that owns an `AppShell` (adaptive nav rail/bottom bar) and switches `body` by a local `_index` — no nested GoRoutes.
 - **Theming:** design tokens in `core/theme/design_tokens.dart` (`Space`, `Corners`, `Metrics`, `TypeScale`, `StatusColors`, `BrandPalette`). Flat cards + hairline borders, dense rows, single accent — the modern-accounting-SaaS look (Campfire/DualEntry-style). Use tokens, never hardcoded sizes/colors.
-- **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters), `KpiTile`. Money rendered as `'₹$value'`.
+- **Shared widgets:** `AppShell`+`ShellDestination`, `StatusChip.auto('STATUS')`, `MessageBanner.error/success` (from `features/front_desk/registration_screen.dart`), `PageContainer` (clamps width/gutters; pass `scrollable:false` when the body has a top-level `Expanded`/`ListView`), `KpiTile`, **`SectionCard`** (titled content card), **`EmptyState`** (icon+title+message+action). Reusable pickers: `showPatientPicker(context)`, `showDoctorPicker(context)`. Money rendered as `'₹$value'`.
 - **Role homes & screens implemented:** FrontDeskHome (registration, walk-in, **IPD**, **patients**), DoctorHome (queue + prescription), PharmacistHome (dispense queue · **item master** · **OTC sale**), BillingHome (bills · **expenses** · **TPA/insurance**), **AdminHome** (**dashboard** · expenses · payroll · lab report · **IPD**). Feature screens: `features/dashboard/`, `features/expense/`, `features/payroll/`, `features/inventory/` (item_master, otc_sale), `features/lab/` (lab_report), `features/tpa/` (tpa_screen), `features/ipd/` (ipd_screen), `features/patient/` (patients_screen + **`showPatientPicker(context)`** — reusable patient-search dialog used by IPD admit; reuse for TPA/billing/lab).
 - **Patient search:** `GET /api/v1/patients?q=` (name/mobile/UHID, DB LIKE, ACTIVE only) added — blank `q` returns recent active patients.
 - **PDF caveat:** backend PDF endpoints (bill receipt, expense voucher, payslip, lab report) are surfaced as on-screen data/dialogs — `ApiClient` is JSON-only; binary download/print is not wired yet (would need a binary GET + `url_launcher`).
@@ -183,10 +183,13 @@ katixo-hospital-service/
 ### IPD
 - Three bed charging models simultaneously: daily (general), hourly (ICU), package
 - Bed transfer recalculates tariff at exact timestamp
-- **UI (Flutter `features/ipd/`):** current-inpatients list, bed board (status-coloured),
-  admit (vacant-bed picker), admission detail with allocations, transfer + discharge
-  (role-aware: admit FRONT_DESK/ADMIN, transfer FRONT_DESK/NURSE/ADMIN, discharge DOCTOR/ADMIN).
-  Backend added `GET /api/v1/ipd/admissions?status=ADMITTED` (list current inpatients).
+- **UI (Flutter `features/ipd/` — production-grade):** occupancy KPI strip
+  (total/occupied/vacant/isolation/occupancy%), current-inpatients cards, **ward-grouped
+  bed board** with legend + colour-coded tiles, admission detail (allocations) with
+  transfer + discharge, and an **admin Setup tab** to add wards/rooms/beds. Admit uses the
+  reusable **patient picker + doctor picker**. Role-aware (admit FRONT_DESK/ADMIN, transfer
+  FRONT_DESK/NURSE/ADMIN, discharge DOCTOR/ADMIN). Backend added: `GET /ipd/admissions?status=`,
+  `GET /ipd/wards`, `GET /ipd/rooms`. Doctor picker uses `GET /api/v1/staff?role=DOCTOR`.
 - Indent approval per item category from policy engine (not binary high/low).
   **IMPLEMENTED:** `NursingIndentService` @ `/api/v1/nursing/indents` — categories in policy
   `ipd.indent.approval.required_categories` (default IMPLANT,NARCOTIC) need DOCTOR/ADMIN

@@ -5,13 +5,16 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../patient/patient_picker.dart';
+import '../staff/doctor_picker.dart';
 
-/// IPD module: current inpatients, bed board, admit, and admission detail with
-/// bed transfer + discharge. Role-aware actions (backend also enforces).
-/// Body widget — the host home supplies the AppShell.
+/// IPD inpatient management: occupancy overview, current inpatients, a
+/// ward-grouped bed board, admission detail (transfer/discharge) and bed-master
+/// setup. Role-aware (backend also enforces). Body widget — host supplies AppShell.
 class IpdScreen extends StatefulWidget {
   const IpdScreen({super.key});
 
@@ -20,17 +23,18 @@ class IpdScreen extends StatefulWidget {
 }
 
 class _IpdScreenState extends State<IpdScreen> {
-  int _tab = 0; // 0 = inpatients, 1 = bed board
+  int _tab = 0; // 0 inpatients, 1 bed board, 2 setup
 
   List<Map<String, dynamic>> _inpatients = const [];
   List<Map<String, dynamic>> _beds = const [];
+  List<Map<String, dynamic>> _wards = const [];
+  List<Map<String, dynamic>> _rooms = const [];
   Map<String, dynamic>? _selected; // admission detail
   List<Map<String, dynamic>> _allocations = const [];
 
   bool _loading = false;
   String? _error;
   String? _info;
-
   String _role = '';
 
   @override
@@ -42,46 +46,36 @@ class _IpdScreenState extends State<IpdScreen> {
     });
   }
 
+  bool get _isAdmin => _role == 'ADMIN';
   bool get _canAdmit => _role == 'FRONT_DESK' || _role == 'ADMIN';
   bool get _canTransfer => _role == 'FRONT_DESK' || _role == 'NURSE' || _role == 'ADMIN';
   bool get _canDischarge => _role == 'DOCTOR' || _role == 'ADMIN';
 
   Future<void> _loadAll() async {
-    await _loadInpatients();
-    await _loadBeds();
-  }
-
-  Future<void> _loadInpatients() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final api = context.read<ApiClient>();
-      final list = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/ipd/admissions?status=ADMITTED',
-        fromJson: (json) =>
-            List<Map<String, dynamic>>.from(json as List? ?? const []),
-      );
-      if (mounted) setState(() => _inpatients = list);
+      List<Map<String, dynamic>> l(dynamic j) =>
+          List<Map<String, dynamic>>.from(j as List? ?? const []);
+      final beds = await api.get('/api/v1/ipd/beds', fromJson: l);
+      final wards = await api.get('/api/v1/ipd/wards', fromJson: l);
+      final rooms = await api.get('/api/v1/ipd/rooms', fromJson: l);
+      final inp = await api.get('/api/v1/ipd/admissions?status=ADMITTED', fromJson: l);
+      if (mounted) {
+        setState(() {
+          _beds = beds;
+          _wards = wards;
+          _rooms = rooms;
+          _inpatients = inp;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _loadBeds() async {
-    try {
-      final api = context.read<ApiClient>();
-      final list = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/ipd/beds',
-        fromJson: (json) =>
-            List<Map<String, dynamic>>.from(json as List? ?? const []),
-      );
-      if (mounted) setState(() => _beds = list);
-    } on ApiException catch (e) {
-      setState(() => _error = e.error.message);
     }
   }
 
@@ -92,21 +86,15 @@ class _IpdScreenState extends State<IpdScreen> {
     });
     try {
       final api = context.read<ApiClient>();
-      final a = await api.get<Map<String, dynamic>>(
-        '/api/v1/ipd/admissions/$id',
-        fromJson: (json) => json as Map<String, dynamic>,
-      );
+      final a = await api.get<Map<String, dynamic>>('/api/v1/ipd/admissions/$id',
+          fromJson: (j) => j as Map<String, dynamic>);
       final allocs = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/ipd/admissions/$id/allocations',
-        fromJson: (json) =>
-            List<Map<String, dynamic>>.from(json as List? ?? const []),
-      );
-      if (mounted) {
-        setState(() {
-          _selected = a;
-          _allocations = allocs;
-        });
-      }
+          '/api/v1/ipd/admissions/$id/allocations',
+          fromJson: (j) => List<Map<String, dynamic>>.from(j as List? ?? const []));
+      if (mounted) setState(() {
+        _selected = a;
+        _allocations = allocs;
+      });
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -117,9 +105,22 @@ class _IpdScreenState extends State<IpdScreen> {
   List<Map<String, dynamic>> get _vacantBeds =>
       _beds.where((b) => '${b['bedStatus']}' == 'VACANT').toList();
 
+  int _countStatus(String s) =>
+      _beds.where((b) => '${b['bedStatus']}' == s).length;
+
+  // ---------------- build ----------------
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final segments = <ButtonSegment<int>>[
+      const ButtonSegment(value: 0, label: Text('Inpatients'), icon: Icon(Icons.people_alt_outlined)),
+      const ButtonSegment(value: 1, label: Text('Bed board'), icon: Icon(Icons.grid_view_outlined)),
+      if (_isAdmin)
+        const ButtonSegment(value: 2, label: Text('Setup'), icon: Icon(Icons.settings_outlined)),
+    ];
+    final tab = (_tab == 2 && !_isAdmin) ? 0 : _tab;
+
     return PageContainer(
       scrollable: false,
       child: Column(
@@ -127,17 +128,23 @@ class _IpdScreenState extends State<IpdScreen> {
         children: [
           Row(
             children: [
-              Text('IPD', style: theme.textTheme.titleLarge),
+              Text('IPD — Inpatient Management', style: theme.textTheme.titleLarge),
               const Spacer(),
-              SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 0, label: Text('Inpatients')),
-                  ButtonSegment(value: 1, label: Text('Bed board')),
-                ],
-                selected: {_tab},
-                onSelectionChanged: (s) => setState(() => _tab = s.first),
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _loading ? null : _loadAll,
+                icon: const Icon(Icons.refresh),
               ),
             ],
+          ),
+          const SizedBox(height: Space.md),
+          _occupancyStrip(theme),
+          const SizedBox(height: Space.md),
+          SegmentedButton<int>(
+            segments: segments,
+            selected: {tab},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _tab = s.first),
           ),
           const SizedBox(height: Space.md),
           if (_error != null) ...[
@@ -148,7 +155,61 @@ class _IpdScreenState extends State<IpdScreen> {
             MessageBanner.success(_info!),
             const SizedBox(height: Space.md),
           ],
-          Expanded(child: _tab == 0 ? _inpatientsTab(theme) : _bedBoardTab(theme)),
+          Expanded(
+            child: switch (tab) {
+              1 => _bedBoardTab(theme),
+              2 => _setupTab(theme),
+              _ => _inpatientsTab(theme),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _occupancyStrip(ThemeData theme) {
+    final total = _beds.length;
+    final occ = _countStatus('OCCUPIED');
+    final pct = total == 0 ? 0 : (occ * 100 / total).round();
+    return Wrap(
+      spacing: Space.md,
+      runSpacing: Space.sm,
+      children: [
+        _stat(theme, 'Total beds', '$total', theme.colorScheme.primary, Icons.hotel_outlined),
+        _stat(theme, 'Occupied', '$occ', theme.colorScheme.primary, Icons.bed),
+        _stat(theme, 'Vacant', '${_countStatus('VACANT')}', StatusColors.success, Icons.bed_outlined),
+        _stat(theme, 'Isolation', '${_countStatus('ISOLATION')}', StatusColors.danger, Icons.coronavirus_outlined),
+        _stat(theme, 'Occupancy', '$pct%', pct >= 85 ? StatusColors.danger : StatusColors.info, Icons.pie_chart_outline),
+        _stat(theme, 'Inpatients', '${_inpatients.length}', theme.colorScheme.primary, Icons.people_alt_outlined),
+      ],
+    );
+  }
+
+  Widget _stat(ThemeData theme, String label, String value, Color color, IconData icon) {
+    return Container(
+      width: 168,
+      padding: const EdgeInsets.all(Space.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: Corners.mdRadius,
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: color),
+          const SizedBox(width: Space.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label,
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                Text(value, style: theme.textTheme.titleLarge),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -163,50 +224,58 @@ class _IpdScreenState extends State<IpdScreen> {
       children: [
         Row(
           children: [
-            Text('${_inpatients.length} current inpatients',
-                style: theme.textTheme.titleMedium),
+            Text('Current inpatients', style: theme.textTheme.titleMedium),
             const Spacer(),
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: _loading ? null : _loadAll,
-              icon: const Icon(Icons.refresh, size: 20),
-            ),
             if (_canAdmit)
               FilledButton.icon(
                 onPressed: _loading ? null : _admitDialog,
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
-                label: const Text('Admit'),
+                label: const Text('Admit patient'),
               ),
           ],
         ),
         const SizedBox(height: Space.sm),
         Expanded(
           child: _inpatients.isEmpty
-              ? Center(
-                  child: Text(_loading ? 'Loading…' : 'No current inpatients',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)))
+              ? EmptyState(
+                  icon: Icons.bed_outlined,
+                  title: _loading ? 'Loading…' : 'No current inpatients',
+                  message: _canAdmit ? 'Admit a patient to get started.' : null,
+                  action: _canAdmit && !_loading
+                      ? FilledButton.icon(
+                          onPressed: _admitDialog,
+                          icon: const Icon(Icons.person_add_alt_1, size: 18),
+                          label: const Text('Admit patient'))
+                      : null,
+                )
               : ListView.separated(
                   itemCount: _inpatients.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const SizedBox(height: Space.sm),
                   itemBuilder: (context, i) {
                     final a = _inpatients[i];
-                    return ListTile(
-                      onTap: () => _openAdmission(a['id'] as int),
-                      title: Row(
-                        children: [
-                          Text('${a['admissionNumber']}',
-                              style: theme.textTheme.titleSmall),
-                          const SizedBox(width: Space.sm),
-                          StatusChip.auto('${a['admissionStatus']}'),
-                        ],
+                    return Card(
+                      child: ListTile(
+                        onTap: () => _openAdmission(a['id'] as int),
+                        leading: CircleAvatar(
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          child: Icon(Icons.personal_injury_outlined,
+                              color: theme.colorScheme.onPrimaryContainer),
+                        ),
+                        title: Row(
+                          children: [
+                            Text('${a['admissionNumber']}',
+                                style: theme.textTheme.titleSmall),
+                            const SizedBox(width: Space.sm),
+                            StatusChip.auto('${a['admissionStatus']}'),
+                          ],
+                        ),
+                        subtitle: Text(
+                          'Patient #${a['patientId']} · Dr #${a['admittingDoctorId']} · '
+                          'bed #${a['currentBedId']} · since ${_date(a['admittedAt'])}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
                       ),
-                      subtitle: Text(
-                        'Patient #${a['patientId']} · Dr #${a['admittingDoctorId']} · '
-                        'bed #${a['currentBedId']} · ${_date(a['admittedAt'])}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
                     );
                   },
                 ),
@@ -218,100 +287,82 @@ class _IpdScreenState extends State<IpdScreen> {
   Widget _admissionDetail(ThemeData theme, Map<String, dynamic> a) {
     final id = a['id'] as int;
     final isAdmitted = '${a['admissionStatus']}' == 'ADMITTED';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextButton.icon(
-          onPressed: () => setState(() => _selected = null),
-          icon: const Icon(Icons.arrow_back, size: 18),
-          label: const Text('Back'),
-        ),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(Space.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextButton.icon(
+            onPressed: () => setState(() => _selected = null),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Back to inpatients'),
+          ),
+          SectionCard(
+            title: '${a['admissionNumber']}',
+            icon: Icons.assignment_outlined,
+            action: Wrap(
+              spacing: Space.sm,
               children: [
-                Row(
-                  children: [
-                    Text('${a['admissionNumber']}',
-                        style: theme.textTheme.titleMedium),
-                    const SizedBox(width: Space.sm),
-                    StatusChip.auto('${a['admissionStatus']}'),
-                    const Spacer(),
-                    if (isAdmitted && _canTransfer) ...[
-                      OutlinedButton(
-                        onPressed: _loading ? null : () => _transferDialog(id),
-                        child: const Text('Transfer'),
-                      ),
-                      const SizedBox(width: Space.sm),
-                    ],
-                    if (isAdmitted && _canDischarge)
-                      FilledButton(
-                        onPressed: _loading ? null : () => _dischargeDialog(id),
-                        child: const Text('Discharge'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: Space.sm),
-                Wrap(
-                  spacing: Space.lg,
-                  runSpacing: Space.sm,
-                  children: [
-                    _kv(theme, 'Patient', '#${a['patientId']}'),
-                    _kv(theme, 'Doctor', '#${a['admittingDoctorId']}'),
-                    _kv(theme, 'Bed', '#${a['currentBedId']}'),
-                    _kv(theme, 'Admitted', _date(a['admittedAt'])),
-                    if (a['dischargedAt'] != null)
-                      _kv(theme, 'Discharged', _date(a['dischargedAt'])),
-                    if (a['dischargeType'] != null)
-                      _kv(theme, 'Type', '${a['dischargeType']}'),
-                    _kv(theme, 'Bed charge', '₹${a['totalBedCharge'] ?? 0}'),
-                  ],
-                ),
-                if (a['diagnosis'] != null) ...[
-                  const SizedBox(height: Space.sm),
-                  Text('Diagnosis: ${a['diagnosis']}',
-                      style: theme.textTheme.bodyMedium),
-                ],
+                StatusChip.auto('${a['admissionStatus']}'),
+                if (isAdmitted && _canTransfer)
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : () => _transferDialog(id),
+                    icon: const Icon(Icons.swap_horiz, size: 18),
+                    label: const Text('Transfer'),
+                  ),
+                if (isAdmitted && _canDischarge)
+                  FilledButton.icon(
+                    onPressed: _loading ? null : () => _dischargeDialog(id),
+                    icon: const Icon(Icons.logout, size: 18),
+                    label: const Text('Discharge'),
+                  ),
+              ],
+            ),
+            child: Wrap(
+              spacing: Space.xl,
+              runSpacing: Space.md,
+              children: [
+                _kv(theme, 'Patient', '#${a['patientId']}'),
+                _kv(theme, 'Doctor', '#${a['admittingDoctorId']}'),
+                _kv(theme, 'Current bed', '#${a['currentBedId']}'),
+                _kv(theme, 'Admitted', _date(a['admittedAt'])),
+                if (a['dischargedAt'] != null) _kv(theme, 'Discharged', _date(a['dischargedAt'])),
+                if (a['dischargeType'] != null) _kv(theme, 'Discharge type', '${a['dischargeType']}'),
+                _kv(theme, 'Bed charge', '₹${a['totalBedCharge'] ?? 0}'),
+                if (a['diagnosis'] != null) _kv(theme, 'Diagnosis', '${a['diagnosis']}'),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: Space.md),
-        Text('Bed allocations', style: theme.textTheme.titleMedium),
-        const SizedBox(height: Space.sm),
-        Expanded(
-          child: _allocations.isEmpty
-              ? Center(
-                  child: Text('No allocations',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)))
-              : ListView.separated(
-                  itemCount: _allocations.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final al = _allocations[i];
-                    final active = al['isActive'] == true;
-                    return ListTile(
-                      dense: true,
-                      leading: Icon(active ? Icons.bed : Icons.bed_outlined,
-                          color: active ? theme.colorScheme.primary : null),
-                      title: Text('Bed #${al['bedId']} · ${al['chargeModel']} '
-                          '@ ₹${al['tariffRate']}'),
-                      subtitle: Text(
-                        '${_date(al['allocatedAt'])}'
-                        '${al['releasedAt'] != null ? ' → ${_date(al['releasedAt'])}' : ' (current)'}'
-                        ' · ${al['unitsCharged'] ?? 0} units',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: Text('₹${al['allocationCharge'] ?? 0}',
-                          style: theme.textTheme.titleSmall),
-                    );
-                  },
-                ),
-        ),
-      ],
+          const SizedBox(height: Space.md),
+          SectionCard(
+            title: 'Bed allocations',
+            icon: Icons.timeline_outlined,
+            child: _allocations.isEmpty
+                ? Text('No allocations',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+                : Column(
+                    children: [
+                      for (final al in _allocations)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(al['isActive'] == true ? Icons.bed : Icons.bed_outlined,
+                              color: al['isActive'] == true ? theme.colorScheme.primary : null),
+                          title: Text('Bed #${al['bedId']} · ${al['chargeModel']} @ ₹${al['tariffRate']}'),
+                          subtitle: Text(
+                            '${_date(al['allocatedAt'])}'
+                            '${al['releasedAt'] != null ? ' → ${_date(al['releasedAt'])}' : ' (current)'}'
+                            ' · ${al['unitsCharged'] ?? 0} units',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          trailing: Text('₹${al['allocationCharge'] ?? 0}',
+                              style: theme.textTheme.titleSmall),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -319,66 +370,207 @@ class _IpdScreenState extends State<IpdScreen> {
 
   Widget _bedBoardTab(ThemeData theme) {
     if (_beds.isEmpty) {
-      return Center(
-        child: Text(_loading ? 'Loading…' : 'No beds configured',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      return EmptyState(
+        icon: Icons.grid_view_outlined,
+        title: _loading ? 'Loading…' : 'No beds configured',
+        message: _isAdmin ? 'Use the Setup tab to add wards, rooms and beds.' : null,
+        action: _isAdmin && !_loading
+            ? FilledButton.icon(
+                onPressed: () => setState(() => _tab = 2),
+                icon: const Icon(Icons.settings_outlined, size: 18),
+                label: const Text('Open setup'))
+            : null,
       );
     }
+    final roomById = {for (final r in _rooms) '${r['id']}': r};
+    final wardById = {for (final w in _wards) '${w['id']}': w};
+    // group beds by ward id (via room), '' = unassigned
+    final byWard = <String, List<Map<String, dynamic>>>{};
+    for (final b in _beds) {
+      final room = roomById['${b['roomId']}'];
+      final wardId = room == null ? '' : '${room['wardId']}';
+      byWard.putIfAbsent(wardId, () => []).add(b);
+    }
+    final wardIds = byWard.keys.toList()
+      ..sort((a, c) => '${wardById[a]?['name'] ?? 'zzz'}'
+          .compareTo('${wardById[c]?['name'] ?? 'zzz'}'));
+
     return SingleChildScrollView(
-      child: Wrap(
-        spacing: Space.md,
-        runSpacing: Space.md,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final b in _beds)
-            SizedBox(
-              width: 180,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(Space.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(_bedIcon('${b['bedStatus']}'), size: 18,
-                              color: _bedColor(theme, '${b['bedStatus']}')),
-                          const SizedBox(width: Space.xs),
-                          Text('Bed ${b['bedNumber']}',
-                              style: theme.textTheme.titleSmall),
-                        ],
-                      ),
-                      const SizedBox(height: Space.xs),
-                      StatusChip.auto('${b['bedStatus']}'),
-                      const SizedBox(height: Space.xs),
-                      Text('${b['chargeModel']} · ₹${b['tariffRate'] ?? 0}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
+          _legend(theme),
+          const SizedBox(height: Space.md),
+          for (final wid in wardIds) ...[
+            SectionCard(
+              title: wardById[wid] == null
+                  ? 'Unassigned'
+                  : '${wardById[wid]!['name']} · ${wardById[wid]!['wardType']}',
+              icon: Icons.meeting_room_outlined,
+              subtitle: '${byWard[wid]!.length} beds',
+              child: Wrap(
+                spacing: Space.md,
+                runSpacing: Space.md,
+                children: [
+                  for (final b in byWard[wid]!) _bedTile(theme, b, roomById),
+                ],
               ),
             ),
+            const SizedBox(height: Space.md),
+          ],
         ],
       ),
     );
   }
 
-  IconData _bedIcon(String status) => switch (status) {
+  Widget _legend(ThemeData theme) {
+    Widget dot(String label, Color c) => Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+          const SizedBox(width: Space.xs),
+          Text(label, style: theme.textTheme.bodySmall),
+        ]);
+    return Wrap(spacing: Space.lg, runSpacing: Space.xs, children: [
+      dot('Vacant', StatusColors.success),
+      dot('Occupied', theme.colorScheme.primary),
+      dot('Isolation', StatusColors.danger),
+      dot('Maintenance', StatusColors.warning),
+      dot('Reserved', StatusColors.info),
+    ]);
+  }
+
+  Widget _bedTile(ThemeData theme, Map<String, dynamic> b, Map<String, Map<String, dynamic>> roomById) {
+    final status = '${b['bedStatus']}';
+    final color = _bedColor(theme, status);
+    final room = roomById['${b['roomId']}'];
+    return Container(
+      width: 156,
+      padding: const EdgeInsets.all(Space.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: Corners.mdRadius,
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_bedIcon(status), size: 18, color: color),
+              const SizedBox(width: Space.xs),
+              Text('Bed ${b['bedNumber']}', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          if (room != null)
+            Text('Room ${room['roomNumber']}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: Space.xs),
+          StatusChip.auto(status),
+          const SizedBox(height: Space.xs),
+          Text('${b['chargeModel']} · ₹${b['tariffRate'] ?? 0}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+
+  IconData _bedIcon(String s) => switch (s) {
         'VACANT' => Icons.bed_outlined,
         'OCCUPIED' => Icons.bed,
         'ISOLATION' => Icons.coronavirus_outlined,
         'MAINTENANCE' => Icons.build_outlined,
+        'RESERVED' => Icons.event_seat_outlined,
         _ => Icons.event_seat_outlined,
       };
 
-  Color? _bedColor(ThemeData theme, String status) => switch (status) {
+  Color _bedColor(ThemeData theme, String s) => switch (s) {
         'VACANT' => StatusColors.success,
         'OCCUPIED' => theme.colorScheme.primary,
         'ISOLATION' => StatusColors.danger,
         'MAINTENANCE' => StatusColors.warning,
+        'RESERVED' => StatusColors.info,
         _ => theme.colorScheme.onSurfaceVariant,
       };
+
+  // ---------------- setup (admin) ----------------
+
+  Widget _setupTab(ThemeData theme) {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          SectionCard(
+            title: 'Wards',
+            icon: Icons.apartment_outlined,
+            subtitle: '${_wards.length} configured',
+            action: FilledButton.icon(
+              onPressed: _loading ? null : _addWardDialog,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add ward'),
+            ),
+            child: _wards.isEmpty
+                ? Text('No wards yet',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+                : Wrap(
+                    spacing: Space.sm,
+                    runSpacing: Space.sm,
+                    children: [
+                      for (final w in _wards)
+                        Chip(
+                          avatar: const Icon(Icons.apartment, size: 16),
+                          label: Text('${w['name']} · ${w['wardType']}'),
+                        ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: Space.md),
+          SectionCard(
+            title: 'Rooms',
+            icon: Icons.meeting_room_outlined,
+            subtitle: '${_rooms.length} configured',
+            action: FilledButton.icon(
+              onPressed: _loading || _wards.isEmpty ? null : _addRoomDialog,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add room'),
+            ),
+            child: _rooms.isEmpty
+                ? Text(_wards.isEmpty ? 'Add a ward first' : 'No rooms yet',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+                : Wrap(
+                    spacing: Space.sm,
+                    runSpacing: Space.sm,
+                    children: [
+                      for (final r in _rooms)
+                        Chip(
+                          avatar: const Icon(Icons.meeting_room, size: 16),
+                          label: Text('Room ${r['roomNumber']}'),
+                        ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: Space.md),
+          SectionCard(
+            title: 'Beds',
+            icon: Icons.hotel_outlined,
+            subtitle: '${_beds.length} configured',
+            action: FilledButton.icon(
+              onPressed: _loading || _rooms.isEmpty ? null : _addBedDialog,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add bed'),
+            ),
+            child: _beds.isEmpty
+                ? Text(_rooms.isEmpty ? 'Add a room first' : 'No beds yet',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+                : Text('${_countStatus('VACANT')} vacant · ${_countStatus('OCCUPIED')} occupied',
+                    style: theme.textTheme.bodyMedium),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ---------------- actions ----------------
 
@@ -387,8 +579,8 @@ class _IpdScreenState extends State<IpdScreen> {
       setState(() => _error = 'No vacant beds available');
       return;
     }
-    Map<String, dynamic>? selectedPatient;
-    final doctorId = TextEditingController();
+    Map<String, dynamic>? patient;
+    Map<String, dynamic>? doctor;
     final diagnosis = TextEditingController();
     final notes = TextEditingController();
     String bedId = '${_vacantBeds.first['id']}';
@@ -403,75 +595,93 @@ class _IpdScreenState extends State<IpdScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  selectedPatient == null
-                      ? Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final p = await showPatientPicker(context);
-                              if (p != null) setD(() => selectedPatient = p);
-                            },
-                            icon: const Icon(Icons.search, size: 18),
-                            label: const Text('Select patient *'),
-                          ),
-                        )
-                      : ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text('${selectedPatient!['fullName']}'),
-                          subtitle: Text('UHID ${selectedPatient!['uhid']}'),
-                          trailing: TextButton(
-                            onPressed: () async {
-                              final p = await showPatientPicker(context);
-                              if (p != null) setD(() => selectedPatient = p);
-                            },
-                            child: const Text('Change'),
-                          ),
-                        ),
-                  _field(doctorId, 'Doctor ID *', number: true),
+                  _pickRow(theme: Theme.of(context), label: 'Patient', value: patient?['fullName'],
+                      sub: patient == null ? null : 'UHID ${patient!['uhid']}',
+                      onPick: () async {
+                        final p = await showPatientPicker(context);
+                        if (p != null) setD(() => patient = p);
+                      }),
+                  const SizedBox(height: Space.sm),
+                  _pickRow(theme: Theme.of(context), label: 'Doctor', value: doctor?['name'],
+                      sub: doctor == null ? null : '${doctor!['specialisation'] ?? 'General'}',
+                      onPick: () async {
+                        final d = await showDoctorPicker(context);
+                        if (d != null) setD(() => doctor = d);
+                      }),
+                  const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: bedId,
+                    initialValue: bedId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Bed *'),
                     items: [
                       for (final b in _vacantBeds)
                         DropdownMenuItem(
                           value: '${b['id']}',
-                          child: Text('Bed ${b['bedNumber']} · ${b['chargeModel']} '
-                              '· ₹${b['tariffRate'] ?? 0}'),
+                          child: Text('Bed ${b['bedNumber']} · ${b['chargeModel']} · ₹${b['tariffRate'] ?? 0}'),
                         ),
                     ],
                     onChanged: (v) => setD(() => bedId = v ?? bedId),
                   ),
-                  _field(diagnosis, 'Diagnosis'),
-                  _field(notes, 'Notes'),
+                  const SizedBox(height: Space.sm),
+                  TextField(controller: diagnosis,
+                      decoration: const InputDecoration(labelText: 'Diagnosis')),
+                  const SizedBox(height: Space.sm),
+                  TextField(controller: notes,
+                      decoration: const InputDecoration(labelText: 'Notes')),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Admit')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Admit')),
           ],
         ),
       ),
     );
     if (ok != true) return;
-    final did = int.tryParse(doctorId.text.trim());
-    if (selectedPatient == null || did == null) {
-      setState(() => _error = 'Select a patient and enter a valid doctor ID');
+    if (patient == null || doctor == null) {
+      setState(() => _error = 'Select both a patient and a doctor');
       return;
     }
     await _post('/api/v1/ipd/admissions', {
-      'patientId': selectedPatient!['id'],
-      'doctorId': did,
+      'patientId': patient!['id'],
+      'doctorId': doctor!['id'],
       'bedId': int.parse(bedId),
       if (diagnosis.text.trim().isNotEmpty) 'diagnosis': diagnosis.text.trim(),
       if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
-    }, 'Patient admitted', reloadDetailId: null);
+    }, 'Patient admitted');
+  }
+
+  Widget _pickRow({
+    required ThemeData theme,
+    required String label,
+    required Object? value,
+    String? sub,
+    required Future<void> Function() onPick,
+  }) {
+    if (value == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: onPick,
+          icon: const Icon(Icons.search, size: 18),
+          label: Text('Select $label *'),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: Corners.smRadius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: ListTile(
+        dense: true,
+        title: Text('$value'),
+        subtitle: sub == null ? null : Text(sub),
+        trailing: TextButton(onPressed: onPick, child: const Text('Change')),
+      ),
+    );
   }
 
   Future<void> _transferDialog(int id) async {
@@ -486,24 +696,19 @@ class _IpdScreenState extends State<IpdScreen> {
         builder: (context, setD) => AlertDialog(
           title: const Text('Transfer bed'),
           content: DropdownButtonFormField<String>(
-            value: bedId,
+            initialValue: bedId,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'New bed *'),
             items: [
               for (final b in _vacantBeds)
-                DropdownMenuItem(
-                    value: '${b['id']}',
+                DropdownMenuItem(value: '${b['id']}',
                     child: Text('Bed ${b['bedNumber']} · ${b['chargeModel']}')),
             ],
             onChanged: (v) => setD(() => bedId = v ?? bedId),
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Transfer')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Transfer')),
           ],
         ),
       ),
@@ -525,11 +730,11 @@ class _IpdScreenState extends State<IpdScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: const InputDecoration(labelText: 'Discharge type *'),
                 items: const [
                   DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
-                  DropdownMenuItem(value: 'LAMA', child: Text('LAMA')),
+                  DropdownMenuItem(value: 'LAMA', child: Text('LAMA (against advice)')),
                   DropdownMenuItem(value: 'DEATH', child: Text('Death')),
                 ],
                 onChanged: (v) => setD(() => type = v ?? 'NORMAL'),
@@ -544,12 +749,8 @@ class _IpdScreenState extends State<IpdScreen> {
             ],
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Discharge')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discharge')),
           ],
         ),
       ),
@@ -557,13 +758,143 @@ class _IpdScreenState extends State<IpdScreen> {
     if (ok != true) return;
     await _post('/api/v1/ipd/admissions/$id/discharge', {
       'dischargeType': type,
-      'acknowledgedChecklistItems':
-          billCleared ? ['FINAL_BILL_CLEARED'] : <String>[],
+      'acknowledgedChecklistItems': billCleared ? ['FINAL_BILL_CLEARED'] : <String>[],
     }, 'Patient discharged', reloadDetailId: id);
   }
 
-  Future<void> _post(String path, Map<String, dynamic> body, String ok,
-      {int? reloadDetailId}) async {
+  Future<void> _addWardDialog() async {
+    final name = TextEditingController();
+    String type = 'GENERAL';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setD) => AlertDialog(
+          title: const Text('Add ward'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Ward name *')),
+              const SizedBox(height: Space.sm),
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Ward type'),
+                items: const [
+                  DropdownMenuItem(value: 'GENERAL', child: Text('General')),
+                  DropdownMenuItem(value: 'ICU', child: Text('ICU')),
+                  DropdownMenuItem(value: 'PRIVATE', child: Text('Private')),
+                  DropdownMenuItem(value: 'SEMI_PRIVATE', child: Text('Semi-private')),
+                  DropdownMenuItem(value: 'EMERGENCY', child: Text('Emergency')),
+                ],
+                onChanged: (v) => setD(() => type = v ?? 'GENERAL'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || name.text.trim().isEmpty) return;
+    await _post('/api/v1/ipd/wards', {'name': name.text.trim(), 'wardType': type}, 'Ward created');
+  }
+
+  Future<void> _addRoomDialog() async {
+    String wardId = '${_wards.first['id']}';
+    final roomNumber = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setD) => AlertDialog(
+          title: const Text('Add room'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: wardId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Ward *'),
+                items: [
+                  for (final w in _wards)
+                    DropdownMenuItem(value: '${w['id']}', child: Text('${w['name']}')),
+                ],
+                onChanged: (v) => setD(() => wardId = v ?? wardId),
+              ),
+              const SizedBox(height: Space.sm),
+              TextField(controller: roomNumber, decoration: const InputDecoration(labelText: 'Room number *')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || roomNumber.text.trim().isEmpty) return;
+    await _post('/api/v1/ipd/rooms',
+        {'wardId': int.parse(wardId), 'roomNumber': roomNumber.text.trim()}, 'Room created');
+  }
+
+  Future<void> _addBedDialog() async {
+    String roomId = '${_rooms.first['id']}';
+    final bedNumber = TextEditingController();
+    final tariff = TextEditingController();
+    String model = 'DAILY';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setD) => AlertDialog(
+          title: const Text('Add bed'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: roomId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Room *'),
+                items: [
+                  for (final r in _rooms)
+                    DropdownMenuItem(value: '${r['id']}', child: Text('Room ${r['roomNumber']}')),
+                ],
+                onChanged: (v) => setD(() => roomId = v ?? roomId),
+              ),
+              const SizedBox(height: Space.sm),
+              TextField(controller: bedNumber, decoration: const InputDecoration(labelText: 'Bed number *')),
+              const SizedBox(height: Space.sm),
+              DropdownButtonFormField<String>(
+                initialValue: model,
+                decoration: const InputDecoration(labelText: 'Charge model'),
+                items: const [
+                  DropdownMenuItem(value: 'DAILY', child: Text('Daily')),
+                  DropdownMenuItem(value: 'HOURLY', child: Text('Hourly')),
+                  DropdownMenuItem(value: 'PACKAGE', child: Text('Package')),
+                ],
+                onChanged: (v) => setD(() => model = v ?? 'DAILY'),
+              ),
+              const SizedBox(height: Space.sm),
+              TextField(controller: tariff, keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Tariff rate', prefixText: '₹ ')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || bedNumber.text.trim().isEmpty) return;
+    await _post('/api/v1/ipd/beds', {
+      'roomId': int.parse(roomId),
+      'bedNumber': bedNumber.text.trim(),
+      'chargeModel': model,
+      if (tariff.text.trim().isNotEmpty) 'tariffRate': double.tryParse(tariff.text.trim()),
+    }, 'Bed created');
+  }
+
+  Future<void> _post(String path, Map<String, dynamic> body, String ok, {int? reloadDetailId}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -571,13 +902,10 @@ class _IpdScreenState extends State<IpdScreen> {
     });
     try {
       final api = context.read<ApiClient>();
-      await api.post<Map<String, dynamic>>(path, body,
-          fromJson: (json) => json as Map<String, dynamic>);
+      await api.post<Map<String, dynamic>>(path, body, fromJson: (j) => j as Map<String, dynamic>);
       setState(() => _info = ok);
       await _loadAll();
-      if (reloadDetailId != null) {
-        await _openAdmission(reloadDetailId);
-      }
+      if (reloadDetailId != null) await _openAdmission(reloadDetailId);
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -585,27 +913,15 @@ class _IpdScreenState extends State<IpdScreen> {
     }
   }
 
-  // ---------------- helpers ----------------
-
   Widget _kv(ThemeData theme, String k, String v) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(k,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        Text(v, style: theme.textTheme.titleSmall),
-      ],
-    );
-  }
-
-  Widget _field(TextEditingController c, String label, {bool number = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.xs),
-      child: TextField(
-        controller: c,
-        keyboardType: number ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
+    return SizedBox(
+      width: 200,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(k, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(v, style: theme.textTheme.titleSmall),
+        ],
       ),
     );
   }
