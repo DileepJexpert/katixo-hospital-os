@@ -159,8 +159,29 @@ class PurchaseOrderServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.receive(5L, List.of(PurchaseOrderService.ReceiveInput.builder()
-                        .lineId(1L).quantity(new BigDecimal("11")).build())));
+                        .lineId(1L).batchNumber("B1").quantity(new BigDecimal("11")).build())));
         assertEquals("OVER_RECEIPT", ex.getCode());
+        verify(inventoryService, never()).receiveStock(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void receiveRejectsMissingBatch() {
+        PurchaseOrderLine l = new PurchaseOrderLine();
+        l.setOrderedQuantity(new BigDecimal("10"));
+        l.setReceivedQuantity(BigDecimal.ZERO);
+        l.setItemId(11L);
+        l.setItemCode("PARA500");
+        ReflectionTestUtils.setField(l, "id", 1L);
+        PurchaseOrder po = new PurchaseOrder();
+        po.setPoStatus(PurchaseOrder.PoStatus.ORDERED);
+        ReflectionTestUtils.setField(po, "id", 5L);
+        when(poRepository.findByIdAndTenantIdAndBranchId(5L, TENANT, 1L)).thenReturn(Optional.of(po));
+        when(lineRepository.findByTenantIdAndPoIdOrderById(TENANT, 5L)).thenReturn(List.of(l));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.receive(5L, List.of(PurchaseOrderService.ReceiveInput.builder()
+                        .lineId(1L).quantity(new BigDecimal("5")).build()))); // no batch number
+        assertEquals("BATCH_REQUIRED", ex.getCode());
         verify(inventoryService, never()).receiveStock(any(), any(), any(), any(), any(), any());
     }
 
