@@ -7,6 +7,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../doctor/doctor_leave_screen.dart';
 import '../expense/expense_screen.dart';
 import '../report/financial_reports_screen.dart';
 import '../vendor/vendors_screen.dart';
@@ -44,6 +45,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
+      (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'Pharmacy', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const ItemMasterScreen()),
       if (flags.pharmacyEnabled)

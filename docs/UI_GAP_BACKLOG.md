@@ -83,10 +83,19 @@ main:
       `/api/v1/reports/{trial-balance,profit-and-loss,balance-sheet}`.
 
 ### 4. Platform & operations (P1)
-- [ ] **Tenant provisioning UI** — `TenantAdminController` exposes create /
-      suspend / activate / update-ERP-config. No PLATFORM_ADMIN screen yet.
-- [ ] **Doctor leave management UI** — `opd/DoctorLeaveController` exists;
-      no screen for raising / approving leave.
+- [x] **Doctor leave management UI** (DONE — 2026-06-16) —
+      `features/doctor/doctor_leave_screen.dart`: doctors raise + cancel their
+      own leave (My Leave tab); admins get a pending-approval inbox
+      (approve/reject) and can view/raise leave for any doctor via the picker.
+      Mounted: Doctor (My Leave), Admin + SuperAdmin (Doctor Leave). Wires
+      `/api/v1/doctors/{id}/leave` (create/list/approve/reject/cancel/pending).
+- [~] **Tenant provisioning UI** — **NOT in this app, by design.**
+      `TenantAdminController` is `@PreAuthorize("hasRole('PLATFORM_ADMIN')")`;
+      no hospital staff role (incl. SUPER_ADMIN, whose expansion deliberately
+      excludes PLATFORM_ADMIN) can call it, and the controller's own Javadoc
+      says a hospital ADMIN must not manage other hospitals. This belongs to a
+      separate **platform-operator console** (own app/login), not the hospital
+      staff app. Tracked as a future separate deliverable, not a gap here.
 
 ### 5. Appointments (P2)
 - [ ] **Appointment booking + calendar** — `OPDService.bookAppointment` /
