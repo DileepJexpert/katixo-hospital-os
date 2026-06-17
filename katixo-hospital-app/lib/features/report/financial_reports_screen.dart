@@ -42,9 +42,14 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
     });
     try {
       final api = context.read<ApiClient>();
+      final range = 'from=${_iso(_from)}&to=${_iso(_to)}';
       final path = switch (_tab) {
-        'pl' => '/api/v1/reports/profit-and-loss?from=${_iso(_from)}&to=${_iso(_to)}',
+        'pl' => '/api/v1/reports/profit-and-loss?$range',
         'bs' => '/api/v1/reports/balance-sheet?asOf=${_iso(_to)}',
+        'gst' => '/api/v1/reports/gst-summary?$range',
+        'day' => '/api/v1/reports/day-book?$range',
+        'cash' => '/api/v1/reports/cash-book?$range',
+        'bank' => '/api/v1/reports/bank-book?$range',
         _ => '/api/v1/reports/trial-balance?asOf=${_iso(_to)}',
       };
       final data = await api.get<Map<String, dynamic>>(
@@ -81,6 +86,10 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
       ('tb', 'Trial balance'),
       ('pl', 'Profit & loss'),
       ('bs', 'Balance sheet'),
+      ('gst', 'GST summary'),
+      ('day', 'Day book'),
+      ('cash', 'Cash book'),
+      ('bank', 'Bank book'),
     ];
     return PageContainer(
       scrollable: false,
@@ -114,24 +123,27 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
             ],
           ),
           const SizedBox(height: Space.md),
-          Wrap(
-            spacing: Space.md,
-            runSpacing: Space.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (_tab == 'pl')
+          Builder(builder: (context) {
+            final isRange = _tab != 'tb' && _tab != 'bs';
+            return Wrap(
+              spacing: Space.md,
+              runSpacing: Space.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (isRange)
+                  OutlinedButton.icon(
+                    onPressed: () => _pickDate(isFrom: true),
+                    icon: const Icon(Icons.calendar_today, size: 16),
+                    label: Text('From ${_iso(_from)}'),
+                  ),
                 OutlinedButton.icon(
-                  onPressed: () => _pickDate(isFrom: true),
+                  onPressed: () => _pickDate(isFrom: false),
                   icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text('From ${_iso(_from)}'),
+                  label: Text('${isRange ? 'To' : 'As of'} ${_iso(_to)}'),
                 ),
-              OutlinedButton.icon(
-                onPressed: () => _pickDate(isFrom: false),
-                icon: const Icon(Icons.calendar_today, size: 16),
-                label: Text('${_tab == 'pl' ? 'To' : 'As of'} ${_iso(_to)}'),
-              ),
-            ],
-          ),
+              ],
+            );
+          }),
           const SizedBox(height: Space.md),
           if (_error != null) ...[
             MessageBanner.error(_error!),
@@ -153,8 +165,96 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
     return switch (_tab) {
       'pl' => _profitAndLoss(theme),
       'bs' => _balanceSheet(theme),
+      'gst' => _gstSummary(theme),
+      'day' => _dayBook(theme),
+      'cash' || 'bank' => _accountBook(theme),
       _ => _trialBalance(theme),
     };
+  }
+
+  Widget _gstSummary(ThemeData theme) {
+    return SectionCard(
+      title: 'GST output summary',
+      icon: Icons.request_quote_outlined,
+      subtitle: '${_data!['invoiceCount']} taxable sale(s) · ${_data!['fromDate']} → ${_data!['toDate']}',
+      child: Column(
+        children: [
+          _row(theme, 'Taxable value', _money(_data!['taxableValue']), ''),
+          _row(theme, 'CGST', _money(_data!['cgst']), ''),
+          _row(theme, 'SGST', _money(_data!['sgst']), ''),
+          _row(theme, 'IGST', _money(_data!['igst']), ''),
+          const Divider(),
+          _row(theme, 'Total tax', _money(_data!['totalTax']), '', bold: true),
+          _row(theme, 'Total value (incl. tax)', _money(_data!['totalValue']), '', bold: true),
+          const SizedBox(height: Space.sm),
+          Text('${_data!['note'] ?? ''}',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+
+  Widget _dayBook(ThemeData theme) {
+    final entries = List<Map<String, dynamic>>.from(_data!['entries'] as List? ?? const []);
+    if (entries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(Space.lg),
+        child: Text('No journal entries in this range',
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      );
+    }
+    return Column(
+      children: [
+        for (final e in entries)
+          SectionCard(
+            title: '${e['entryNumber']} · ${e['entryDate']}',
+            icon: Icons.menu_book_outlined,
+            subtitle: '${e['description']} (${e['sourceModule']})',
+            child: Column(
+              children: [
+                for (final l in List<Map<String, dynamic>>.from(e['lines'] as List? ?? const []))
+                  _row(theme, '${l['accountCode']} ${l['description'] ?? ''}',
+                      _money(l['debit']), _money(l['credit'])),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _accountBook(ThemeData theme) {
+    final entries = List<Map<String, dynamic>>.from(_data!['entries'] as List? ?? const []);
+    return SectionCard(
+      title: '${_data!['account']} book',
+      icon: Icons.account_balance_wallet_outlined,
+      subtitle: '${_data!['fromDate']} → ${_data!['toDate']}',
+      child: Column(
+        children: [
+          _row(theme, 'Opening balance', '', _money(_data!['openingBalance']), bold: true),
+          const Divider(),
+          _row(theme, 'Entry', 'In', 'Out / Balance', header: true),
+          for (final e in entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Space.xs),
+              child: Row(
+                children: [
+                  Expanded(flex: 4, child: Text('${e['entryDate']} · ${e['description']}',
+                      style: theme.textTheme.bodySmall)),
+                  Expanded(flex: 2, child: Text(_money(e['inflow']), textAlign: TextAlign.right,
+                      style: theme.textTheme.bodySmall)),
+                  Expanded(flex: 2, child: Text(_money(e['outflow']), textAlign: TextAlign.right,
+                      style: theme.textTheme.bodySmall)),
+                  Expanded(flex: 2, child: Text(_money(e['balance']), textAlign: TextAlign.right,
+                      style: theme.textTheme.bodyMedium)),
+                ],
+              ),
+            ),
+          const Divider(),
+          _row(theme, 'Total', _money(_data!['totalInflow']), _money(_data!['totalOutflow'])),
+          _row(theme, 'Closing balance', '', _money(_data!['closingBalance']), bold: true),
+        ],
+      ),
+    );
   }
 
   Widget _trialBalance(ThemeData theme) {
