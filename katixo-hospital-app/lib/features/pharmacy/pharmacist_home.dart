@@ -8,6 +8,7 @@ import '../inventory/item_master_screen.dart';
 import '../inventory/otc_sale_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../prescription/prescriptions_screen.dart';
+import '../procurement/purchase_orders_screen.dart';
 import 'pharmacy_sales_screen.dart';
 import 'pharmacy_queue_screen.dart';
 
@@ -60,6 +61,11 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           icon: Icons.medical_information_outlined,
           selectedIcon: Icons.medical_information,
         ),
+        ShellDestination(
+          label: 'Purchase Orders',
+          icon: Icons.shopping_cart_outlined,
+          selectedIcon: Icons.shopping_cart,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -84,6 +90,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         3 => const NursingScreen(),
         4 => const PharmacySalesScreen(),
         5 => const PrescriptionsScreen(),
+        6 => const PurchaseOrdersScreen(),
         _ => const PharmacyQueueScreen(),
       },
     );

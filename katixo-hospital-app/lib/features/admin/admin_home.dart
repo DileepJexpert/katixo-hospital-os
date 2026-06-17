@@ -9,6 +9,7 @@ import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../doctor/doctor_leave_screen.dart';
 import '../expense/expense_screen.dart';
+import '../procurement/purchase_orders_screen.dart';
 import '../report/financial_reports_screen.dart';
 import '../vendor/vendors_screen.dart';
 import '../inventory/item_master_screen.dart';
@@ -52,6 +53,7 @@ class _AdminHomeState extends State<AdminHome> {
         (dest: const ShellDestination(label: 'OTC Sale', icon: Icons.point_of_sale_outlined, selectedIcon: Icons.point_of_sale), body: const OtcSaleScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
       (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
+      (dest: const ShellDestination(label: 'Purchase Orders', icon: Icons.shopping_cart_outlined, selectedIcon: Icons.shopping_cart), body: const PurchaseOrdersScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
