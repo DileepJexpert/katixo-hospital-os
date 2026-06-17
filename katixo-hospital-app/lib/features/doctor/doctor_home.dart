@@ -8,6 +8,7 @@ import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../ot/ot_screen.dart';
 import '../prescription/prescriptions_screen.dart';
+import '../radiology/radiology_screen.dart';
 import 'doctor_leave_screen.dart';
 import 'doctor_worklist_screen.dart';
 
@@ -60,6 +61,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.medical_services_outlined,
           selectedIcon: Icons.medical_services,
         ),
+        ShellDestination(
+          label: 'Radiology',
+          icon: Icons.scanner_outlined,
+          selectedIcon: Icons.scanner,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -84,6 +90,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         3 => const PrescriptionsScreen(),
         4 => const DoctorLeaveScreen(),
         5 => const OtScreen(),
+        6 => const RadiologyScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

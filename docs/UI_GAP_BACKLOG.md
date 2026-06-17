@@ -146,5 +146,5 @@ build web --release`).
       vendor + item lines / detail with partial receive + cancel). Mounted:
       Pharmacist, Admin, SuperAdmin.
 - [x] OT scheduling — ot/ backend (OtRoom, OtBooking, service, controller /api/v1/ot, 5 tests) + V1 tables + ot_booking_seq; Flutter features/ot/ot_screen.dart (day schedule + rooms, overlap-checked book/start/complete/cancel). Mounted Doctor/Admin/SuperAdmin.
-- [ ] Radiology orders + reports
+- [x] Radiology orders + reports — radiology/ backend (RadiologyOrder w/ folded report, service, controller /api/v1/radiology, 5 tests) + V1 radiology_order table + seq; Flutter features/radiology/radiology_screen.dart (order/perform/report/cancel). Mounted Doctor/LabTech/Admin/SuperAdmin.
 - [ ] GST returns + day/cash/bank books

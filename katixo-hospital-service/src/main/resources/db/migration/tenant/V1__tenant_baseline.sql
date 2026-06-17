@@ -4027,6 +4027,37 @@ CREATE INDEX idx_ot_booking_tenant_branch ON ot_booking(tenant_id, branch_id);
 CREATE INDEX idx_ot_booking_room_date ON ot_booking(tenant_id, ot_room_id, scheduled_date);
 
 -- ============================================================
+-- RADIOLOGY ORDERS + REPORTS (no journals; charges billed via tariff)
+-- ============================================================
+CREATE SEQUENCE radiology_order_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE radiology_order (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    order_number        VARCHAR(30)  NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    referring_doctor_id BIGINT       NOT NULL,
+    modality            VARCHAR(20)  NOT NULL,
+    study_name          VARCHAR(200) NOT NULL,
+    order_date          DATE         NOT NULL,
+    radiology_status    VARCHAR(20)  NOT NULL DEFAULT 'ORDERED',
+    notes               VARCHAR(500),
+    findings            VARCHAR(4000),
+    impression          VARCHAR(2000),
+    radiologist_id      BIGINT,
+    reported_at         TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_rad_tenant_branch ON radiology_order(tenant_id, branch_id);
+CREATE INDEX idx_rad_patient ON radiology_order(tenant_id, patient_id);
+
+-- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
 -- ============================================================
 CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;
