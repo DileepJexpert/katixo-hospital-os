@@ -4129,6 +4129,46 @@ CREATE INDEX idx_incident_tenant_branch ON incident_report(tenant_id, branch_id)
 CREATE INDEX idx_incident_status ON incident_report(tenant_id, incident_status);
 
 -- ============================================================
+-- BILLING PACKAGES (bundled fixed-price; applied as a hospital charge)
+-- ============================================================
+CREATE TABLE billing_package (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(40)  NOT NULL,
+    name                VARCHAR(200) NOT NULL,
+    package_type        VARCHAR(30)  NOT NULL DEFAULT 'FIXED',
+    package_price       NUMERIC(14,2) NOT NULL,
+    notes               VARCHAR(300),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_pkg_tenant_code UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_pkg_tenant_branch ON billing_package(tenant_id, branch_id);
+
+CREATE TABLE package_component (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    package_id          BIGINT       NOT NULL,
+    service_code        VARCHAR(50)  NOT NULL,
+    service_name        VARCHAR(150) NOT NULL,
+    included_quantity   NUMERIC(14,2) NOT NULL DEFAULT 1,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_pkg_component_pkg ON package_component(tenant_id, package_id);
+
+-- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
 -- ============================================================
 CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;
