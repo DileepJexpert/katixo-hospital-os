@@ -5,6 +5,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../ipd/ipd_screen.dart';
+import '../opd/appointments_screen.dart';
 import '../patient/patients_screen.dart';
 import 'registration_screen.dart';
 import 'walk_in_screen.dart';
@@ -38,6 +39,11 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
           selectedIcon: Icons.directions_walk,
         ),
         ShellDestination(
+          label: 'Appointments',
+          icon: Icons.event_note_outlined,
+          selectedIcon: Icons.event_note,
+        ),
+        ShellDestination(
           label: 'IPD',
           icon: Icons.local_hotel_outlined,
           selectedIcon: Icons.local_hotel,
@@ -68,10 +74,11 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
         ),
       ],
       body: switch (_index) {
-        0 => const RegistrationScreen(),
         1 => const WalkInScreen(),
-        2 => const IpdScreen(),
-        _ => const PatientsScreen(),
+        2 => const AppointmentsScreen(),
+        3 => const IpdScreen(),
+        4 => const PatientsScreen(),
+        _ => const RegistrationScreen(),
       },
     );
   }

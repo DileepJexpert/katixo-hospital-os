@@ -50,6 +50,26 @@ public class OPDController {
         return respond(VisitResponse.from(visit), "Checked in, token issued", HttpStatus.CREATED);
     }
 
+    @GetMapping("/appointments")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<AppointmentResponse>>> listAppointments(
+            @RequestParam Long doctorId,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate date) {
+        List<AppointmentResponse> list = opdService.listAppointments(doctorId, date).stream()
+                .map(AppointmentResponse::from)
+                .toList();
+        return respond(list, "Appointments", HttpStatus.OK);
+    }
+
+    @PostMapping("/appointments/{appointmentId}/cancel")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'ADMIN')")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> cancelAppointment(@PathVariable Long appointmentId) {
+        return respond(AppointmentResponse.from(opdService.cancelAppointment(appointmentId)),
+                "Appointment cancelled", HttpStatus.OK);
+    }
+
     @GetMapping("/queue/doctor/{doctorId}")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<TokenResponse>>> worklist(@PathVariable Long doctorId) {
