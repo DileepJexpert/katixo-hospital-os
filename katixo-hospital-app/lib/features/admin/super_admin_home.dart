@@ -27,6 +27,7 @@ import '../payroll/payroll_screen.dart';
 import '../pharmacy/pharmacy_queue_screen.dart';
 import '../pharmacy/pharmacy_sales_screen.dart';
 import '../prescription/prescriptions_screen.dart';
+import '../procurement/purchase_orders_screen.dart';
 import '../settings/settings_screen.dart';
 import '../tpa/tpa_screen.dart';
 
@@ -72,6 +73,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
       (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
+      (dest: const ShellDestination(label: 'Purchase Orders', icon: Icons.shopping_cart_outlined, selectedIcon: Icons.shopping_cart), body: const PurchaseOrdersScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
