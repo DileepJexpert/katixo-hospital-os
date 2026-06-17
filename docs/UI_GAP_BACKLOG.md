@@ -50,14 +50,20 @@ the working backlog for the UI-completeness program.
       gender, DOB, marital status, occupation, nationality, full address,
       emergency contact, medications, notes); `toDTO` round-trips the new ones.
 
-### 3. Pharmacy / prescription gaps (P1)
-- [ ] **Partial pharmacy return** UI for the existing `POST /api/v1/pharmacy-
-      sales/{id}/return` (per-line return + proportional revenue/GST/COGS
-      reversal). Backend complete; no front-of-house screen.
-- [ ] **Sale detail + dispensed history** for OPD/OTC/IPD (read-only viewer).
-- [ ] **Prescription view / history / edit / cancel / direct-dispense** —
-      `PrescriptionService` supports all of these; only "create" is wired in
-      the doctor consultation panel.
+### 3. Pharmacy / prescription gaps (DONE — 2026-06-16)
+- [x] **Partial pharmacy return** UI — `features/pharmacy/pharmacy_sales_
+      screen.dart` sale detail shows per-line qty + returned + remaining;
+      "Return items" posts per-line quantities to `POST /api/v1/pharmacy-
+      sales/{id}/return` (capped at remaining). "Reverse sale" too. Backend
+      `saleView` now exposes per-line `returnedQuantity` + header `reversed`.
+- [x] **Sale detail + dispensed history** — same screen lists recent sales
+      (new `GET /api/v1/pharmacy-sales?limit=` + `listRecentSales`) → tap for
+      detail. Mounted: Pharmacist (Sales tab) + SuperAdmin.
+- [x] **Prescription view / history / edit / cancel / dispense** —
+      `features/prescription/prescriptions_screen.dart`: load by visit, view
+      items, version history, edit (ACTIVE only → new version, doctor), cancel
+      (doctor), mark dispensed (pharmacist). Mounted: Doctor + Pharmacist +
+      SuperAdmin. (Create stays in the consultation panel.)
 
 ### Extracted from parallel branch `claude/laughing-thompson-si53wy` (DONE — 2026-06-16)
 That branch (off old main, pre-PR#10) had 4 commits; 2 duplicated already-merged
