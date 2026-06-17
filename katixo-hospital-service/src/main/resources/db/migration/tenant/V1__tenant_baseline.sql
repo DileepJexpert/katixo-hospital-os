@@ -4058,6 +4058,77 @@ CREATE INDEX idx_rad_tenant_branch ON radiology_order(tenant_id, branch_id);
 CREATE INDEX idx_rad_patient ON radiology_order(tenant_id, patient_id);
 
 -- ============================================================
+-- NABH QUALITY INDICATORS + INCIDENT REPORTING (clinical governance; no journals)
+-- ============================================================
+CREATE SEQUENCE incident_report_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE quality_indicator (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(40)  NOT NULL,
+    name                VARCHAR(200) NOT NULL,
+    category            VARCHAR(100),
+    unit                VARCHAR(40),
+    target_value        NUMERIC(14,4),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_qi_tenant_code UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_qi_tenant_branch ON quality_indicator(tenant_id, branch_id);
+
+CREATE TABLE quality_indicator_reading (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    indicator_id        BIGINT       NOT NULL,
+    period              VARCHAR(10)  NOT NULL,
+    value               NUMERIC(14,4) NOT NULL,
+    numerator           NUMERIC(14,2),
+    denominator         NUMERIC(14,2),
+    notes               VARCHAR(300),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_qir_indicator ON quality_indicator_reading(tenant_id, indicator_id);
+
+CREATE TABLE incident_report (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    report_number       VARCHAR(30)  NOT NULL,
+    incident_date       DATE         NOT NULL,
+    incident_type       VARCHAR(30)  NOT NULL,
+    severity            VARCHAR(20)  NOT NULL,
+    location            VARCHAR(150),
+    patient_id          BIGINT,
+    description         VARCHAR(2000) NOT NULL,
+    immediate_action    VARCHAR(1000),
+    incident_status     VARCHAR(20)  NOT NULL DEFAULT 'REPORTED',
+    root_cause          VARCHAR(2000),
+    corrective_action   VARCHAR(2000),
+    closed_by           BIGINT,
+    closed_at           TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_incident_tenant_branch ON incident_report(tenant_id, branch_id);
+CREATE INDEX idx_incident_status ON incident_report(tenant_id, incident_status);
+
+-- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
 -- ============================================================
 CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;

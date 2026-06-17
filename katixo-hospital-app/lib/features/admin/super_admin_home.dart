@@ -20,6 +20,7 @@ import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../notification/notifications_screen.dart';
+import '../nabh/nabh_screen.dart';
 import '../opd/appointments_screen.dart';
 import '../ot/ot_screen.dart';
 import '../radiology/radiology_screen.dart';
@@ -80,6 +81,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Purchase Orders', icon: Icons.shopping_cart_outlined, selectedIcon: Icons.shopping_cart), body: const PurchaseOrdersScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
+      (dest: const ShellDestination(label: 'NABH', icon: Icons.verified_outlined, selectedIcon: Icons.verified), body: const NabhScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
