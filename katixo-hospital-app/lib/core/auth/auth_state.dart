@@ -30,10 +30,10 @@ class AuthState extends ChangeNotifier {
   bool get isAuthenticated => _token != null && _user != null;
 
   Future<void> login(
-      String username, String password, ApiClient apiClient) async {
+      String username, String password, ApiClient apiClient, {String? mfaCode}) async {
     final response = await apiClient.post<LoginResponse>(
       '/api/v1/auth/login',
-      LoginRequest(username: username, password: password),
+      LoginRequest(username: username, password: password, mfaCode: mfaCode),
       fromJson: (json) => LoginResponse.fromJson(json as Map<String, dynamic>),
     );
 

@@ -54,6 +54,13 @@ public class StaffUser {
     @Column(length = 100)
     private String passwordHash;
 
+    /** TOTP two-factor: opt-in per user. Secret stored base32; enforced at login when enabled. */
+    @Column(nullable = false)
+    private boolean mfaEnabled = false;
+
+    @Column(length = 64)
+    private String mfaSecret;
+
     @Column(length = 100)
     private String specialisation;
 

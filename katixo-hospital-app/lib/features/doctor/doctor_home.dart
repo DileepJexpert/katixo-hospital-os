@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/security_button.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_state.dart';
@@ -78,6 +79,7 @@ class _DoctorHomeState extends State<DoctorHome> {
                   style: theme.textTheme.labelLarge),
             ),
           ),
+        const SecurityButton(),
         IconButton(
           tooltip: 'Sign out',
           icon: const Icon(Icons.logout_outlined),

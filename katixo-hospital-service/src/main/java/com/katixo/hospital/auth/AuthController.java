@@ -31,6 +31,7 @@ public class AuthController {
     private final StaffUserRepository staffUserRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final TotpService totpService;
 
     @Value("${katixo.tenant.demo.tenant-id:demo-tenant}")
     private String defaultTenantId;
@@ -49,6 +50,8 @@ public class AuthController {
          * until we know the tenant. Falls back to the demo tenant in dev.
          */
         private String tenantId;
+        /** TOTP code — required only when the user has enabled two-factor auth. */
+        private String mfaCode;
     }
 
     @PostMapping("/login")
@@ -65,6 +68,16 @@ public class AuthController {
         if (user.getPasswordHash() == null
                 || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
             throw new BusinessException("INVALID_CREDENTIALS", "Invalid username or password");
+        }
+
+        // Second factor: only enforced for users who have enabled TOTP.
+        if (user.isMfaEnabled()) {
+            if (req.getMfaCode() == null || req.getMfaCode().isBlank()) {
+                throw new BusinessException("MFA_REQUIRED", "A two-factor code is required");
+            }
+            if (!totpService.verify(user.getMfaSecret(), req.getMfaCode())) {
+                throw new BusinessException("INVALID_MFA_CODE", "That two-factor code is incorrect or expired");
+            }
         }
 
         JwtClaims claims = JwtClaims.builder()
