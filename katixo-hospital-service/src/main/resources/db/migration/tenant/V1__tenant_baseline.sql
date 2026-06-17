@@ -3980,6 +3980,53 @@ CREATE TABLE purchase_order_line (
 CREATE INDEX idx_po_line_po ON purchase_order_line(tenant_id, po_id);
 
 -- ============================================================
+-- OPERATING THEATRE (OT) SCHEDULING (no journals; OT charges billed via tariff)
+-- ============================================================
+CREATE SEQUENCE ot_booking_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE ot_room (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    name                VARCHAR(100) NOT NULL,
+    location            VARCHAR(150),
+    notes               VARCHAR(300),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ot_room_tenant_branch ON ot_room(tenant_id, branch_id);
+
+CREATE TABLE ot_booking (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    booking_number      VARCHAR(30)  NOT NULL,
+    ot_room_id          BIGINT       NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    surgeon_id          BIGINT       NOT NULL,
+    procedure_name      VARCHAR(200) NOT NULL,
+    scheduled_date      DATE         NOT NULL,
+    start_time          TIME         NOT NULL,
+    end_time            TIME         NOT NULL,
+    ot_status           VARCHAR(20)  NOT NULL DEFAULT 'SCHEDULED',
+    notes               VARCHAR(500),
+    surgery_notes       VARCHAR(2000),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_ot_booking_tenant_branch ON ot_booking(tenant_id, branch_id);
+CREATE INDEX idx_ot_booking_room_date ON ot_booking(tenant_id, ot_room_id, scheduled_date);
+
+-- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
 -- ============================================================
 CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;

@@ -145,6 +145,6 @@ build web --release`).
       `features/procurement/purchase_orders_screen.dart` (list / create with
       vendor + item lines / detail with partial receive + cancel). Mounted:
       Pharmacist, Admin, SuperAdmin.
-- [ ] OT scheduling
+- [x] OT scheduling — ot/ backend (OtRoom, OtBooking, service, controller /api/v1/ot, 5 tests) + V1 tables + ot_booking_seq; Flutter features/ot/ot_screen.dart (day schedule + rooms, overlap-checked book/start/complete/cancel). Mounted Doctor/Admin/SuperAdmin.
 - [ ] Radiology orders + reports
 - [ ] GST returns + day/cash/bank books
