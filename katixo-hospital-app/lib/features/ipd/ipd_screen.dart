@@ -9,6 +9,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
+import '../discharge/discharge_summary_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../patient/patient_picker.dart';
 import '../staff/doctor_picker.dart';
@@ -325,6 +326,12 @@ class _IpdScreenState extends State<IpdScreen> {
                     onPressed: _loading ? null : () => _transferDialog(id),
                     icon: const Icon(Icons.swap_horiz, size: 18),
                     label: const Text('Transfer'),
+                  ),
+                if (_canDischarge)
+                  OutlinedButton.icon(
+                    onPressed: () => _openDischargeSummary(id),
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: const Text('Discharge Summary'),
                   ),
                 if (isAdmitted && _canDischarge)
                   FilledButton.icon(
@@ -909,6 +916,21 @@ class _IpdScreenState extends State<IpdScreen> {
       'chargeModel': model,
       if (tariff.text.trim().isNotEmpty) 'tariffRate': double.tryParse(tariff.text.trim()),
     }, 'Bed created');
+  }
+
+  void _openDischargeSummary(int admissionId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 700,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          ),
+          child: DischargeSummaryScreen(admissionId: admissionId),
+        ),
+      ),
+    );
   }
 
   Future<void> _post(String path, Map<String, dynamic> body, String ok, {int? reloadDetailId}) async {
