@@ -106,14 +106,18 @@ class CurrentUser {
 }
 
 class LoginRequest {
-  const LoginRequest({required this.username, required this.password});
+  const LoginRequest({required this.username, required this.password, this.mfaCode});
 
   final String username;
   final String password;
 
+  /// TOTP code — sent only when the account has two-factor enabled.
+  final String? mfaCode;
+
   Map<String, dynamic> toJson() => {
         'username': username,
         'password': password,
+        if (mfaCode != null && mfaCode!.isNotEmpty) 'mfaCode': mfaCode,
       };
 }
 
