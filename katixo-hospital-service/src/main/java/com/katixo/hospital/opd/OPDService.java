@@ -201,9 +201,35 @@ public class OPDService {
         return savedVisit;
     }
 
-    /**
-     * Doctor worklist: walk-ins + checked-in appointments merged, priority first then token order.
-     */
+    /** A doctor's appointments for a day (excludes cancelled / no-show), slot order. */
+    @Transactional(readOnly = true)
+    public List<Appointment> listAppointments(Long doctorId, LocalDate date) {
+        var context = TenantContext.get();
+        return appointmentRepository.findByDoctorAndDate(context.getTenantId(),
+                Long.parseLong(context.getBranchId()), doctorId,
+                date == null ? LocalDate.now() : date);
+    }
+
+    /** Cancel an appointment that hasn't been checked in yet. */
+    public Appointment cancelAppointment(Long appointmentId) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        Appointment appointment = appointmentRepository
+                .findByIdAndTenantIdAndBranchId(appointmentId, context.getTenantId(), branchId)
+                .orElseThrow(() -> new BusinessException("APPOINTMENT_NOT_FOUND", "Appointment not found: " + appointmentId));
+        if (appointment.getAppointmentStatus() != Appointment.AppointmentStatus.BOOKED
+                && appointment.getAppointmentStatus() != Appointment.AppointmentStatus.CONFIRMED) {
+            throw new BusinessException("INVALID_STATE",
+                    "Appointment cannot be cancelled from state " + appointment.getAppointmentStatus());
+        }
+        appointment.setAppointmentStatus(Appointment.AppointmentStatus.CANCELLED);
+        appointment.setUpdatedBy(Long.parseLong(context.getUserId()));
+        Appointment saved = appointmentRepository.save(appointment);
+        auditService.audit("Appointment", String.valueOf(appointmentId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("status", "CANCELLED"), UUID.randomUUID().toString());
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public List<QueueToken> getDoctorWorklist(Long doctorId) {
         var context = TenantContext.get();

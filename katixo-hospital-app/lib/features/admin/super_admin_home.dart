@@ -20,6 +20,7 @@ import '../inventory/otc_sale_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../notification/notifications_screen.dart';
+import '../opd/appointments_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../patient/patients_screen.dart';
 import '../payroll/payroll_screen.dart';
@@ -51,6 +52,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Patients', icon: Icons.people_outline, selectedIcon: Icons.people), body: const PatientsScreen()),
       (dest: const ShellDestination(label: 'Register', icon: Icons.person_add_outlined, selectedIcon: Icons.person_add), body: const RegistrationScreen()),
       (dest: const ShellDestination(label: 'Walk-in', icon: Icons.directions_walk_outlined, selectedIcon: Icons.directions_walk), body: const WalkInScreen()),
+      (dest: const ShellDestination(label: 'Appointments', icon: Icons.event_note_outlined, selectedIcon: Icons.event_note), body: const AppointmentsScreen()),
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
       (dest: const ShellDestination(label: 'Consult Queue', icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt), body: const DoctorWorklistScreen()),
