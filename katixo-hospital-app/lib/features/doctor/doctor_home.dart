@@ -7,6 +7,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
+import '../discharge/discharge_summary_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../ot/ot_screen.dart';
@@ -79,6 +80,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.workspace_premium_outlined,
           selectedIcon: Icons.workspace_premium,
         ),
+        ShellDestination(
+          label: 'Discharge Summaries',
+          icon: Icons.summarize_outlined,
+          selectedIcon: Icons.summarize,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -107,6 +113,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         6 => const RadiologyScreen(),
         7 => const ConsentScreen(),
         8 => const CertificateScreen(),
+        9 => const DischargeSummaryScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

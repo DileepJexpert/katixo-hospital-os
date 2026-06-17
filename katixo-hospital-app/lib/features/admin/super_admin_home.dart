@@ -12,6 +12,7 @@ import '../billing/tariffs_screen.dart';
 import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../discharge/discharge_summary_screen.dart';
 import '../report/financial_reports_screen.dart';
 import '../vendor/vendors_screen.dart';
 import '../doctor/doctor_leave_screen.dart';
@@ -86,6 +87,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Packages', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const PackagesScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
+      (dest: const ShellDestination(label: 'Discharge Summaries', icon: Icons.summarize_outlined, selectedIcon: Icons.summarize), body: const DischargeSummaryScreen()),
       (dest: const ShellDestination(label: 'NABH', icon: Icons.verified_outlined, selectedIcon: Icons.verified), body: const NabhScreen()),
       (dest: const ShellDestination(label: 'Consent', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in), body: const ConsentScreen()),
       (dest: const ShellDestination(label: 'Certificates', icon: Icons.workspace_premium_outlined, selectedIcon: Icons.workspace_premium), body: const CertificateScreen()),

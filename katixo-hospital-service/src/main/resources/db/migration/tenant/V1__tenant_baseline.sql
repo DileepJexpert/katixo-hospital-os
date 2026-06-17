@@ -702,6 +702,50 @@ CREATE SEQUENCE ipd_admission_seq
 
 
 --
+-- Name: discharge_summary; Type: TABLE; Schema: t_demo_tenant; Owner: -
+--
+
+CREATE TABLE discharge_summary (
+    id bigint NOT NULL,
+    tenant_id character varying(50) NOT NULL,
+    hospital_group_id bigint NOT NULL,
+    branch_id bigint NOT NULL,
+    admission_id bigint NOT NULL,
+    summary_number character varying(30) NOT NULL,
+    summary_status character varying(20) DEFAULT 'DRAFT' NOT NULL,
+    final_diagnosis text,
+    course_in_hospital text,
+    procedures_performed text,
+    condition_at_discharge character varying(20),
+    follow_up_instructions text,
+    medications_at_discharge text,
+    activity_restrictions text,
+    diet_advice text,
+    signed_by_doctor_id bigint,
+    signed_by_doctor_name character varying(200),
+    signed_at timestamp without time zone,
+    status character varying(20) DEFAULT 'ACTIVE' NOT NULL,
+    created_by bigint,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_by bigint,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE discharge_summary_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+
+CREATE SEQUENCE discharge_summary_id_seq
+    START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+
+ALTER SEQUENCE discharge_summary_id_seq OWNED BY discharge_summary.id;
+ALTER TABLE ONLY discharge_summary ALTER COLUMN id SET DEFAULT nextval('discharge_summary_id_seq'::regclass);
+ALTER TABLE ONLY discharge_summary ADD CONSTRAINT discharge_summary_pkey PRIMARY KEY (id);
+CREATE UNIQUE INDEX idx_dsum_tenant_number ON discharge_summary (tenant_id, summary_number);
+CREATE INDEX idx_dsum_admission ON discharge_summary (admission_id, tenant_id);
+CREATE INDEX idx_dsum_tenant_branch ON discharge_summary (tenant_id, branch_id);
+
+
+--
 -- Name: lab_order; Type: TABLE; Schema: t_demo_tenant; Owner: -
 --
 
