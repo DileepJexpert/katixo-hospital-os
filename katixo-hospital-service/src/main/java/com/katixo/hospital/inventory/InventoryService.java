@@ -151,13 +151,17 @@ public class InventoryService {
         if (quantity == null || quantity.signum() <= 0) {
             throw new BusinessException("INVALID_QUANTITY", "Issue quantity must be positive");
         }
-        BigDecimal available = batchRepository.totalAvailable(ctx.getTenantId(), itemId);
+        // Lock this item's available batches up front so concurrent issues of the
+        // same item serialise — the availability check + draw-down is then atomic
+        // and can't over-issue.
+        List<StockBatch> batches = batchRepository.findAvailableFefoForUpdate(ctx.getTenantId(), itemId);
+        BigDecimal available = batches.stream()
+                .map(StockBatch::getQuantityAvailable)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (available.compareTo(quantity) < 0) {
             throw new BusinessException("INSUFFICIENT_STOCK",
                     "Insufficient stock for item " + itemId + ": need " + quantity + ", have " + available);
         }
-
-        List<StockBatch> batches = batchRepository.findAvailableFefo(ctx.getTenantId(), itemId);
         List<Consumption> consumptions = new ArrayList<>();
         BigDecimal remaining = quantity;
         BigDecimal totalCost = BigDecimal.ZERO;
