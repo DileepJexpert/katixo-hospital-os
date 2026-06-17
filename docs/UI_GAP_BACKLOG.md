@@ -134,3 +134,17 @@ Suggested order (highest leverage first): **Billing admin** (#1) →
 Pick one item at a time; each should land with a backend test (where
 behaviour changes) and a smoke verification (`flutter analyze`, `flutter
 build web --release`).
+
+## §6 roadmap build-out (in progress 2026-06-16)
+- [x] **Purchase orders + GRN** — `procurement/` backend (PurchaseOrder +
+      line entities, service, controller `/api/v1/purchase-orders`, repo, 5
+      tests) + V1 `purchase_order`/`purchase_order_line` tables + `purchase_
+      order_seq`. PO posts no journal; **receiving delegates to
+      `InventoryService.receiveStock`** (feeds stock + DR Inventory / CR Trade
+      Payables) so stock & AP land in one step without double-booking. Flutter
+      `features/procurement/purchase_orders_screen.dart` (list / create with
+      vendor + item lines / detail with partial receive + cancel). Mounted:
+      Pharmacist, Admin, SuperAdmin.
+- [ ] OT scheduling
+- [ ] Radiology orders + reports
+- [ ] GST returns + day/cash/bank books

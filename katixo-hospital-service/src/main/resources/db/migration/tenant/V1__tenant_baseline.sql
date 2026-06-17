@@ -3931,6 +3931,55 @@ CREATE INDEX idx_vendor_tenant_branch ON vendor(tenant_id, branch_id);
 CREATE INDEX idx_vendor_name ON vendor(tenant_id, name);
 
 -- ============================================================
+-- PURCHASE ORDERS + GOODS RECEIPT (PO posts no journal; receiving feeds
+-- stock + AP via InventoryService.receiveStock = DR Inventory / CR Trade Payables)
+-- ============================================================
+CREATE SEQUENCE purchase_order_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE purchase_order (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    po_number           VARCHAR(30)  NOT NULL,
+    vendor_id           BIGINT       NOT NULL,
+    vendor_name         VARCHAR(150) NOT NULL,
+    order_date          DATE         NOT NULL,
+    expected_date       DATE,
+    po_status           VARCHAR(20)  NOT NULL DEFAULT 'ORDERED',
+    total_amount        NUMERIC(14,2) DEFAULT 0,
+    notes               VARCHAR(300),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_po_tenant_branch ON purchase_order(tenant_id, branch_id);
+CREATE INDEX idx_po_vendor ON purchase_order(tenant_id, vendor_id);
+
+CREATE TABLE purchase_order_line (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    po_id               BIGINT       NOT NULL,
+    item_id             BIGINT       NOT NULL,
+    item_code           VARCHAR(50)  NOT NULL,
+    item_name           VARCHAR(150) NOT NULL,
+    ordered_quantity    NUMERIC(14,2) NOT NULL,
+    unit_cost           NUMERIC(14,2) NOT NULL DEFAULT 0,
+    received_quantity   NUMERIC(14,2) NOT NULL DEFAULT 0,
+    line_total          NUMERIC(14,2) NOT NULL DEFAULT 0,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_po_line_po ON purchase_order_line(tenant_id, po_id);
+
+-- ============================================================
 -- TPA / INSURANCE CLAIMS (hospital-owned; posts to own books)
 -- ============================================================
 CREATE SEQUENCE tpa_payer_seq START WITH 1001 INCREMENT BY 1;
