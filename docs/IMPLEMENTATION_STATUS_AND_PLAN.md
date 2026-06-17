@@ -1,6 +1,6 @@
 # Katixo Hospital OS — Implementation Status & Plan
 
-_Last updated: 2026-06-14_
+_Last updated: 2026-06-17_
 
 This is the single source of truth for **what is built** and **what is next**.
 Keep it current as features land. For coding conventions and architecture
@@ -102,6 +102,15 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
+- **Two-factor auth (TOTP, 2026-06-17):** opt-in per user. `auth/TotpService`
+  is a hand-rolled RFC 6238 implementation (HMAC-SHA1, 6 digits, 30s step, ±1
+  window, RFC 4648 base32) — no external lib. `auth/MfaController`
+  (`/api/v1/mfa` status/enroll/activate/disable, self-service for the signed-in
+  user). `AuthController.login` enforces the code when `staff_user_ref.mfa_enabled`
+  is set (`MFA_REQUIRED` / `INVALID_MFA_CODE`). Secret stored base32 in
+  `staff_user_ref.mfa_secret`. Flutter: login reveals a code field on
+  `MFA_REQUIRED`; an **Account Security** screen (shield button in every role
+  home's app bar) drives enroll → show secret/otpauth URI → activate, and disable.
 
 ### ERP-parity gap closures (in-process, 2026-06-15)
 The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
@@ -243,7 +252,8 @@ a group is rough priority.
 - **In-app PDF print/download** (binary `ApiClient` path) across all documents.
 - **Hindi (and later regional) i18n** for patient-facing output (prescription, bill, report).
 - **Role-complete homes** (nurse, lab tech, owner) + permission-gated navigation.
-- **MFA** for sensitive actions (high discount, refund, invoice cancel, discharge sign-off).
+- ~~**MFA** at login (TOTP)~~ **DONE (2026-06-17)** — see §2 Cross-cutting. Still
+  future: per-action step-up MFA (high discount, refund, invoice cancel, discharge sign-off).
 - **Offline-tolerant** counter flows (pharmacy/OPD) where connectivity is unreliable.
 
 ## 7. Branch / workflow

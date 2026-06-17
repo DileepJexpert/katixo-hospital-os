@@ -18,7 +18,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   late TextEditingController _usernameCtrl;
   late TextEditingController _passwordCtrl;
+  late TextEditingController _mfaCtrl;
   bool _isLoading = false;
+  bool _mfaRequired = false;
   String? _error;
 
   @override
@@ -26,18 +28,24 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     _usernameCtrl = TextEditingController();
     _passwordCtrl = TextEditingController();
+    _mfaCtrl = TextEditingController();
   }
 
   @override
   void dispose() {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
+    _mfaCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
     if (_usernameCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) {
       setState(() => _error = 'Username and password required');
+      return;
+    }
+    if (_mfaRequired && _mfaCtrl.text.isEmpty) {
+      setState(() => _error = 'Enter the 6-digit code from your authenticator app');
       return;
     }
 
@@ -50,13 +58,31 @@ class _LoginScreenState extends State<LoginScreen> {
       final authState = context.read<AuthState>();
       final apiClient = context.read<ApiClient>();
 
-      await authState.login(_usernameCtrl.text, _passwordCtrl.text, apiClient);
+      await authState.login(
+        _usernameCtrl.text,
+        _passwordCtrl.text,
+        apiClient,
+        mfaCode: _mfaRequired ? _mfaCtrl.text : null,
+      );
 
       // Navigation handled by router redirect watching authState.
     } on UnauthorizedException {
       setState(() => _error = 'Invalid credentials');
     } on ApiException catch (e) {
-      setState(() => _error = e.error.message);
+      // The account has two-factor on: reveal the code field and prompt.
+      if (e.error.error == 'MFA_REQUIRED') {
+        setState(() {
+          _mfaRequired = true;
+          _error = 'Enter the 6-digit code from your authenticator app';
+        });
+      } else if (e.error.error == 'INVALID_MFA_CODE') {
+        setState(() {
+          _mfaRequired = true;
+          _error = e.error.message;
+        });
+      } else {
+        setState(() => _error = e.error.message);
+      }
     } catch (e) {
       setState(() => _error = 'Login failed: ${e.toString()}');
     } finally {
@@ -136,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline,
+                          const Icon(Icons.error_outline,
                               size: 20, color: StatusColors.danger),
                           const SizedBox(width: Space.sm),
                           Expanded(
@@ -167,11 +193,33 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordCtrl,
                     enabled: !_isLoading,
                     obscureText: true,
+                    onSubmitted: (_) {
+                      if (!_mfaRequired) _handleLogin();
+                    },
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),
+
+                  // Two-factor code (shown once the account asks for it)
+                  if (_mfaRequired) ...[
+                    const SizedBox(height: Space.md),
+                    TextField(
+                      controller: _mfaCtrl,
+                      enabled: !_isLoading,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      onSubmitted: (_) => _handleLogin(),
+                      decoration: const InputDecoration(
+                        labelText: 'Authenticator code',
+                        helperText: '6-digit code from your authenticator app',
+                        prefixIcon: Icon(Icons.shield_outlined),
+                        counterText: '',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: Space.lg),
 
                   // Login button

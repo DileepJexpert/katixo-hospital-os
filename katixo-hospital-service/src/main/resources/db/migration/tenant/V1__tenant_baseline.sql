@@ -1823,7 +1823,9 @@ CREATE TABLE staff_user_ref (
     updated_by bigint,
     updated_at timestamp without time zone DEFAULT now() NOT NULL,
     username character varying(100),
-    password_hash character varying(100)
+    password_hash character varying(100),
+    mfa_enabled boolean DEFAULT false NOT NULL,
+    mfa_secret character varying(64)
 );
 
 
