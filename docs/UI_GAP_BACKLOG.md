@@ -147,4 +147,4 @@ build web --release`).
       Pharmacist, Admin, SuperAdmin.
 - [x] OT scheduling — ot/ backend (OtRoom, OtBooking, service, controller /api/v1/ot, 5 tests) + V1 tables + ot_booking_seq; Flutter features/ot/ot_screen.dart (day schedule + rooms, overlap-checked book/start/complete/cancel). Mounted Doctor/Admin/SuperAdmin.
 - [x] Radiology orders + reports — radiology/ backend (RadiologyOrder w/ folded report, service, controller /api/v1/radiology, 5 tests) + V1 radiology_order table + seq; Flutter features/radiology/radiology_screen.dart (order/perform/report/cancel). Mounted Doctor/LabTech/Admin/SuperAdmin.
-- [ ] GST returns + day/cash/bank books
+- [x] GST returns + day/cash/bank books — report/StatutoryReportService + controller (/api/v1/reports/{gst-summary,day-book,cash-book,bank-book}, 2 tests) off the ledger; added as 4 tabs on the existing Financial Reports screen. No new tables.
