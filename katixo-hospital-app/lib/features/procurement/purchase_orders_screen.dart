@@ -330,7 +330,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
                                   Expanded(
                                     child: TextField(
                                       controller: rows[l['id']]!['batch'],
-                                      decoration: const InputDecoration(labelText: 'Batch #'),
+                                      decoration: const InputDecoration(labelText: 'Batch # *'),
                                     ),
                                   ),
                                 ],
@@ -395,10 +395,14 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
         setState(() => _error = '${l['itemName']}: cannot receive more than ${remaining[id]}');
         return;
       }
+      if (r['batch']!.text.trim().isEmpty) {
+        setState(() => _error = '${l['itemName']}: a batch number is required to receive');
+        return;
+      }
       receiveLines.add({
         'lineId': id,
         'quantity': qty,
-        if (r['batch']!.text.trim().isNotEmpty) 'batchNumber': r['batch']!.text.trim(),
+        'batchNumber': r['batch']!.text.trim(),
         if (expiry[id] != null) 'expiryDate': iso(expiry[id]!),
         if (r['cost']!.text.trim().isNotEmpty) 'costPrice': double.tryParse(r['cost']!.text.trim()),
         if (r['mrp']!.text.trim().isNotEmpty) 'mrp': double.tryParse(r['mrp']!.text.trim()),
