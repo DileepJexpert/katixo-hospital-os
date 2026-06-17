@@ -5,6 +5,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../ipd/ipd_screen.dart';
+import '../nabh/nabh_screen.dart';
 import 'nursing_screen.dart';
 
 /// Nurse role home: ward indents + the inpatient (IPD) board.
@@ -34,6 +35,11 @@ class _NurseHomeState extends State<NurseHome> {
           icon: Icons.local_hotel_outlined,
           selectedIcon: Icons.local_hotel,
         ),
+        ShellDestination(
+          label: 'NABH',
+          icon: Icons.verified_outlined,
+          selectedIcon: Icons.verified,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -53,8 +59,9 @@ class _NurseHomeState extends State<NurseHome> {
         ),
       ],
       body: switch (_index) {
-        0 => const NursingScreen(),
-        _ => const IpdScreen(),
+        1 => const IpdScreen(),
+        2 => const NabhScreen(),
+        _ => const NursingScreen(),
       },
     );
   }
