@@ -10,6 +10,7 @@ import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../report/financial_reports_screen.dart';
 import '../vendor/vendors_screen.dart';
+import '../doctor/doctor_leave_screen.dart';
 import '../doctor/doctor_worklist_screen.dart';
 import '../expense/expense_screen.dart';
 import '../front_desk/registration_screen.dart';
@@ -54,6 +55,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
       (dest: const ShellDestination(label: 'Consult Queue', icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt), body: const DoctorWorklistScreen()),
       (dest: const ShellDestination(label: 'Prescriptions', icon: Icons.medical_information_outlined, selectedIcon: Icons.medical_information), body: const PrescriptionsScreen()),
+      (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),
       (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
       (dest: const ShellDestination(label: 'Bills', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long), body: const BillsScreen()),
       if (flags.pharmacyEnabled)

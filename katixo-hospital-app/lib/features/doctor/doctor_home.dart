@@ -7,6 +7,7 @@ import '../../core/widgets/app_shell.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../prescription/prescriptions_screen.dart';
+import 'doctor_leave_screen.dart';
 import 'doctor_worklist_screen.dart';
 
 /// Doctor role home: consult worklist, lab and ward indents.
@@ -48,6 +49,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.medical_information_outlined,
           selectedIcon: Icons.medical_information,
         ),
+        ShellDestination(
+          label: 'My Leave',
+          icon: Icons.event_busy_outlined,
+          selectedIcon: Icons.event_busy,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -70,6 +76,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         2 => const NursingScreen(),
         1 => const LabScreen(),
         3 => const PrescriptionsScreen(),
+        4 => const DoctorLeaveScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );
