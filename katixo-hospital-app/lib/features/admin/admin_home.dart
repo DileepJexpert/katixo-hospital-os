@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../billing/packages_screen.dart';
 import '../billing/tariffs_screen.dart';
+import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../doctor/doctor_leave_screen.dart';
@@ -67,6 +68,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
       (dest: const ShellDestination(label: 'NABH', icon: Icons.verified_outlined, selectedIcon: Icons.verified), body: const NabhScreen()),
       (dest: const ShellDestination(label: 'Consent', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in), body: const ConsentScreen()),
+      (dest: const ShellDestination(label: 'Certificates', icon: Icons.workspace_premium_outlined, selectedIcon: Icons.workspace_premium), body: const CertificateScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
