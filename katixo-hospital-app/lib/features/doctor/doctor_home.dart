@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../consent/consent_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../ot/ot_screen.dart';
@@ -67,6 +68,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.scanner_outlined,
           selectedIcon: Icons.scanner,
         ),
+        ShellDestination(
+          label: 'Consent',
+          icon: Icons.assignment_turned_in_outlined,
+          selectedIcon: Icons.assignment_turned_in,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -93,6 +99,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         4 => const DoctorLeaveScreen(),
         5 => const OtScreen(),
         6 => const RadiologyScreen(),
+        7 => const ConsentScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

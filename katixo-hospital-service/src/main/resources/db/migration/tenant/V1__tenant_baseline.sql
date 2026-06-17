@@ -4396,3 +4396,59 @@ CREATE TABLE payslip (
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_payslip_run ON payslip(payroll_run_id);
+
+-- ============================================================
+-- PATIENT CONSENT (template master + captured consents; medico-legal, no journals)
+-- ============================================================
+CREATE SEQUENCE consent_record_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE consent_template (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(40)  NOT NULL,
+    title               VARCHAR(200) NOT NULL,
+    consent_type        VARCHAR(30)  NOT NULL,
+    body_text           VARCHAR(4000) NOT NULL,
+    language            VARCHAR(20),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_consent_tmpl_tenant_code UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_consent_tmpl_tenant_branch ON consent_template(tenant_id, branch_id);
+
+CREATE TABLE consent_record (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    record_number       VARCHAR(30)  NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    template_id         BIGINT,
+    consent_type        VARCHAR(30)  NOT NULL,
+    title               VARCHAR(200) NOT NULL,
+    body_text           VARCHAR(4000) NOT NULL,
+    source_type         VARCHAR(20),
+    source_id           BIGINT,
+    signatory           VARCHAR(20)  NOT NULL,
+    signatory_name      VARCHAR(150) NOT NULL,
+    relation_to_patient VARCHAR(60),
+    witness_name        VARCHAR(150),
+    language            VARCHAR(20),
+    consent_status      VARCHAR(20)  NOT NULL DEFAULT 'GIVEN',
+    given_at            TIMESTAMP    NOT NULL,
+    withdrawn_reason    VARCHAR(500),
+    withdrawn_at        TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_consent_rec_tenant_branch ON consent_record(tenant_id, branch_id);
+CREATE INDEX idx_consent_rec_patient ON consent_record(tenant_id, patient_id);
