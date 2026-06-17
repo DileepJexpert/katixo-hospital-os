@@ -107,6 +107,25 @@ public class BillingService {
         return saved;
     }
 
+    /**
+     * Adds a package's price to an encounter as a single UNBILLED hospital charge
+     * (category OTHER, explicit amount — no tariff lookup), which then flows into
+     * the next generated bill like any other charge. Used by package billing.
+     */
+    public HospitalCharge addPackageCharge(Long patientId, HospitalCharge.SourceType sourceType, Long sourceId,
+                                           String packageCode, String packageName, BigDecimal price) {
+        if (price == null || price.signum() < 0) {
+            throw new BusinessException("INVALID_PACKAGE_PRICE", "Package price must be non-negative");
+        }
+        validateSource(sourceType, sourceId);
+        HospitalCharge charge = buildCharge(patientId, sourceType, sourceId, "PACKAGE:" + packageCode,
+                packageCode, packageName, TariffMaster.ServiceCategory.OTHER, 1, price);
+        HospitalCharge saved = chargeRepository.save(charge);
+        auditService.audit("HospitalCharge", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
+                null, chargeSnapshot(saved), UUID.randomUUID().toString());
+        return saved;
+    }
+
     // ------------------------------------------------------------
     // Bill generation: pulls unbilled charges + auto-creates domain charges
     // ------------------------------------------------------------

@@ -5,6 +5,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/config/feature_flags.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../billing/packages_screen.dart';
 import '../billing/tariffs_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../doctor/doctor_leave_screen.dart';
@@ -59,6 +60,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
       (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
       (dest: const ShellDestination(label: 'Purchase Orders', icon: Icons.shopping_cart_outlined, selectedIcon: Icons.shopping_cart), body: const PurchaseOrdersScreen()),
+      (dest: const ShellDestination(label: 'Packages', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const PackagesScreen()),
       (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
       (dest: const ShellDestination(label: 'NABH', icon: Icons.verified_outlined, selectedIcon: Icons.verified), body: const NabhScreen()),

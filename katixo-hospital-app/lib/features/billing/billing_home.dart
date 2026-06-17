@@ -9,6 +9,7 @@ import '../report/financial_reports_screen.dart';
 import '../tpa/tpa_screen.dart';
 import '../vendor/vendors_screen.dart';
 import 'bills_screen.dart';
+import 'packages_screen.dart';
 import 'tariffs_screen.dart';
 
 /// Billing role home: bills, expenses and TPA/insurance.
@@ -34,6 +35,7 @@ class _BillingHomeState extends State<BillingHome> {
       (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
       (dest: const ShellDestination(label: 'TPA / Insurance', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
       (dest: const ShellDestination(label: 'Reports', icon: Icons.assessment_outlined, selectedIcon: Icons.assessment), body: const FinancialReportsScreen()),
+      (dest: const ShellDestination(label: 'Packages', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const PackagesScreen()),
       if (isAdmin)
         (dest: const ShellDestination(label: 'Tariffs', icon: Icons.price_change_outlined, selectedIcon: Icons.price_change), body: const TariffsScreen()),
     ];
