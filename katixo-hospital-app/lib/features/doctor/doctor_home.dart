@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
@@ -73,6 +74,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.assignment_turned_in_outlined,
           selectedIcon: Icons.assignment_turned_in,
         ),
+        ShellDestination(
+          label: 'Certificates',
+          icon: Icons.workspace_premium_outlined,
+          selectedIcon: Icons.workspace_premium,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -100,6 +106,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         5 => const OtScreen(),
         6 => const RadiologyScreen(),
         7 => const ConsentScreen(),
+        8 => const CertificateScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

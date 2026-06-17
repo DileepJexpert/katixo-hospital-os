@@ -4452,3 +4452,57 @@ CREATE TABLE consent_record (
 );
 CREATE INDEX idx_consent_rec_tenant_branch ON consent_record(tenant_id, branch_id);
 CREATE INDEX idx_consent_rec_patient ON consent_record(tenant_id, patient_id);
+
+-- ============================================================
+-- MEDICAL CERTIFICATES (template master + issued certificates; medico-legal, no journals)
+-- ============================================================
+CREATE SEQUENCE certificate_seq START WITH 1001 INCREMENT BY 1;
+
+CREATE TABLE certificate_template (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    code                VARCHAR(40)  NOT NULL,
+    title               VARCHAR(200) NOT NULL,
+    certificate_type    VARCHAR(30)  NOT NULL,
+    body_text           VARCHAR(4000) NOT NULL,
+    language            VARCHAR(20),
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_cert_tmpl_tenant_code UNIQUE (tenant_id, code)
+);
+CREATE INDEX idx_cert_tmpl_tenant_branch ON certificate_template(tenant_id, branch_id);
+
+CREATE TABLE certificate (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    certificate_number  VARCHAR(30)  NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    template_id         BIGINT,
+    certificate_type    VARCHAR(30)  NOT NULL,
+    title               VARCHAR(200) NOT NULL,
+    body_text           VARCHAR(4000) NOT NULL,
+    issuing_doctor_id   BIGINT,
+    issuing_doctor_name VARCHAR(150),
+    issue_date          DATE         NOT NULL,
+    valid_from          DATE,
+    valid_to            DATE,
+    remarks             VARCHAR(500),
+    certificate_status  VARCHAR(20)  NOT NULL DEFAULT 'ISSUED',
+    revoked_reason      VARCHAR(500),
+    revoked_at          TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_cert_tenant_branch ON certificate(tenant_id, branch_id);
+CREATE INDEX idx_cert_patient ON certificate(tenant_id, patient_id);
