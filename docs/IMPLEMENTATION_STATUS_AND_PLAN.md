@@ -1,6 +1,6 @@
 # Katixo Hospital OS — Implementation Status & Plan
 
-_Last updated: 2026-06-17 (consent module)_
+_Last updated: 2026-06-17 (consent + certificate modules)_
 
 This is the single source of truth for **what is built** and **what is next**.
 Keep it current as features land. For coding conventions and architecture
@@ -130,6 +130,23 @@ integration was removed). Katasticho and Katixo are now two separate products.
   (Consents + Templates tabs, capture via patient picker, view, withdraw) mounted in
   Doctor / Nurse / Front-Desk / Admin / Super-Admin homes.
 
+### Medical certificates (`certificate/`, 2026-06-17)
+- **Template master + issued certificates** — medico-legal, no accounting.
+  `CertificateTemplate` (standard wording per `CertificateType`: FITNESS, MEDICAL,
+  SICKNESS, BIRTH, DEATH, MLC, DISABILITY, VACCINATION, OTHER); `Certificate`
+  snapshots the title + body at issue so the printed wording is immutable.
+- **Issue** (`POST /api/v1/certificates`) from a template or free-form, with issuing
+  doctor, issue date, an optional validity window (valid-from/to, backwards range
+  rejected) and remarks. `POST …/{id}/revoke` revokes with a reason. Numbers `CERT-xxxx`.
+- **PDF** at `GET /api/v1/certificates/{id}/certificate.pdf` — A4 via openhtmltopdf
+  (`CertificatePdfService`): hospital-letterhead style with patient name/UHID, body,
+  validity, signature block; a REVOKED certificate is watermarked "NOT VALID".
+- Endpoints `/api/v1/certificates` (templates: ADMIN; issue/revoke: DOCTOR/ADMIN;
+  view/PDF: clinical roles). `certificate_template` + `certificate` tables in the tenant
+  baseline. **7 unit tests** (`CertificateServiceTest`). Flutter: **Certificates screen**
+  (Certificates + Templates tabs, issue via patient picker, open PDF, revoke) mounted in
+  Doctor / Admin / Super-Admin homes.
+
 ### ERP-parity gap closures (in-process, 2026-06-15)
 The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
 substance already lives in-process. Three residual functional gaps were closed:
@@ -199,8 +216,6 @@ design tokens, provider + setState, raw-map API calls).
   (`expenseApprovalThreshold`). Flutter: status chip + admin Approve/Reject in
   the expense list, threshold field in Settings.
 - **Vendor master** — expenses use free-text payee, no recurring-supplier entity.
-- **Certificates** (`certificate/`) — fitness / birth / death / MLC issuance with
-  templates: per `CLAUDE.md` package map, not yet built (next).
 - **Elasticsearch search** — patient/medicine search still uses DB LIKE, not ES.
 - **i18n** Hindi (go-live English) — pending.
 
