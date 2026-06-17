@@ -23,6 +23,8 @@ import '../nursing/nursing_screen.dart';
 import '../patient/patients_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../pharmacy/pharmacy_queue_screen.dart';
+import '../pharmacy/pharmacy_sales_screen.dart';
+import '../prescription/prescriptions_screen.dart';
 import '../settings/settings_screen.dart';
 import '../tpa/tpa_screen.dart';
 
@@ -51,12 +53,15 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
       (dest: const ShellDestination(label: 'Consult Queue', icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt), body: const DoctorWorklistScreen()),
+      (dest: const ShellDestination(label: 'Prescriptions', icon: Icons.medical_information_outlined, selectedIcon: Icons.medical_information), body: const PrescriptionsScreen()),
       (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
       (dest: const ShellDestination(label: 'Bills', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long), body: const BillsScreen()),
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'Dispense Queue', icon: Icons.local_pharmacy_outlined, selectedIcon: Icons.local_pharmacy), body: const PharmacyQueueScreen()),
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'Pharmacy', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const ItemMasterScreen()),
+      if (flags.pharmacyEnabled)
+        (dest: const ShellDestination(label: 'Pharmacy Sales', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long), body: const PharmacySalesScreen()),
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'OTC Sale', icon: Icons.point_of_sale_outlined, selectedIcon: Icons.point_of_sale), body: const OtcSaleScreen()),
       (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),

@@ -298,6 +298,16 @@ public class PharmacySaleService {
         return lineRepository.findByTenantIdAndSaleIdOrderById(TenantContext.get().getTenantId(), saleId);
     }
 
+    /** Recent sales for this tenant/branch (newest first), for the dispensed-history view. */
+    @Transactional(readOnly = true)
+    public List<PharmacySale> listRecentSales(int limit) {
+        var ctx = TenantContext.get();
+        int capped = Math.min(Math.max(limit, 1), 200);
+        return saleRepository.findByTenantIdAndBranchIdOrderByIdDesc(
+                ctx.getTenantId(), branchId(),
+                org.springframework.data.domain.PageRequest.of(0, capped));
+    }
+
     private Long postSaleJournal(PharmacySale sale, BigDecimal taxable, BigDecimal cgst, BigDecimal sgst,
                                  BigDecimal igst, BigDecimal grand, BigDecimal cost) {
         List<JournalService.Line> lines = new ArrayList<>();

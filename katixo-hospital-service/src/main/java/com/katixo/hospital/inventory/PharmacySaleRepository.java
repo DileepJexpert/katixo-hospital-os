@@ -1,5 +1,6 @@
 package com.katixo.hospital.inventory;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -14,6 +15,9 @@ public interface PharmacySaleRepository extends JpaRepository<PharmacySale, Long
 
     List<PharmacySale> findByTenantIdAndReferenceTypeAndReferenceId(
             String tenantId, String referenceType, String referenceId);
+
+    List<PharmacySale> findByTenantIdAndBranchIdOrderByIdDesc(
+            String tenantId, Long branchId, Pageable pageable);
 
     @Query(value = "SELECT nextval('pharmacy_sale_seq')", nativeQuery = true)
     long nextSaleSequence();

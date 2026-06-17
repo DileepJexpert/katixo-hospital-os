@@ -72,6 +72,16 @@ public class PharmacySaleController {
         return respond(saleView(sale, pharmacySaleService.getLines(id)), "Sale", HttpStatus.OK);
     }
 
+    /** Recent sales (newest first) — the dispensed-history list. */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> recent(
+            @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        List<Map<String, Object>> sales = pharmacySaleService.listRecentSales(limit).stream()
+                .map(this::saleSummary).toList();
+        return respond(sales, "Recent sales", HttpStatus.OK);
+    }
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -120,25 +130,50 @@ public class PharmacySaleController {
         return respond(saleView(sale, pharmacySaleService.getLines(id)), "Sale reversed", HttpStatus.OK);
     }
 
+    /** Compact header for the recent-sales list. */
+    private Map<String, Object> saleSummary(PharmacySale s) {
+        Map<String, Object> v = new java.util.LinkedHashMap<>();
+        v.put("id", s.getId());
+        v.put("saleNumber", s.getSaleNumber());
+        v.put("saleType", s.getSaleType().name());
+        v.put("saleDate", s.getSaleDate() == null ? null : s.getSaleDate().toString());
+        v.put("paymentMode", s.getPaymentMode());
+        v.put("grandTotal", s.getGrandTotal());
+        v.put("reversed", s.isReversed());
+        v.put("patientId", s.getPatientId());
+        v.put("referenceType", s.getReferenceType());
+        v.put("referenceId", s.getReferenceId());
+        return v;
+    }
+
     private Map<String, Object> saleView(PharmacySale s, List<PharmacySaleLine> lines) {
         Map<String, Object> view = new java.util.LinkedHashMap<>();
         view.put("id", s.getId());
         view.put("saleNumber", s.getSaleNumber());
         view.put("saleType", s.getSaleType().name());
+        view.put("saleDate", s.getSaleDate() == null ? null : s.getSaleDate().toString());
         view.put("paymentMode", s.getPaymentMode());
+        view.put("patientId", s.getPatientId());
+        view.put("referenceType", s.getReferenceType());
+        view.put("referenceId", s.getReferenceId());
         view.put("taxableTotal", s.getTaxableTotal());
         view.put("cgstTotal", s.getCgstTotal());
         view.put("sgstTotal", s.getSgstTotal());
         view.put("igstTotal", s.getIgstTotal());
         view.put("grandTotal", s.getGrandTotal());
+        view.put("reversed", s.isReversed());
         view.put("journalEntryId", s.getJournalEntryId());
-        view.put("lines", lines.stream().map(l -> Map.of(
-                "itemCode", l.getItemCode(),
-                "itemName", l.getItemName(),
-                "quantity", l.getQuantity(),
-                "mrp", l.getMrp(),
-                "gstRate", l.getGstRate(),
-                "lineTotal", l.getLineTotal())).toList());
+        view.put("lines", lines.stream().map(l -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("itemCode", l.getItemCode());
+            m.put("itemName", l.getItemName());
+            m.put("quantity", l.getQuantity());
+            m.put("returnedQuantity", l.getReturnedQuantity());
+            m.put("mrp", l.getMrp());
+            m.put("gstRate", l.getGstRate());
+            m.put("lineTotal", l.getLineTotal());
+            return m;
+        }).toList());
         return view;
     }
 
