@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../consent/consent_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../opd/appointments_screen.dart';
 import '../patient/patients_screen.dart';
@@ -54,6 +55,11 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
           icon: Icons.people_outline,
           selectedIcon: Icons.people,
         ),
+        ShellDestination(
+          label: 'Consent',
+          icon: Icons.assignment_turned_in_outlined,
+          selectedIcon: Icons.assignment_turned_in,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -80,6 +86,7 @@ class _FrontDeskHomeState extends State<FrontDeskHome> {
         2 => const AppointmentsScreen(),
         3 => const IpdScreen(),
         4 => const PatientsScreen(),
+        5 => const ConsentScreen(),
         _ => const RegistrationScreen(),
       },
     );

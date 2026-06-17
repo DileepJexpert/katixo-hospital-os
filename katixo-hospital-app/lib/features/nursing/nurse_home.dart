@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../consent/consent_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../nabh/nabh_screen.dart';
 import 'nursing_screen.dart';
@@ -41,6 +42,11 @@ class _NurseHomeState extends State<NurseHome> {
           icon: Icons.verified_outlined,
           selectedIcon: Icons.verified,
         ),
+        ShellDestination(
+          label: 'Consent',
+          icon: Icons.assignment_turned_in_outlined,
+          selectedIcon: Icons.assignment_turned_in,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -63,6 +69,7 @@ class _NurseHomeState extends State<NurseHome> {
       body: switch (_index) {
         1 => const IpdScreen(),
         2 => const NabhScreen(),
+        3 => const ConsentScreen(),
         _ => const NursingScreen(),
       },
     );
