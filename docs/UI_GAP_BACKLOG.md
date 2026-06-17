@@ -97,9 +97,14 @@ main:
       separate **platform-operator console** (own app/login), not the hospital
       staff app. Tracked as a future separate deliverable, not a gap here.
 
-### 5. Appointments (P2)
-- [ ] **Appointment booking + calendar** — `OPDService.bookAppointment` /
-      `checkInAppointment` are wired backend; only walk-in flow has UI.
+### 5. Appointments (DONE — 2026-06-16)
+- [x] **Appointment booking + day view** — `features/opd/appointments_screen.dart`:
+      pick a doctor + date → day schedule; book a slot for a patient (patient
+      picker + start/end time + notes), **check in** (→ OPD queue token) or
+      **cancel**. Mounted: FrontDesk + SuperAdmin. Backend gained
+      `GET /api/v1/opd/appointments?doctorId=&date=` (`listAppointments`, reuses
+      the existing `findByDoctorAndDate`) and `POST /appointments/{id}/cancel`
+      (`cancelAppointment`); book + check-in already existed.
 
 ---
 
