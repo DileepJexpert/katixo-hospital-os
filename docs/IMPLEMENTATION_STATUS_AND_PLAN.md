@@ -1,6 +1,6 @@
 # Katixo Hospital OS — Implementation Status & Plan
 
-_Last updated: 2026-06-17_
+_Last updated: 2026-06-17 (consent module)_
 
 This is the single source of truth for **what is built** and **what is next**.
 Keep it current as features land. For coding conventions and architecture
@@ -112,6 +112,24 @@ integration was removed). Katasticho and Katixo are now two separate products.
   `MFA_REQUIRED`; an **Account Security** screen (shield button in every role
   home's app bar) drives enroll → show secret/otpauth URI → activate, and disable.
 
+### Patient consent (`consent/`, 2026-06-17)
+- **Template master + captured consents** — medico-legal, no accounting.
+  `ConsentTemplate` (standard wording per `ConsentType`: SURGERY, ANAESTHESIA,
+  PROCEDURE, ADMISSION, BLOOD_TRANSFUSION, HIV_TEST, DNR, RESEARCH, PHOTOGRAPHY,
+  GENERAL); `ConsentRecord` snapshots the title + body at signing so later template
+  edits never alter a signed consent.
+- **Capture** (`POST /api/v1/consent/records`) from a template or free-form, linked
+  optionally to an encounter (OPD_VISIT / IPD_ADMISSION / OT_BOOKING). Records the
+  signatory (PATIENT / GUARDIAN / NEXT_OF_KIN / SPOUSE / PARENT / OTHER) — a
+  non-patient signatory must declare the relationship — plus witness and language.
+  Status GIVEN or REFUSED at capture; `POST …/{id}/withdraw` revokes a GIVEN consent
+  with a reason. Record numbers `CONS-xxxx`.
+- Endpoints `/api/v1/consent` (templates: ADMIN; capture: DOCTOR/NURSE/FRONT_DESK/
+  ADMIN; withdraw: DOCTOR/ADMIN). `consent_template` + `consent_record` tables in the
+  tenant baseline. **7 unit tests** (`ConsentServiceTest`). Flutter: **Consent screen**
+  (Consents + Templates tabs, capture via patient picker, view, withdraw) mounted in
+  Doctor / Nurse / Front-Desk / Admin / Super-Admin homes.
+
 ### ERP-parity gap closures (in-process, 2026-06-15)
 The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
 substance already lives in-process. Three residual functional gaps were closed:
@@ -181,9 +199,9 @@ design tokens, provider + setState, raw-map API calls).
   (`expenseApprovalThreshold`). Flutter: status chip + admin Approve/Reject in
   the expense list, threshold field in Settings.
 - **Vendor master** — expenses use free-text payee, no recurring-supplier entity.
-- **TPA, consent, certificates, NABH, dashboards, notifications, WebSocket queue
-  boards, Elasticsearch search** — per `CLAUDE.md` package map; status varies, not
-  all surfaced in the Flutter app yet.
+- **Certificates** (`certificate/`) — fitness / birth / death / MLC issuance with
+  templates: per `CLAUDE.md` package map, not yet built (next).
+- **Elasticsearch search** — patient/medicine search still uses DB LIKE, not ES.
 - **i18n** Hindi (go-live English) — pending.
 
 ## 5. Plan / next steps (prioritized)
