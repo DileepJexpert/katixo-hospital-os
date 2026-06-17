@@ -22,6 +22,7 @@ import '../lab/lab_screen.dart';
 import '../notification/notifications_screen.dart';
 import '../opd/appointments_screen.dart';
 import '../ot/ot_screen.dart';
+import '../radiology/radiology_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../patient/patients_screen.dart';
 import '../payroll/payroll_screen.dart';
@@ -62,6 +63,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),
       (dest: const ShellDestination(label: 'OT', icon: Icons.medical_services_outlined, selectedIcon: Icons.medical_services), body: const OtScreen()),
       (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
+      (dest: const ShellDestination(label: 'Radiology', icon: Icons.scanner_outlined, selectedIcon: Icons.scanner), body: const RadiologyScreen()),
       (dest: const ShellDestination(label: 'Bills', icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long), body: const BillsScreen()),
       if (flags.pharmacyEnabled)
         (dest: const ShellDestination(label: 'Dispense Queue', icon: Icons.local_pharmacy_outlined, selectedIcon: Icons.local_pharmacy), body: const PharmacyQueueScreen()),
