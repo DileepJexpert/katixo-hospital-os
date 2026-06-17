@@ -19,6 +19,7 @@ import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
 import '../notification/notifications_screen.dart';
 import '../ot/ot_screen.dart';
+import '../radiology/radiology_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../settings/settings_screen.dart';
 import '../tpa/tpa_screen.dart';
@@ -45,6 +46,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),
       (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
       (dest: const ShellDestination(label: 'Lab', icon: Icons.science_outlined, selectedIcon: Icons.science), body: const LabScreen()),
+      (dest: const ShellDestination(label: 'Radiology', icon: Icons.scanner_outlined, selectedIcon: Icons.scanner), body: const RadiologyScreen()),
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
       (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),

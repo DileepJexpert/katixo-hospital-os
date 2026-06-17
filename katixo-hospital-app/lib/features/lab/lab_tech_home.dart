@@ -4,11 +4,20 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../radiology/radiology_screen.dart';
 import 'lab_screen.dart';
 
-/// Lab technician role home: the lab console (worklist → sample → result).
-class LabTechHome extends StatelessWidget {
+/// Lab technician role home: the lab console plus radiology (technologists mark
+/// studies performed).
+class LabTechHome extends StatefulWidget {
   const LabTechHome({super.key});
+
+  @override
+  State<LabTechHome> createState() => _LabTechHomeState();
+}
+
+class _LabTechHomeState extends State<LabTechHome> {
+  int _index = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -21,9 +30,14 @@ class LabTechHome extends StatelessWidget {
           icon: Icons.science_outlined,
           selectedIcon: Icons.science,
         ),
+        ShellDestination(
+          label: 'Radiology',
+          icon: Icons.scanner_outlined,
+          selectedIcon: Icons.scanner,
+        ),
       ],
-      selectedIndex: 0,
-      onDestinationSelected: (_) {},
+      selectedIndex: _index,
+      onDestinationSelected: (i) => setState(() => _index = i),
       actions: [
         if (authState.currentUser != null)
           Center(
@@ -39,7 +53,10 @@ class LabTechHome extends StatelessWidget {
           onPressed: () => authState.logout(),
         ),
       ],
-      body: const LabScreen(),
+      body: switch (_index) {
+        1 => const RadiologyScreen(),
+        _ => const LabScreen(),
+      },
     );
   }
 }
