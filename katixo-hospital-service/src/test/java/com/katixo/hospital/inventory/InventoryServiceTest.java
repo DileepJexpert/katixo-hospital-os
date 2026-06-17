@@ -118,9 +118,9 @@ class InventoryServiceTest {
         // Two batches: B2 expires sooner than B1, so it must be consumed first.
         StockBatch b1 = batch(1, "B1", LocalDate.of(2027, 12, 1), "1.50", "10");
         StockBatch b2 = batch(2, "B2", LocalDate.of(2026, 9, 1), "1.20", "8");
-        when(batchRepository.totalAvailable(TENANT, 10L)).thenReturn(new BigDecimal("18"));
-        // repository returns FEFO order (earliest first) — B2 then B1
-        when(batchRepository.findAvailableFefo(TENANT, 10L)).thenReturn(new ArrayList<>(List.of(b2, b1)));
+        // repository returns FEFO order (earliest first) — B2 then B1; availability
+        // is summed from the (locked) batches, so no separate totalAvailable stub.
+        when(batchRepository.findAvailableFefoForUpdate(TENANT, 10L)).thenReturn(new ArrayList<>(List.of(b2, b1)));
 
         InventoryService.IssueResult result = service.issueFefo(10L, new BigDecimal("12"), "SALE", "SALE-1");
 
@@ -137,11 +137,14 @@ class InventoryServiceTest {
 
     @Test
     void issueFefoRejectsWhenInsufficientStock() {
-        when(batchRepository.totalAvailable(TENANT, 10L)).thenReturn(new BigDecimal("5"));
+        StockBatch b1 = batch(1, "B1", LocalDate.of(2027, 12, 1), "1.50", "5");
+        when(batchRepository.findAvailableFefoForUpdate(TENANT, 10L))
+                .thenReturn(new ArrayList<>(List.of(b1)));
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.issueFefo(10L, new BigDecimal("12"), "SALE", "SALE-1"));
         assertEquals("INSUFFICIENT_STOCK", ex.getCode());
-        verify(batchRepository, never()).findAvailableFefo(anyString(), any());
+        // no batch was drawn down / saved
+        verify(batchRepository, never()).save(any());
     }
 
     @Test
