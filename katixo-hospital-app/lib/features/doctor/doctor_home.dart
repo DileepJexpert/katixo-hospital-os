@@ -6,6 +6,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
+import '../ot/ot_screen.dart';
 import '../prescription/prescriptions_screen.dart';
 import 'doctor_leave_screen.dart';
 import 'doctor_worklist_screen.dart';
@@ -54,6 +55,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.event_busy_outlined,
           selectedIcon: Icons.event_busy,
         ),
+        ShellDestination(
+          label: 'OT',
+          icon: Icons.medical_services_outlined,
+          selectedIcon: Icons.medical_services,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -77,6 +83,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         1 => const LabScreen(),
         3 => const PrescriptionsScreen(),
         4 => const DoctorLeaveScreen(),
+        5 => const OtScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );
