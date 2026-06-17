@@ -176,6 +176,12 @@ public class PurchaseOrderService {
                     .findFirst()
                     .orElseThrow(() -> new BusinessException("LINE_NOT_FOUND",
                             "PO line not found: " + in.getLineId()));
+            // A batch number is mandatory — stock_batch.batch_number is NOT NULL and
+            // FEFO issue keys on it; receiving without one would fail at the DB.
+            if (in.getBatchNumber() == null || in.getBatchNumber().isBlank()) {
+                throw new BusinessException("BATCH_REQUIRED",
+                        "A batch number is required to receive " + line.getItemCode());
+            }
             BigDecimal remaining = line.getOrderedQuantity().subtract(line.getReceivedQuantity());
             if (in.getQuantity().compareTo(remaining) > 0) {
                 throw new BusinessException("OVER_RECEIPT",
