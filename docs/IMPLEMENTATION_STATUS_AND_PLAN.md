@@ -111,6 +111,17 @@ integration was removed). Katasticho and Katixo are now two separate products.
   `staff_user_ref.mfa_secret`. Flutter: login reveals a code field on
   `MFA_REQUIRED`; an **Account Security** screen (shield button in every role
   home's app bar) drives enroll → show secret/otpauth URI → activate, and disable.
+- **Staff / user management (2026-06-18):** the production replacement for the
+  dev-only `DevUserSeeder` — a hospital ADMIN onboards and maintains its own staff
+  logins. `auth/StaffManagementService` + ADMIN-only endpoints on `StaffController`:
+  `GET /api/v1/staff/manage` (full list incl. inactive), `POST /api/v1/staff`
+  (create login + role), `PUT /api/v1/staff/{id}` (edit name/role/code/specialisation),
+  `POST /api/v1/staff/{id}/{activate|deactivate}`, `POST /api/v1/staff/{id}/reset-password`.
+  Passwords BCrypt-hashed; new rows get `authUserId = id` so the JWT userId claim is
+  valid. Assignable roles exclude SUPER_ADMIN; admins can't deactivate their own login.
+  The lightweight `GET /api/v1/staff` picker endpoint is unchanged. **11 unit tests**
+  (`StaffManagementServiceTest`). Flutter: **Staff & Logins** screen (list with role/
+  status chips, add/edit, reset-password, activate/deactivate) in Admin + Super-Admin homes.
 
 ### Patient consent (`consent/`, 2026-06-17)
 - **Template master + captured consents** — medico-legal, no accounting.
