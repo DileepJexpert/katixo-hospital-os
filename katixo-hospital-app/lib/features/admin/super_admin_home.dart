@@ -30,6 +30,7 @@ import '../opd/appointments_screen.dart';
 import '../ot/ot_screen.dart';
 import '../radiology/radiology_screen.dart';
 import '../nursing/nursing_screen.dart';
+import '../nursing/vitals_screen.dart';
 import '../patient/patients_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../pharmacy/pharmacy_queue_screen.dart';
@@ -65,6 +66,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Appointments', icon: Icons.event_note_outlined, selectedIcon: Icons.event_note), body: const AppointmentsScreen()),
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
+      (dest: const ShellDestination(label: 'Vitals', icon: Icons.monitor_heart_outlined, selectedIcon: Icons.monitor_heart), body: const VitalsScreen()),
       (dest: const ShellDestination(label: 'Consult Queue', icon: Icons.list_alt_outlined, selectedIcon: Icons.list_alt), body: const DoctorWorklistScreen()),
       (dest: const ShellDestination(label: 'Prescriptions', icon: Icons.medical_information_outlined, selectedIcon: Icons.medical_information), body: const PrescriptionsScreen()),
       (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),
