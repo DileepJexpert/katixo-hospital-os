@@ -27,6 +27,7 @@ import '../ot/ot_screen.dart';
 import '../radiology/radiology_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../settings/settings_screen.dart';
+import '../settings/staff_screen.dart';
 import '../tpa/tpa_screen.dart';
 
 /// Admin / owner cockpit: finance, clinical, pharmacy (if enabled), insurance,
@@ -70,6 +71,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'Consent', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in), body: const ConsentScreen()),
       (dest: const ShellDestination(label: 'Certificates', icon: Icons.workspace_premium_outlined, selectedIcon: Icons.workspace_premium), body: const CertificateScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
+      (dest: const ShellDestination(label: 'Staff & Logins', icon: Icons.badge_outlined, selectedIcon: Icons.badge), body: const StaffScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),
     ];
     final index = _index.clamp(0, tabs.length - 1);

@@ -11,4 +11,6 @@ public interface StaffUserRepository extends JpaRepository<StaffUser, Long> {
     boolean existsByUsername(String username);
 
     java.util.List<StaffUser> findByTenantIdAndBranchIdAndStatus(String tenantId, Long branchId, String status);
+
+    java.util.List<StaffUser> findByTenantIdAndBranchIdOrderByName(String tenantId, Long branchId);
 }
