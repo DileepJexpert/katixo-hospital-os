@@ -25,6 +25,16 @@ integration was removed). Katasticho and Katixo are now two separate products.
 ## 2. Completed — Backend (in-process)
 
 ### Core clinical
+- **Patient search — pluggable (2026-06-18):** `patient/search/PatientSearchProvider`
+  seam. Default `DbPatientSearchProvider` = the existing tenant-scoped SQL
+  contains-match on name/mobile/UHID (correct + fast at ≤150-bed scale).
+  `ElasticsearchPatientSearchProvider` (behind `katixo.search.elasticsearch.enabled=true`,
+  default off) is a fuzzy/typo-tolerant ES drop-in: indexes a light
+  `PatientSearchDocument`, queries ES, then re-loads authoritative records from SQL
+  (tenant/branch-scoped); fully fail-soft. _Needs a provisioned ES/OpenSearch
+  cluster + runtime smoke test before enabling — it can't be exercised in the build
+  env. Until then the SQL provider is the supported path._ **4 tests**
+  (`DbPatientSearchProviderTest`).
 - **Patient** master + search; **OPD** (visits, queue, appointments, consultation);
   **Prescription** (versioned, editable pre-dispense); **IPD** (admission, bed/ward,
   tariff, transfer); **Nursing** (vitals, indents with policy-driven approval);

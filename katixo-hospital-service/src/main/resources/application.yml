@@ -68,6 +68,12 @@ katixo:
   security:
     jwt-secret: ${JWT_SECRET:dev-secret-key-min-256-bits-long-for-testing}
     jwt-expiration: 86400000
+  search:
+    elasticsearch:
+      # When true, patient search uses Elasticsearch (ElasticsearchPatientSearchProvider);
+      # otherwise the SQL DbPatientSearchProvider is used. Requires a live ES/OpenSearch
+      # cluster (spring.elasticsearch.uris) — enable only after a runtime smoke test.
+      enabled: ${ELASTICSEARCH_SEARCH_ENABLED:false}
   tenant:
     default-branch-id: ${DEFAULT_BRANCH_ID:1}
     demo:
