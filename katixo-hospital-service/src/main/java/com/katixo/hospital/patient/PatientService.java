@@ -22,7 +22,7 @@ import java.util.UUID;
 public class PatientService {
 
     private final PatientRepository patientRepository;
-    private final PatientSearchIndexRepository patientSearchIndexRepository;
+    private final com.katixo.hospital.patient.search.PatientSearchProvider searchProvider;
     private final PatientVisitSummaryRepository patientVisitSummaryRepository;
     private final PatientCreditService creditService;
     private final AuditService auditService;
@@ -101,7 +101,7 @@ public class PatientService {
             return patientRepository.findByTenantIdAndBranchIdAndStatus(context.getTenantId(), branchId,
                     com.katixo.hospital.common.entity.BaseEntity.EntityStatus.ACTIVE);
         }
-        return patientRepository.search(context.getTenantId(), branchId, q.trim());
+        return searchProvider.search(context.getTenantId(), branchId, q.trim());
     }
 
     /**
@@ -170,30 +170,11 @@ public class PatientService {
     }
 
     private void createSearchIndex(Patient patient) {
-        PatientSearchIndex index = PatientSearchIndex.builder()
-                .tenantId(patient.getTenantId())
-                .hospitalGroupId(patient.getHospitalGroupId())
-                .branchId(patient.getBranchId())
-                .patientId(patient.getId())
-                .fullName(patient.getFullName())
-                .mobile(patient.getMobile())
-                .email(patient.getEmail())
-                .uhid(patient.getUhid())
-                .identifiersText("") // Will be updated when identifiers are added
-                .build();
-
-        patientSearchIndexRepository.save(index);
+        searchProvider.index(patient);
     }
 
     private void updateSearchIndex(Patient patient) {
-        patientSearchIndexRepository.findByTenantIdAndPatientId(patient.getTenantId(), patient.getId())
-                .ifPresent(index -> {
-                    index.setFullName(patient.getFullName());
-                    index.setMobile(patient.getMobile());
-                    index.setEmail(patient.getEmail());
-                    index.setUhid(patient.getUhid());
-                    patientSearchIndexRepository.save(index);
-                });
+        searchProvider.index(patient);
     }
 
     private void createVisitSummary(Patient patient) {
