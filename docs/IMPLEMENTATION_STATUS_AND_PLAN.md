@@ -102,6 +102,17 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
+- **Discharge checklist — policy-driven (2026-06-18):** two tiers, both CSV
+  policies. **Blocking** (`ipd.discharge.checklist_blocking_items`) must be
+  acknowledged before a NORMAL discharge (LAMA/DEATH bypass; server-enforced in
+  `IPDService.guardDischargeChecklist`). **Advisory**
+  (`ipd.discharge.checklist_warning_items`, seeded in V2) only warns. The IPD UI
+  fetches `GET /api/v1/ipd/discharge-checklist` and renders the items as
+  checkboxes (the Discharge button is gated until blocking items are ticked) —
+  replacing the old hardcoded single "Final bill cleared" box. Admin edits both
+  lists in **Settings → Discharge checklist** via `/api/v1/settings/features`
+  (`dischargeChecklistBlockingItems` / `dischargeChecklistWarningItems`).
+  **2 unit tests** (`IPDServiceTest`).
 - **Outbox publisher (2026-06-18):** the previously-missing half of the outbox
   pattern. `outbox/OutboxPublisherJob` is a `@Scheduled` cross-tenant poller —
   it iterates active tenants from the platform registry, binds a system

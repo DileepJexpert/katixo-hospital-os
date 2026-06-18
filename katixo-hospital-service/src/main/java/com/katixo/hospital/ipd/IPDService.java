@@ -392,6 +392,31 @@ public class IPDService {
     // ------------------------------------------------------------
 
     /**
+     * The policy-driven discharge checklist definition for this hospital, so the UI can render the
+     * right items: {@code blockingItems} must be acknowledged before a NORMAL discharge,
+     * {@code warningItems} are advisory (shown, never enforced). Both are CSV policies.
+     */
+    public java.util.Map<String, Object> getDischargeChecklist() {
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("blockingItems", parseChecklistCsv(
+                policyService.getPolicyValue(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS, "")));
+        out.put("warningItems", parseChecklistCsv(
+                policyService.getPolicyValue(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_WARNING_ITEMS, "")));
+        return out;
+    }
+
+    private List<String> parseChecklistCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(csv.split(","))
+                .map(s -> s.trim().toUpperCase())
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    /**
      * Blocking discharge checklist (policy-driven, CLAUDE.md). The policy value is a CSV of item
      * codes that must be ticked before a NORMAL discharge — e.g.
      * {@code FINAL_BILL_CLEARED,MEDICINES_RETURNED,REPORTS_HANDED_OVER}. Empty/missing policy means

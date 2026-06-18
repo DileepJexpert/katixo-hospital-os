@@ -15,6 +15,7 @@ public enum HospitalPolicyCode {
     IPD_INDENT_APPROVAL_CATEGORIES("ipd.indent.approval.required_categories",
             "CSV of indent item categories that need approval before dispense"),
     IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS("ipd.discharge.checklist_blocking_items", "Items that block discharge"),
+    IPD_DISCHARGE_CHECKLIST_WARNING_ITEMS("ipd.discharge.checklist_warning_items", "Checklist items that warn (but don't block) at discharge"),
     IPD_BED_ISOLATION_DEFAULT_HOURS("ipd.bed.isolation_default_hours", "Default bed isolation duration in hours"),
 
     // Prescription Policies

@@ -69,6 +69,14 @@ INSERT INTO hospital_policy (tenant_id, hospital_group_id, branch_id, policy_cod
 VALUES ('${tenantId}', 1, 1, 'ipd.indent.approval.required_categories', 'IMPLANT,NARCOTIC',
         'CSV of indent item categories that need approval before dispense', 1, NOW(), 1, 1);
 
+-- Discharge checklist: warning tier (advisory; shown but never blocks discharge).
+-- The blocking tier (ipd.discharge.checklist_blocking_items) is seeded above.
+INSERT INTO hospital_policy (tenant_id, hospital_group_id, branch_id, policy_code, policy_value,
+                             description, version, effective_from, created_by, updated_by)
+VALUES ('${tenantId}', 1, 1, 'ipd.discharge.checklist_warning_items',
+        'FOLLOW_UP_SCHEDULED,DISCHARGE_SUMMARY_GIVEN,DIET_ADVICE_GIVEN',
+        'CSV of advisory discharge checklist items (warn, do not block)', 1, NOW(), 1, 1);
+
 -- ============================================================
 -- Default hospital chart of accounts (seeded per tenant).
 -- Hospital owns its own books; these system accounts back the postings

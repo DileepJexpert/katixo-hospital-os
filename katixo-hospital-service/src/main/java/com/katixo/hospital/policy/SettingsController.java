@@ -40,6 +40,10 @@ public class SettingsController {
         v.put("expenseApprovalThreshold",
                 policyService.getPolicyAsBigDecimal(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD,
                         java.math.BigDecimal.ZERO));
+        v.put("dischargeChecklistBlockingItems",
+                policyService.getPolicyValue(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS, ""));
+        v.put("dischargeChecklistWarningItems",
+                policyService.getPolicyValue(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_WARNING_ITEMS, ""));
         return respond(v, "Feature flags");
     }
 
@@ -52,6 +56,8 @@ public class SettingsController {
         private Boolean whatsappEnabled;
         private Boolean patientPortalEnabled;
         private java.math.BigDecimal expenseApprovalThreshold;
+        private String dischargeChecklistBlockingItems;
+        private String dischargeChecklistWarningItems;
     }
 
     @PutMapping("/features")
@@ -72,6 +78,14 @@ public class SettingsController {
         if (req.getExpenseApprovalThreshold() != null) {
             policyService.setPolicy(HospitalPolicyCode.EXPENSE_APPROVAL_THRESHOLD,
                     req.getExpenseApprovalThreshold().toPlainString());
+        }
+        if (req.getDischargeChecklistBlockingItems() != null) {
+            policyService.setPolicy(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_BLOCKING_ITEMS,
+                    req.getDischargeChecklistBlockingItems().trim());
+        }
+        if (req.getDischargeChecklistWarningItems() != null) {
+            policyService.setPolicy(HospitalPolicyCode.IPD_DISCHARGE_CHECKLIST_WARNING_ITEMS,
+                    req.getDischargeChecklistWarningItems().trim());
         }
         return features();
     }

@@ -751,47 +751,110 @@ class _IpdScreenState extends State<IpdScreen> {
         'Bed transferred', reloadDetailId: id);
   }
 
+  String _checklistLabel(String code) => code
+      .toLowerCase()
+      .split('_')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+
   Future<void> _dischargeDialog(int id) async {
+    // Pull the hospital's policy-driven checklist so the dialog renders the right items.
+    List<String> blocking = const [];
+    List<String> warning = const [];
+    try {
+      final api = context.read<ApiClient>();
+      final cl = await api.get<Map<String, dynamic>>('/api/v1/ipd/discharge-checklist',
+          fromJson: (j) => j as Map<String, dynamic>);
+      blocking = List<String>.from(cl['blockingItems'] as List? ?? const []);
+      warning = List<String>.from(cl['warningItems'] as List? ?? const []);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+      return;
+    }
+
     String type = 'NORMAL';
-    var billCleared = false;
+    final ticked = <String, bool>{
+      for (final c in blocking) c: false,
+      for (final c in warning) c: false,
+    };
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setD) => AlertDialog(
-          title: const Text('Discharge patient'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: type,
-                decoration: const InputDecoration(labelText: 'Discharge type *'),
-                items: const [
-                  DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
-                  DropdownMenuItem(value: 'LAMA', child: Text('LAMA (against advice)')),
-                  DropdownMenuItem(value: 'DEATH', child: Text('Death')),
+        builder: (context, setD) {
+          // Blocking items only gate a NORMAL discharge; LAMA/DEATH bypass (server-enforced too).
+          final blockingSatisfied =
+              type != 'NORMAL' || blocking.every((c) => ticked[c] == true);
+          return AlertDialog(
+            title: const Text('Discharge patient'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: type,
+                    decoration: const InputDecoration(labelText: 'Discharge type *'),
+                    items: const [
+                      DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
+                      DropdownMenuItem(value: 'LAMA', child: Text('LAMA (against advice)')),
+                      DropdownMenuItem(value: 'DEATH', child: Text('Death')),
+                    ],
+                    onChanged: (v) => setD(() => type = v ?? 'NORMAL'),
+                  ),
+                  if (blocking.isNotEmpty) ...[
+                    const SizedBox(height: Space.md),
+                    Text('Required before discharge',
+                        style: Theme.of(context).textTheme.labelLarge),
+                    if (type != 'NORMAL')
+                      Padding(
+                        padding: const EdgeInsets.only(top: Space.xs),
+                        child: Text('Not enforced for $type — acknowledge if applicable',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                    for (final c in blocking)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(_checklistLabel(c)),
+                        value: ticked[c],
+                        onChanged: (v) => setD(() => ticked[c] = v ?? false),
+                      ),
+                  ],
+                  if (warning.isNotEmpty) ...[
+                    const SizedBox(height: Space.sm),
+                    Text('Advisory', style: Theme.of(context).textTheme.labelLarge),
+                    for (final c in warning)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(_checklistLabel(c)),
+                        value: ticked[c],
+                        onChanged: (v) => setD(() => ticked[c] = v ?? false),
+                      ),
+                  ],
                 ],
-                onChanged: (v) => setD(() => type = v ?? 'NORMAL'),
               ),
-              const SizedBox(height: Space.sm),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Final bill cleared'),
-                value: billCleared,
-                onChanged: (v) => setD(() => billCleared = v ?? false),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: blockingSatisfied ? () => Navigator.pop(context, true) : null,
+                child: const Text('Discharge'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discharge')),
-          ],
-        ),
+          );
+        },
       ),
     );
     if (ok != true) return;
+    final acknowledged = [
+      for (final e in ticked.entries)
+        if (e.value) e.key
+    ];
     await _post('/api/v1/ipd/admissions/$id/discharge', {
       'dischargeType': type,
-      'acknowledgedChecklistItems': billCleared ? ['FINAL_BILL_CLEARED'] : <String>[],
+      'acknowledgedChecklistItems': acknowledged,
     }, 'Patient discharged', reloadDetailId: id);
   }
 
