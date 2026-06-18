@@ -4585,3 +4585,29 @@ CREATE TABLE certificate (
 );
 CREATE INDEX idx_cert_tenant_branch ON certificate(tenant_id, branch_id);
 CREATE INDEX idx_cert_patient ON certificate(tenant_id, patient_id);
+
+-- =====================================================================
+-- Document / file attachments (document/) — metadata only; the bytes
+-- live in the pluggable storage provider (local disk default, S3 later).
+-- =====================================================================
+CREATE TABLE document_metadata (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    entity_type         VARCHAR(40)  NOT NULL,
+    entity_id           BIGINT,
+    file_name           VARCHAR(255) NOT NULL,
+    content_type        VARCHAR(120),
+    size_bytes          BIGINT       NOT NULL,
+    storage_key         VARCHAR(400) NOT NULL,
+    uploaded_by_name    VARCHAR(200),
+    uploaded_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_docmeta_tenant_branch ON document_metadata(tenant_id, branch_id);
+CREATE INDEX idx_docmeta_entity ON document_metadata(entity_type, entity_id);

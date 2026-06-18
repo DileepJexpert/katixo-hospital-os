@@ -35,3 +35,33 @@ Future<bool> openPdf(
     return false;
   }
 }
+
+/// Fetches an arbitrary stored document at [path] (authenticated, any content
+/// type) and opens it in a new browser tab. Mirrors [openPdf] but accepts the
+/// server's content type instead of assuming PDF — used for file attachments
+/// (scans, images, PDFs). Returns true on success.
+Future<bool> openDocument(
+  BuildContext context,
+  ApiClient api,
+  String path, {
+  required String filename,
+  String mimeType = 'application/octet-stream',
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Opening file…'), duration: Duration(seconds: 1)),
+  );
+  try {
+    // getBytes sends an Accept header; pass the file's type (server ignores it
+    // but it keeps the request honest) and read the raw bytes back.
+    final bytes = await api.getBytes(path, accept: mimeType);
+    openBytesInBrowser(bytes, filename, mimeType);
+    return true;
+  } on ApiException catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Could not open file: ${e.error.message}')));
+    return false;
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('Could not open file: $e')));
+    return false;
+  }
+}
