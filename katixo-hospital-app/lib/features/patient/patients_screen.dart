@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import 'patient_credit_panel.dart';
@@ -402,9 +403,5 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return (first + last).toUpperCase();
   }
 
-  String _date(Object? iso) {
-    if (iso == null) return '—';
-    final s = '$iso';
-    return s.contains('T') ? s.split('T').first : s;
-  }
+  String _date(Object? iso) => formatDate(iso, ifEmpty: '—');
 }

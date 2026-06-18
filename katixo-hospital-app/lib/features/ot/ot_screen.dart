@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
@@ -33,7 +34,7 @@ class _OtScreenState extends State<OtScreen> {
   bool get _isAdmin => _role == 'ADMIN' || _role == 'SUPER_ADMIN';
   bool get _canManage => _role == 'DOCTOR' || _isAdmin;
 
-  String _isoDate(DateTime d) => d.toIso8601String().split('T').first;
+  String _isoDate(DateTime d) => formatDate(d);
   String _hhmmss(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
   String _hhmm(Object? t) {

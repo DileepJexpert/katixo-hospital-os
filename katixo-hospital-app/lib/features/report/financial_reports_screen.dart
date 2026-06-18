@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
@@ -33,7 +34,7 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
     _load();
   }
 
-  String _iso(DateTime d) => d.toIso8601String().split('T').first;
+  String _iso(DateTime d) => formatDate(d);
 
   Future<void> _load() async {
     setState(() {

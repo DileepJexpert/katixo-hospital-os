@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
@@ -769,9 +770,5 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
     );
   }
 
-  String _date(Object? iso) {
-    if (iso == null) return '—';
-    final s = '$iso';
-    return s.contains('T') ? s.split('T').first : s;
-  }
+  String _date(Object? iso) => formatDate(iso, ifEmpty: '—');
 }

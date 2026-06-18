@@ -35,28 +35,29 @@ String _groupIndian(String digits) {
   return '$buf,$last3';
 }
 
-/// `YYYY-MM-DD` for an ISO timestamp string or DateTime (or '' if null/blank).
-/// Mirrors the common `'$iso'.split('T').first` the screens were doing.
-String formatDate(Object? value) {
+/// `YYYY-MM-DD` for an ISO timestamp string or DateTime ([ifEmpty] when
+/// null/blank). Mirrors the common `'$iso'.split('T').first` the screens did.
+String formatDate(Object? value, {String ifEmpty = ''}) {
   final s = _iso(value);
-  if (s.isEmpty) return '';
+  if (s.isEmpty) return ifEmpty;
   return s.split('T').first;
 }
 
-/// `HH:mm` extracted from an ISO timestamp string or DateTime.
-String formatTime(Object? value) {
+/// `HH:mm` extracted from an ISO timestamp string or DateTime ([ifEmpty] when
+/// there is no time component).
+String formatTime(Object? value, {String ifEmpty = ''}) {
   final s = _iso(value);
-  if (!s.contains('T')) return '';
+  if (!s.contains('T')) return ifEmpty;
   final time = s.split('T')[1];
   final hhmm = time.length >= 5 ? time.substring(0, 5) : time;
   return hhmm;
 }
 
-/// `YYYY-MM-DD HH:mm` for a timestamp (or '' if null/blank).
-String formatDateTime(Object? value) {
+/// `YYYY-MM-DD HH:mm` for a timestamp ([ifEmpty] when null/blank).
+String formatDateTime(Object? value, {String ifEmpty = ''}) {
   final d = formatDate(value);
   final t = formatTime(value);
-  if (d.isEmpty) return '';
+  if (d.isEmpty) return ifEmpty;
   return t.isEmpty ? d : '$d $t';
 }
 
