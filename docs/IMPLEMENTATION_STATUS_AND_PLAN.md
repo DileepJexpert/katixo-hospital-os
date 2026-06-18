@@ -170,6 +170,27 @@ integration was removed). Katasticho and Katixo are now two separate products.
   (Certificates + Templates tabs, issue via patient picker, open PDF, revoke) mounted in
   Doctor / Admin / Super-Admin homes.
 
+### Nursing vitals charting (`nursing/`, 2026-06-18)
+- **Vital-signs charting** — nurses record a patient's vital signs over time
+  (typically during an IPD admission) and clinicians review the trend. Purely
+  clinical data, no accounting. `NursingVital` entity / `nursing_vital` table in the
+  tenant baseline (temperature, pulse, respiratory rate, systolic/diastolic BP,
+  SpO₂, blood sugar, weight, pain score 0–10, notes; `recorded_by_name` stamped from
+  the logged-in user). Records are soft-deleted (status=DELETED) so history is never
+  hard-deleted.
+- **Endpoints** under the shared `/api/v1/nursing` base: `POST /vitals` (record),
+  `PUT /vitals/{id}` (update), `DELETE /vitals/{id}` (soft delete) — NURSE/DOCTOR/ADMIN;
+  `GET /vitals?patientId=&admissionId=&limit=` + `GET /vitals/{id}` — NURSE/DOCTOR/
+  FRONT_DESK/ADMIN. Validation: at least one vital required (`VITAL_EMPTY`), pain 0–10
+  (`VITAL_PAIN_RANGE`), SpO₂ 0–100 (`VITAL_SPO2_RANGE`), patient required.
+- **8 unit tests** (`NursingVitalServiceTest`). Flutter: **Vitals screen**
+  (`features/nursing/vitals_screen.dart`) — newest-first list with a compact vitals
+  summary, record/edit/delete dialog; embeds for one admission (Vitals button in the
+  IPD admission detail) or stands alone with a patient picker. Mounted in Nurse /
+  Doctor / Admin / Super-Admin homes.
+- **Still future (deeper):** eMAR (electronic medication administration record) —
+  tracking each scheduled-dose administration against the prescription/indent.
+
 ### ERP-parity gap closures (in-process, 2026-06-15)
 The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its
 substance already lives in-process. Three residual functional gaps were closed:

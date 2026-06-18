@@ -3677,6 +3677,41 @@ CREATE TABLE nursing_indent_item (
 
 CREATE INDEX idx_nursing_indent_item_indent ON nursing_indent_item(indent_id);
 
+-- ------------------------------------------------------------
+-- Nursing vitals charting: a nurse records a patient's vital
+-- signs over time (typically during an IPD admission); clinicians
+-- view the trend. Purely clinical data — no accounting.
+-- ------------------------------------------------------------
+CREATE TABLE nursing_vital (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)   NOT NULL,
+    hospital_group_id   BIGINT        NOT NULL,
+    branch_id           BIGINT        NOT NULL,
+    patient_id          BIGINT        NOT NULL,
+    admission_id        BIGINT,
+    recorded_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    temperature_celsius NUMERIC(4,1),
+    pulse_bpm           INTEGER,
+    respiratory_rate    INTEGER,
+    systolic_bp         INTEGER,
+    diastolic_bp        INTEGER,
+    spo2                INTEGER,
+    blood_sugar_mg_dl   INTEGER,
+    weight_kg           NUMERIC(5,2),
+    pain_score          INTEGER,
+    notes               TEXT,
+    recorded_by_name    VARCHAR(200),
+    status              VARCHAR(20)   DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_nvital_tenant_branch ON nursing_vital(tenant_id, branch_id);
+CREATE INDEX idx_nvital_patient ON nursing_vital(patient_id, recorded_at);
+CREATE INDEX idx_nvital_admission ON nursing_vital(admission_id, recorded_at);
+
 -- ============================================================
 -- ACCOUNTING (hospital owns its own double-entry books — no ERP dependency)
 -- account = chart of accounts; journal_entry/journal_line = balanced vouchers.

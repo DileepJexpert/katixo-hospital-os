@@ -10,6 +10,7 @@ import '../consent/consent_screen.dart';
 import '../discharge/discharge_summary_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nursing/nursing_screen.dart';
+import '../nursing/vitals_screen.dart';
 import '../ot/ot_screen.dart';
 import '../prescription/prescriptions_screen.dart';
 import '../radiology/radiology_screen.dart';
@@ -49,6 +50,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           label: 'Ward Indents',
           icon: Icons.assignment_outlined,
           selectedIcon: Icons.assignment,
+        ),
+        ShellDestination(
+          label: 'Vitals',
+          icon: Icons.monitor_heart_outlined,
+          selectedIcon: Icons.monitor_heart,
         ),
         ShellDestination(
           label: 'Prescriptions',
@@ -107,13 +113,14 @@ class _DoctorHomeState extends State<DoctorHome> {
       body: switch (_index) {
         2 => const NursingScreen(),
         1 => const LabScreen(),
-        3 => const PrescriptionsScreen(),
-        4 => const DoctorLeaveScreen(),
-        5 => const OtScreen(),
-        6 => const RadiologyScreen(),
-        7 => const ConsentScreen(),
-        8 => const CertificateScreen(),
-        9 => const DischargeSummaryScreen(),
+        3 => const VitalsScreen(),
+        4 => const PrescriptionsScreen(),
+        5 => const DoctorLeaveScreen(),
+        6 => const OtScreen(),
+        7 => const RadiologyScreen(),
+        8 => const ConsentScreen(),
+        9 => const CertificateScreen(),
+        10 => const DischargeSummaryScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

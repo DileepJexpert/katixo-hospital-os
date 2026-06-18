@@ -9,6 +9,7 @@ import '../consent/consent_screen.dart';
 import '../ipd/ipd_screen.dart';
 import '../nabh/nabh_screen.dart';
 import 'nursing_screen.dart';
+import 'vitals_screen.dart';
 
 /// Nurse role home: ward indents + the inpatient (IPD) board.
 class NurseHome extends StatefulWidget {
@@ -31,6 +32,11 @@ class _NurseHomeState extends State<NurseHome> {
           label: 'Indents',
           icon: Icons.assignment_outlined,
           selectedIcon: Icons.assignment,
+        ),
+        ShellDestination(
+          label: 'Vitals',
+          icon: Icons.monitor_heart_outlined,
+          selectedIcon: Icons.monitor_heart,
         ),
         ShellDestination(
           label: 'IPD',
@@ -67,9 +73,10 @@ class _NurseHomeState extends State<NurseHome> {
         ),
       ],
       body: switch (_index) {
-        1 => const IpdScreen(),
-        2 => const NabhScreen(),
-        3 => const ConsentScreen(),
+        1 => const VitalsScreen(),
+        2 => const IpdScreen(),
+        3 => const NabhScreen(),
+        4 => const ConsentScreen(),
         _ => const NursingScreen(),
       },
     );

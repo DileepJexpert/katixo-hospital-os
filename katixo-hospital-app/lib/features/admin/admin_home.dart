@@ -22,6 +22,7 @@ import '../ipd/ipd_screen.dart';
 import '../lab/lab_screen.dart';
 import '../nabh/nabh_screen.dart';
 import '../nursing/nursing_screen.dart';
+import '../nursing/vitals_screen.dart';
 import '../notification/notifications_screen.dart';
 import '../ot/ot_screen.dart';
 import '../radiology/radiology_screen.dart';
@@ -55,6 +56,7 @@ class _AdminHomeState extends State<AdminHome> {
       (dest: const ShellDestination(label: 'Radiology', icon: Icons.scanner_outlined, selectedIcon: Icons.scanner), body: const RadiologyScreen()),
       (dest: const ShellDestination(label: 'IPD', icon: Icons.local_hotel_outlined, selectedIcon: Icons.local_hotel), body: const IpdScreen()),
       (dest: const ShellDestination(label: 'Nursing', icon: Icons.assignment_outlined, selectedIcon: Icons.assignment), body: const NursingScreen()),
+      (dest: const ShellDestination(label: 'Vitals', icon: Icons.monitor_heart_outlined, selectedIcon: Icons.monitor_heart), body: const VitalsScreen()),
       (dest: const ShellDestination(label: 'Doctor Leave', icon: Icons.event_busy_outlined, selectedIcon: Icons.event_busy), body: const DoctorLeaveScreen()),
       (dest: const ShellDestination(label: 'OT', icon: Icons.medical_services_outlined, selectedIcon: Icons.medical_services), body: const OtScreen()),
       if (flags.pharmacyEnabled)

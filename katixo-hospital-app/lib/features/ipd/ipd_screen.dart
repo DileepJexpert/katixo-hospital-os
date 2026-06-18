@@ -11,6 +11,7 @@ import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../discharge/discharge_summary_screen.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../nursing/vitals_screen.dart';
 import '../patient/patient_picker.dart';
 import '../staff/doctor_picker.dart';
 
@@ -68,6 +69,8 @@ class _IpdScreenState extends State<IpdScreen> {
   bool get _canAdmit => _role == 'FRONT_DESK' || _role == 'ADMIN';
   bool get _canTransfer => _role == 'FRONT_DESK' || _role == 'NURSE' || _role == 'ADMIN';
   bool get _canDischarge => _role == 'DOCTOR' || _role == 'ADMIN';
+  bool get _canViewVitals =>
+      _role == 'NURSE' || _role == 'DOCTOR' || _role == 'FRONT_DESK' || _role == 'ADMIN' || _role == 'SUPER_ADMIN';
 
   Future<void> _loadAll() async {
     setState(() {
@@ -326,6 +329,12 @@ class _IpdScreenState extends State<IpdScreen> {
                     onPressed: _loading ? null : () => _transferDialog(id),
                     icon: const Icon(Icons.swap_horiz, size: 18),
                     label: const Text('Transfer'),
+                  ),
+                if (_canViewVitals)
+                  OutlinedButton.icon(
+                    onPressed: () => _openVitals(id, a['patientId'] as int?),
+                    icon: const Icon(Icons.monitor_heart_outlined, size: 18),
+                    label: const Text('Vitals'),
                   ),
                 if (_canDischarge)
                   OutlinedButton.icon(
@@ -928,6 +937,21 @@ class _IpdScreenState extends State<IpdScreen> {
             maxHeight: MediaQuery.of(ctx).size.height * 0.85,
           ),
           child: DischargeSummaryScreen(admissionId: admissionId),
+        ),
+      ),
+    );
+  }
+
+  void _openVitals(int admissionId, int? patientId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 700,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          ),
+          child: VitalsScreen(admissionId: admissionId, patientId: patientId),
         ),
       ),
     );
