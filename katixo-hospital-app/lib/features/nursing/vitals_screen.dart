@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/validators.dart';
 import '../../core/widgets/empty_state.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../patient/patient_picker.dart';
@@ -183,7 +184,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                       if (action == 'edit') {
                         _vitalDialog(existing: v);
                       } else if (action == 'delete') {
-                        _confirmDelete(v['id'] as int);
+                        _confirmDelete(v);
                       }
                     },
                     itemBuilder: (_) => const [
@@ -219,12 +220,22 @@ class _VitalsScreenState extends State<VitalsScreen> {
     return iso.replaceFirst('T', ' ').split('.').first;
   }
 
-  Future<void> _confirmDelete(int id) async {
+  Future<void> _confirmDelete(Map<String, dynamic> v) async {
+    final id = v['id'] as int;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete vitals'),
-        content: const Text('Delete this vitals record? This cannot be undone.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${_formatTime('${v['recordedAt'] ?? ''}')}  ·  ${_summary(v)}',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: Space.sm),
+            const Text('Delete this vitals record? This cannot be undone.'),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
@@ -324,6 +335,23 @@ class _VitalsScreenState extends State<VitalsScreen> {
       final t = ctrl.text.trim();
       if (t.isEmpty) return null;
       return int.tryParse(t);
+    }
+
+    // Validate any field the nurse actually filled — empty fields stay null.
+    String? rangeIfPresent(TextEditingController ctrl, String? Function() check) =>
+        ctrl.text.trim().isEmpty ? null : check();
+    final vitalError = firstError([
+      rangeIfPresent(temp, () => numInRange(temp.text, min: 25, max: 45, field: 'Temperature')),
+      rangeIfPresent(pulse, () => intInRange(pulse.text, min: 0, max: 300, field: 'Pulse')),
+      rangeIfPresent(rr, () => intInRange(rr.text, min: 0, max: 120, field: 'Respiratory rate')),
+      rangeIfPresent(sys, () => intInRange(sys.text, min: 0, max: 400, field: 'Systolic BP')),
+      rangeIfPresent(dia, () => intInRange(dia.text, min: 0, max: 400, field: 'Diastolic BP')),
+      rangeIfPresent(spo2, () => intInRange(spo2.text, min: 0, max: 100, field: 'SpO₂')),
+      rangeIfPresent(pain, () => intInRange(pain.text, min: 0, max: 10, field: 'Pain score')),
+    ]);
+    if (vitalError != null) {
+      setState(() => _error = vitalError);
+      return;
     }
 
     final body = <String, dynamic>{

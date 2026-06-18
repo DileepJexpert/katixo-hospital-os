@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/util/pdf_actions.dart';
+import '../../core/util/validators.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
@@ -593,12 +594,21 @@ class _LabScreenState extends State<LabScreen> {
         ),
       ),
     );
-    if (ok != true || code.text.trim().isEmpty || name.text.trim().isEmpty) return;
+    if (ok != true) return;
+    final testError = firstError([
+      requiredText(code.text, field: 'Test code'),
+      requiredText(name.text, field: 'Test name'),
+      positiveAmount(rate.text, field: 'Rate'),
+    ]);
+    if (testError != null) {
+      setState(() => _error = testError);
+      return;
+    }
     await _post('/api/v1/lab/tests', {
       'testCode': code.text.trim(),
       'testName': name.text.trim(),
       'specimenType': specimen,
-      'rate': double.tryParse(rate.text.trim()) ?? 0,
+      'rate': double.parse(rate.text.trim()),
       if (unit.text.trim().isNotEmpty) 'unit': unit.text.trim(),
       if (range.text.trim().isNotEmpty) 'referenceRange': range.text.trim(),
     }, 'Test added');

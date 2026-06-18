@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
-import '../front_desk/registration_screen.dart' show MessageBanner;
+import '../../core/util/validators.dart';
+import '../../core/widgets/message_banner.dart';
 
 /// OTC quick sale: walk-in counter cash sale (no patient). Build a cart of
 /// items, pick payment mode, submit — backend FEFO-issues stock and posts the
@@ -97,8 +98,12 @@ class _OtcSaleScreenState extends State<OtcSaleScreen> {
       ),
     );
     if (proceed != true) return;
-    final quantity = double.tryParse(qty.text.trim()) ?? 0;
-    if (quantity <= 0) return;
+    final qtyError = positiveAmount(qty.text, field: 'Quantity');
+    if (qtyError != null) {
+      setState(() => _error = qtyError);
+      return;
+    }
+    final quantity = double.parse(qty.text.trim());
     final item = _items.firstWhere((it) => '${it['code']}' == code);
     setState(() {
       _cart.add(_CartLine(
