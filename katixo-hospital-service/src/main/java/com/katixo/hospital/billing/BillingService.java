@@ -49,6 +49,7 @@ public class BillingService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final com.katixo.hospital.notification.NotificationService notificationService;
     private final com.katixo.hospital.accounting.JournalService journalService;
 
     // Chart-of-accounts codes the bill/payment journals post to.
@@ -293,6 +294,14 @@ public class BillingService {
         outboxEventService.publish("PatientBill", String.valueOf(saved.getId()), "BillFinalized", billSnapshot(saved));
         auditService.audit("PatientBill", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, billSnapshot(saved), UUID.randomUUID().toString());
+
+        // Best-effort bill notification to the patient (consent-gated, never blocks).
+        var patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                saved.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+        notificationService.notifyPatient(com.katixo.hospital.notification.NotificationType.BILL, patient, Map.of(
+                "name", patient == null || patient.getFullName() == null ? "" : patient.getFullName(),
+                "bill", saved.getBillNumber() == null ? "" : saved.getBillNumber(),
+                "amount", saved.getNetAmount().toPlainString()), "PatientBill", saved.getId());
         return saved;
     }
 

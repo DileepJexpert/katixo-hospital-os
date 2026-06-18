@@ -94,9 +94,16 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - Per-tenant config (`notification_settings`, keys write-only/masked), templates
   (`notification_template` per type+channel), log (`notification_log`). Endpoints at
   `/api/v1/notifications` (settings, templates, send, logs).
-- **Trigger wired:** walk-in registration (`OPDService`) best-effort notifies the patient
-  (consent-gated, never blocks). _Next triggers: appointment, report-ready, bill; doctor
-  alerts + SSE; platform doctor registry — see `NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`._
+- **Triggers wired (2026-06-18):** walk-in registration (`OPDService`), **appointment
+  booked** (`OPDService.bookAppointment` → `APPOINTMENT`), **lab report released**
+  (`LabService.approveReport` → `REPORT_READY`), and **bill finalized**
+  (`BillingService.finalizeBill` → `BILL`). All go through the new
+  `NotificationService.notifyPatient(type, patient, params, relatedType, relatedId)`
+  helper — derives consent from the patient's privacy/data-sharing flags, dispatches
+  via the channel fan-out, and is fully best-effort (never breaks the clinical/financial
+  flow). **3 new tests** (consent delivers / no-consent skips / null patient no-op).
+  _Next: doctor alerts + SSE; platform doctor registry — see
+  `NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`._
 
 ### Cross-cutting
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**

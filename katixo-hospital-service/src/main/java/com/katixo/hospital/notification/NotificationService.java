@@ -128,6 +128,25 @@ public class NotificationService {
         return logRepository.save(row);
     }
 
+    /**
+     * Best-effort patient notification: derives consent from the patient's privacy/data-sharing
+     * flags and dispatches via {@link #notify}. Never throws — a notification failure must not
+     * break the clinical/financial flow that triggered it. The single place triggers should call.
+     */
+    public void notifyPatient(NotificationType type, com.katixo.hospital.patient.Patient patient,
+                              Map<String, String> params, String relatedType, Long relatedId) {
+        try {
+            if (patient == null) {
+                return;
+            }
+            boolean consent = Boolean.TRUE.equals(patient.getPrivacyConsentGiven())
+                    || Boolean.TRUE.equals(patient.getDataSharingConsent());
+            notify(type, patient.getMobile(), consent, params, relatedType, relatedId);
+        } catch (Exception e) {
+            log.warn("{} notification skipped for {} {}: {}", type, relatedType, relatedId, e.getMessage());
+        }
+    }
+
     // ---------------- settings & templates ----------------
 
     @Transactional(readOnly = true)
