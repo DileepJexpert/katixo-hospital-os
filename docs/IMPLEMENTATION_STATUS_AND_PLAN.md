@@ -102,6 +102,18 @@ integration was removed). Katasticho and Katixo are now two separate products.
 - **Policy engine** (`hospital_policy`, no hardcoded if-else), **audit trail**
   (immutable), **outbox pattern**, **idempotency** (Idempotency-Key for the
   hospital's own command APIs), JWT auth + RBAC, multi-tenant provisioning.
+- **Outbox publisher (2026-06-18):** the previously-missing half of the outbox
+  pattern. `outbox/OutboxPublisherJob` is a `@Scheduled` cross-tenant poller —
+  it iterates active tenants from the platform registry, binds a system
+  `TenantContext` per tenant (so Hibernate routes to the right schema), drains
+  PENDING `outbox_event` rows in batches and dispatches each through an
+  `OutboxEventPublisher`. Default transport `LoggingOutboxEventPublisher`
+  (`@ConditionalOnMissingBean`) logs + marks events PUBLISHED so the pattern is
+  complete and observable with no broker dependency; a Kafka/Redpanda publisher
+  drops in without other changes. Per-event isolation: success → PUBLISHED,
+  failure → retry-count bump (FAILED after 3), fail-soft across tenants. Gated by
+  `katixo.outbox.publisher.enabled` (poll/batch/delay configurable). **5 unit
+  tests** (`OutboxPublisherJobTest`). _Events no longer pile up undelivered._
 - **Two-factor auth (TOTP, 2026-06-17):** opt-in per user. `auth/TotpService`
   is a hand-rolled RFC 6238 implementation (HMAC-SHA1, 6 digits, 30s step, ±1
   window, RFC 4648 base32) — no external lib. `auth/MfaController`

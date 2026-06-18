@@ -1,5 +1,6 @@
 package com.katixo.hospital.outbox;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -10,4 +11,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     List<OutboxEvent> findByStatusInOrderByCreatedAtAsc(List<OutboxEvent.PublishStatus> statuses);
 
     List<OutboxEvent> findByTenantIdAndStatusInOrderByCreatedAtAsc(String tenantId, List<OutboxEvent.PublishStatus> statuses);
+
+    /** One batch of a tenant's deliverable events, oldest first. */
+    List<OutboxEvent> findByTenantIdAndStatusOrderByCreatedAtAsc(
+            String tenantId, OutboxEvent.PublishStatus status, Pageable pageable);
 }
