@@ -24,10 +24,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _thresholdCtrl = TextEditingController();
   bool _thresholdInit = false;
 
+  final _blockingCtrl = TextEditingController();
+  final _warningCtrl = TextEditingController();
+  bool _checklistLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChecklist();
+  }
+
   @override
   void dispose() {
     _thresholdCtrl.dispose();
+    _blockingCtrl.dispose();
+    _warningCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadChecklist() async {
+    try {
+      final api = context.read<ApiClient>();
+      final f = await api.get<Map<String, dynamic>>('/api/v1/settings/features',
+          fromJson: (j) => j as Map<String, dynamic>);
+      if (mounted) {
+        setState(() {
+          _blockingCtrl.text = '${f['dischargeChecklistBlockingItems'] ?? ''}';
+          _warningCtrl.text = '${f['dischargeChecklistWarningItems'] ?? ''}';
+          _checklistLoaded = true;
+        });
+      }
+    } catch (_) {
+      // Non-fatal — the rest of settings still works.
+    }
+  }
+
+  Future<void> _saveChecklist() async {
+    setState(() {
+      _saving = true;
+      _info = null;
+      _error = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      await api.put<dynamic>(
+        '/api/v1/settings/features',
+        {
+          'dischargeChecklistBlockingItems': _blockingCtrl.text.trim(),
+          'dischargeChecklistWarningItems': _warningCtrl.text.trim(),
+        },
+        fromJson: (j) => j,
+      );
+      if (mounted) setState(() => _info = 'Discharge checklist saved');
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _set({bool? pharmacy, bool? sms, bool? whatsapp, bool? portal,
@@ -152,6 +205,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 FilledButton(
                   onPressed: _saving ? null : _saveThreshold,
                   child: const Text('Save'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: Space.md),
+          SectionCard(
+            title: 'Discharge checklist',
+            icon: Icons.checklist_outlined,
+            subtitle: 'Comma-separated item codes shown at IPD discharge. Blocking items '
+                'must be ticked before a NORMAL discharge; advisory items only warn. '
+                'Codes are shown title-cased (e.g. FINAL_BILL_CLEARED → "Final bill cleared").',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _blockingCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Blocking items (CSV)',
+                    hintText: 'FINAL_BILL_CLEARED,MEDICINES_RETURNED,REPORTS_HANDED_OVER',
+                  ),
+                ),
+                const SizedBox(height: Space.sm),
+                TextField(
+                  controller: _warningCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Advisory items (CSV)',
+                    hintText: 'FOLLOW_UP_SCHEDULED,DISCHARGE_SUMMARY_GIVEN',
+                  ),
+                ),
+                const SizedBox(height: Space.sm),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: (_saving || !_checklistLoaded) ? null : _saveChecklist,
+                    child: const Text('Save checklist'),
+                  ),
                 ),
               ],
             ),

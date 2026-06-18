@@ -152,6 +152,13 @@ public class IPDController {
                 "Bed allocations", HttpStatus.OK);
     }
 
+    /** The hospital's policy-driven discharge checklist (blocking + warning items) for the UI to render. */
+    @GetMapping("/discharge-checklist")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> dischargeChecklist() {
+        return respond(ipdService.getDischargeChecklist(), "Discharge checklist", HttpStatus.OK);
+    }
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
