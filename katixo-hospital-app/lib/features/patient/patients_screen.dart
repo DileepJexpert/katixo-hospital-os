@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import 'patient_credit_panel.dart';
 
@@ -232,6 +233,14 @@ class _PatientsScreenState extends State<PatientsScreen> {
               key: ValueKey('credit-${p['id']}'),
               patientId: p['id'] as int,
               role: _role,
+            ),
+          ],
+          if (p['id'] != null) ...[
+            const SizedBox(height: Space.md),
+            DocumentsPanel(
+              key: ValueKey('docs-${p['id']}'),
+              entityType: 'PATIENT',
+              entityId: (p['id'] as num).toInt(),
             ),
           ],
         ],

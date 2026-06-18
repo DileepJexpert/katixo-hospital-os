@@ -13,6 +13,7 @@ import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../discharge/discharge_summary_screen.dart';
+import '../document/documents_screen.dart';
 import '../report/financial_reports_screen.dart';
 import '../vendor/vendors_screen.dart';
 import '../doctor/doctor_leave_screen.dart';
@@ -94,6 +95,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'NABH', icon: Icons.verified_outlined, selectedIcon: Icons.verified), body: const NabhScreen()),
       (dest: const ShellDestination(label: 'Consent', icon: Icons.assignment_turned_in_outlined, selectedIcon: Icons.assignment_turned_in), body: const ConsentScreen()),
       (dest: const ShellDestination(label: 'Certificates', icon: Icons.workspace_premium_outlined, selectedIcon: Icons.workspace_premium), body: const CertificateScreen()),
+      (dest: const ShellDestination(label: 'Documents', icon: Icons.folder_outlined, selectedIcon: Icons.folder), body: const DocumentsScreen()),
       (dest: const ShellDestination(label: 'Notifications', icon: Icons.notifications_outlined, selectedIcon: Icons.notifications), body: const NotificationsScreen()),
       (dest: const ShellDestination(label: 'Staff & Logins', icon: Icons.badge_outlined, selectedIcon: Icons.badge), body: const StaffScreen()),
       (dest: const ShellDestination(label: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings), body: const SettingsScreen()),

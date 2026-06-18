@@ -1,6 +1,6 @@
 # Katixo Hospital OS — Implementation Status & Plan
 
-_Last updated: 2026-06-17 (consent + certificate modules)_
+_Last updated: 2026-06-18 (document / file attachments module)_
 
 This is the single source of truth for **what is built** and **what is next**.
 Keep it current as features land. For coding conventions and architecture
@@ -190,6 +190,31 @@ integration was removed). Katasticho and Katixo are now two separate products.
   Doctor / Admin / Super-Admin homes.
 - **Still future (deeper):** eMAR (electronic medication administration record) —
   tracking each scheduled-dose administration against the prescription/indent.
+
+### Document / file attachments (`document/`, 2026-06-18)
+- **Attach files to records** — staff attach scanned lab/radiology reports, consent
+  scans, TPA documents, ID proofs to any record via (entityType, entityId)
+  (PATIENT, LAB_REPORT, RADIOLOGY, TPA_CASE, CONSENT, CERTIFICATE, OTHER). Metadata
+  lives in the `document_metadata` table (tenant baseline); bytes live in a
+  **pluggable storage provider**.
+- **Pluggable storage:** `DocumentStorageProvider` interface — default
+  `LocalDiskStorageProvider` writes under `katixo.documents.local-dir` (default
+  `./data/documents`, layout `<base>/<tenant>/<uuid>_<sanitised-name>`, path-traversal
+  guarded). An S3-backed provider drops in later simply by being a bean (the disk
+  provider is registered `@ConditionalOnMissingBean(DocumentStorageProvider.class)`).
+  **No AWS SDK dependency added.**
+- **Endpoints** `/api/v1/documents` (all `isAuthenticated()`): `POST` (multipart
+  `file` + `entityType` + optional `entityId`, 10 MB cap via `katixo.documents.max-bytes`),
+  `GET ?entityType=&entityId=` (by record or recent), `GET /{id}`, `GET /{id}/download`
+  (inline, stored content type), `DELETE /{id}` (soft delete + best-effort byte removal).
+  Validation: `DOC_EMPTY`, `DOC_ENTITY_TYPE_REQUIRED`, `DOC_TOO_LARGE`; CREATE/DELETE audited.
+- **12 unit tests** (`DocumentServiceTest` 9, `LocalDiskStorageProviderTest` 3).
+- **Flutter:** dependency-free **web file picker** (`core/util/file_picker.dart`
+  conditional `dart:html`, mirrors `pdf_launcher`), `ApiClient.uploadBytes` (multipart
+  with the same auth/tenant headers), reusable **`DocumentsPanel`** (list/upload/open/
+  delete, embeddable) + standalone **`DocumentsScreen`** (patient-scoped). Embedded in
+  the patient detail view; Documents tab added to Admin & Super-Admin homes.
+- **Remaining production step:** an S3 `DocumentStorageProvider` for cloud deployment.
 
 ### ERP-parity gap closures (in-process, 2026-06-15)
 The old hospital→ERP "internal API" contract (9 endpoints) is **not revived** — its

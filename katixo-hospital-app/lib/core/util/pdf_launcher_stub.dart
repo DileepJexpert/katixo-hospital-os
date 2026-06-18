@@ -5,3 +5,7 @@ import 'dart:typed_data';
 void openPdfBytes(Uint8List bytes, String filename) {
   throw UnsupportedError('Opening PDFs is only supported on Flutter Web.');
 }
+
+void openBytesInBrowser(Uint8List bytes, String filename, String mimeType) {
+  throw UnsupportedError('Opening files is only supported on Flutter Web.');
+}

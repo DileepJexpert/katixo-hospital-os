@@ -100,6 +100,50 @@ class ApiClient {
     return _handleResponse(response, fromJson);
   }
 
+  /// POST a multipart upload (the `file` part plus optional text [fields]) with
+  /// the SAME auth + tenant headers as [post]. Not auto-retried (an upload that
+  /// committed but lost its response would be duplicated on retry). The server
+  /// is expected to return the standard ApiResponse envelope; this returns the
+  /// decoded `data` map. The byte content type is sent as a `contentType` form
+  /// field (we avoid a hard dependency on `http_parser`'s MediaType on the part).
+  Future<Map<String, dynamic>> uploadBytes(
+    String path, {
+    required Uint8List bytes,
+    required String filename,
+    String? contentType,
+    Map<String, String>? fields,
+    String? correlationId,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final request = http.MultipartRequest('POST', uri);
+    // Reuse the JSON header set, minus Content-Type (multipart sets its own boundary).
+    final headers = _headers(correlationId)..remove('Content-Type');
+    request.headers.addAll(headers);
+    if (fields != null) request.fields.addAll(fields);
+    if (contentType != null && contentType.isNotEmpty) {
+      request.fields['contentType'] = contentType;
+    }
+    request.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+    );
+
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 401) {
+      onUnauthorized?.call();
+      throw UnauthorizedException('Session expired');
+    }
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      if (!(json['success'] as bool)) {
+        throw ApiException(ErrorResponse.fromJson(json));
+      }
+      return (json['data'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    }
+    throw ApiException(_parseError(response));
+  }
+
   /// PUT with request body. Not auto-retried (see [post]).
   Future<T> put<T>(
     String endpoint,
