@@ -121,6 +121,54 @@ class NotificationServiceTest {
         assertEquals("gateway down", logs.get(0).getErrorText());
     }
 
+    private NotificationTemplate smsTemplateFor(NotificationType type) {
+        NotificationTemplate t = new NotificationTemplate();
+        t.setNotificationType(type);
+        t.setChannel(NotificationChannel.SMS);
+        t.setProviderRef("DLT-123");
+        t.setBody("Hi {name}");
+        t.setActive(true);
+        return t;
+    }
+
+    private com.katixo.hospital.patient.Patient patient(String mobile, Boolean consent) {
+        com.katixo.hospital.patient.Patient p = new com.katixo.hospital.patient.Patient();
+        p.setMobile(mobile);
+        p.setPrivacyConsentGiven(consent);
+        return p;
+    }
+
+    @Test
+    void notifyPatientWithConsentDelivers() {
+        when(settingsRepository.findByTenantIdAndBranchId(TENANT, 1L))
+                .thenReturn(Optional.of(smsEnabledSettings()));
+        when(templateRepository.findByTenantIdAndBranchIdAndNotificationTypeAndChannel(
+                TENANT, 1L, NotificationType.BILL, NotificationChannel.SMS))
+                .thenReturn(Optional.of(smsTemplateFor(NotificationType.BILL)));
+        fakeSms.result = SendResult.ok("fake-1");
+
+        service.notifyPatient(NotificationType.BILL, patient("9876543210", true),
+                Map.of("name", "Asha"), "PatientBill", 1L);
+
+        assertEquals("Hi Asha", fakeSms.lastBody);
+    }
+
+    @Test
+    void notifyPatientWithoutConsentDoesNotDeliver() {
+        lenient().when(settingsRepository.findByTenantIdAndBranchId(TENANT, 1L))
+                .thenReturn(Optional.of(smsEnabledSettings()));
+        service.notifyPatient(NotificationType.BILL, patient("9876543210", false),
+                Map.of("name", "Asha"), "PatientBill", 1L);
+        org.junit.jupiter.api.Assertions.assertNull(fakeSms.lastBody);
+    }
+
+    @Test
+    void notifyPatientNullPatientIsNoOp() {
+        // Must not throw and must not touch settings.
+        service.notifyPatient(NotificationType.BILL, null, Map.of(), "PatientBill", 1L);
+        org.junit.jupiter.api.Assertions.assertNull(fakeSms.lastBody);
+    }
+
     /** Test double for an SMS gateway. */
     static class FakeSms implements SmsProvider {
         SendResult result = SendResult.ok("fake");

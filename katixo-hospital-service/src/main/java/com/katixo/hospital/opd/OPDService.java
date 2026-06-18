@@ -114,7 +114,7 @@ public class OPDService {
         var context = TenantContext.get();
         Long branchId = Long.parseLong(context.getBranchId());
 
-        patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), branchId)
+        Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(patientId, context.getTenantId(), branchId)
                 .orElseThrow(() -> new BusinessException("PATIENT_NOT_FOUND", "Patient not found: " + patientId));
 
         if (!slotEnd.isAfter(slotStart)) {
@@ -145,6 +145,13 @@ public class OPDService {
         Appointment saved = appointmentRepository.save(appointment);
         auditService.audit("Appointment", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
                 null, saved, UUID.randomUUID().toString());
+
+        // Best-effort appointment confirmation to the patient (consent-gated, never blocks).
+        notificationService.notifyPatient(NotificationType.APPOINTMENT, patient, Map.of(
+                "name", patient.getFullName() == null ? "" : patient.getFullName(),
+                "date", date.toString(),
+                "time", slotStart.toString(),
+                "doctor", String.valueOf(doctorId)), "Appointment", saved.getId());
         return saved;
     }
 

@@ -8,7 +8,10 @@ import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.ipd.IPDAdmissionRepository;
 import com.katixo.hospital.opd.OPDVisitRepository;
+import com.katixo.hospital.notification.NotificationService;
+import com.katixo.hospital.notification.NotificationType;
 import com.katixo.hospital.outbox.OutboxEventService;
+import com.katixo.hospital.patient.Patient;
 import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
@@ -43,6 +46,7 @@ public class LabService {
     private final PolicyService policyService;
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
+    private final NotificationService notificationService;
 
     private static final String APPROVAL_POLICY_PREFIX = "lab.report_approval.";
     private static final String APPROVAL_AUTO = "AUTO_RELEASE";
@@ -237,6 +241,18 @@ public class LabService {
                 reportSnapshot(saved, item));
         auditService.audit("LabReport", String.valueOf(saved.getId()), AuditLog.AuditAction.UPDATE,
                 null, reportSnapshot(saved, item), UUID.randomUUID().toString());
+
+        // Best-effort "your report is ready" to the patient (consent-gated, never blocks).
+        LabOrder order = orderRepository.findByIdAndTenantIdAndBranchId(
+                item.getLabOrderId(), ctx.getTenantId(), branchId()).orElse(null);
+        if (order != null) {
+            Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                    order.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+            notificationService.notifyPatient(NotificationType.REPORT_READY, patient, Map.of(
+                    "name", patient == null || patient.getFullName() == null ? "" : patient.getFullName(),
+                    "report", item.getTestName() == null ? "Lab report" : item.getTestName()),
+                    "LabReport", saved.getId());
+        }
         return saved;
     }
 
