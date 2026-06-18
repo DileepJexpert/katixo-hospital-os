@@ -151,6 +151,18 @@ integration was removed). Katasticho and Katixo are now two separate products.
   `staff_user_ref.mfa_secret`. Flutter: login reveals a code field on
   `MFA_REQUIRED`; an **Account Security** screen (shield button in every role
   home's app bar) drives enroll → show secret/otpauth URI → activate, and disable.
+- **Step-up MFA for sensitive actions (2026-06-18):** the four high-risk operations —
+  discount approval, payment void, bill cancel, discharge sign-off — re-challenge for a
+  fresh TOTP code at the moment of the action (not just at login), satisfying the CLAUDE.md
+  security rule. `auth/StepUpService` reads the code from the `X-Step-Up-Code` header and
+  verifies it against the acting user's enrolled secret; gated controllers
+  (`BillingController` discount-approve/void/cancel, `IPDController` discharge) call it first.
+  Policy-driven: `security.step_up.enabled` (default true) is the master switch;
+  `security.step_up.require_mfa` (default false) decides whether users who have NOT enrolled
+  in 2FA are blocked (force enrollment) or pass through. Error codes `STEP_UP_REQUIRED` /
+  `INVALID_STEP_UP_CODE` / `STEP_UP_ENROLLMENT_REQUIRED`. Flutter: a shared `withStepUp`
+  helper (`core/util/step_up.dart`) prompts for the code and retries with the header when
+  challenged — wired into the billing and IPD action paths. Tests: `StepUpServiceTest` (6).
 - **Staff / user management (2026-06-18):** the production replacement for the
   dev-only `DevUserSeeder` — a hospital ADMIN onboards and maintains its own staff
   logins. `auth/StaffManagementService` + ADMIN-only endpoints on `StaffController`:
@@ -382,8 +394,9 @@ a group is rough priority.
 - **In-app PDF print/download** (binary `ApiClient` path) across all documents.
 - **Hindi (and later regional) i18n** for patient-facing output (prescription, bill, report).
 - **Role-complete homes** (nurse, lab tech, owner) + permission-gated navigation.
-- ~~**MFA** at login (TOTP)~~ **DONE (2026-06-17)** — see §2 Cross-cutting. Still
-  future: per-action step-up MFA (high discount, refund, invoice cancel, discharge sign-off).
+- ~~**MFA** at login (TOTP)~~ **DONE (2026-06-17)** — see §2 Cross-cutting.
+- ~~**Per-action step-up MFA** (high discount, refund/void, invoice cancel, discharge sign-off)~~
+  **DONE (2026-06-18)** — `auth/StepUpService` + `X-Step-Up-Code`, policy-gated. See §2 Cross-cutting.
 - **Offline-tolerant** counter flows (pharmacy/OPD) where connectivity is unreliable.
 
 ## 7. Branch / workflow

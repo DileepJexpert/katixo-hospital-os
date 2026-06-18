@@ -26,6 +26,7 @@ import java.util.UUID;
 public class IPDController {
 
     private final IPDService ipdService;
+    private final com.katixo.hospital.auth.StepUpService stepUpService;
 
     // ---------- masters ----------
 
@@ -191,7 +192,9 @@ public class IPDController {
     @PostMapping("/admissions/{id}/discharge")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
     public ResponseEntity<ApiResponse<AdmissionView>> discharge(@PathVariable Long id,
-                                                                @Valid @RequestBody DischargeRequest req) {
+                                                                @Valid @RequestBody DischargeRequest req,
+            @RequestHeader(value = "X-Step-Up-Code", required = false) String stepUpCode) {
+        stepUpService.verify(stepUpCode, "DISCHARGE_SIGN_OFF");
         return respond(AdmissionView.from(
                         ipdService.discharge(id, req.getDischargeType(), req.getAcknowledgedChecklistItems(),
                                 req.getBedIsolationType(), req.getBedIsolationReason())),

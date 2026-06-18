@@ -42,6 +42,12 @@ public enum HospitalPolicyCode {
     TPA_PREAUTH_AUTO_APPROVE_AMOUNT("tpa.preauth.auto_approve_amount", "Auto-approve preauth below this amount"),
     TPA_DOCUMENT_REMINDER_DAYS("tpa.document.reminder_days", "Days to remind about overdue documents"),
 
+    // Security Policies
+    SECURITY_STEP_UP_ENABLED("security.step_up.enabled",
+            "Re-challenge for a TOTP code at sensitive actions (high discount approval, payment void, bill cancel, discharge sign-off). Default true."),
+    SECURITY_STEP_UP_REQUIRE_MFA("security.step_up.require_mfa",
+            "When step-up is enabled, block sensitive actions for users who have NOT enrolled in 2FA (force enrollment). Default false (such users pass through)."),
+
     // Patient Policies
     PATIENT_UHID_FORMAT("patient.uhid_format", "UHID format pattern (e.g., HOS-{branch}-{seq})"),
     PATIENT_UHID_SEQ_START("patient.uhid_seq_start", "Starting sequence number for UHID generation"),
