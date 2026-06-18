@@ -157,7 +157,8 @@ integration was removed). Katasticho and Katixo are now two separate products.
   security rule. `auth/StepUpService` reads the code from the `X-Step-Up-Code` header and
   verifies it against the acting user's enrolled secret; gated controllers
   (`BillingController` discount-approve/void/cancel, `IPDController` discharge) call it first.
-  Policy-driven: `security.step_up.enabled` (default true) is the master switch;
+  Policy-driven: `security.step_up.enabled` is the master switch — code default true, but
+  **seeded `false` in V2 for pre-go-live testing (flip to true at go-live)**;
   `security.step_up.require_mfa` (default false) decides whether users who have NOT enrolled
   in 2FA are blocked (force enrollment) or pass through. Error codes `STEP_UP_REQUIRED` /
   `INVALID_STEP_UP_CODE` / `STEP_UP_ENROLLMENT_REQUIRED`. Flutter: a shared `withStepUp`
