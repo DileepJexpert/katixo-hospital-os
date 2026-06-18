@@ -56,7 +56,11 @@ class _WalkInScreenState extends State<WalkInScreen> {
       );
       if (mounted) setState(() => _doctors = doctors);
     } catch (_) {
-      // Doctor list failure surfaces when user opens the dropdown empty.
+      // The doctor dropdown can't be populated — tell the user rather than
+      // leaving an unexplained empty list they must assign from.
+      if (mounted && _doctors.isEmpty) {
+        setState(() => _error = 'Could not load the doctor list — refresh to retry.');
+      }
     }
   }
 

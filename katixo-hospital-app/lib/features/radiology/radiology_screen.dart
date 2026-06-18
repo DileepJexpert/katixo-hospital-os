@@ -7,6 +7,7 @@ import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
+import '../../core/widgets/truncation_notice.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../patient/patient_picker.dart';
 import '../staff/doctor_picker.dart';
@@ -25,6 +26,8 @@ class _RadiologyScreenState extends State<RadiologyScreen> {
   static const _modalities = <String>[
     'XRAY', 'CT', 'MRI', 'ULTRASOUND', 'MAMMOGRAPHY', 'FLUOROSCOPY', 'OTHER',
   ];
+
+  static const _limit = 50;
 
   List<Map<String, dynamic>> _orders = const [];
   bool _loading = false;
@@ -50,14 +53,14 @@ class _RadiologyScreenState extends State<RadiologyScreen> {
     try {
       final api = context.read<ApiClient>();
       final list = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/radiology/orders?limit=50',
+        '/api/v1/radiology/orders?limit=$_limit',
         fromJson: (j) => List<Map<String, dynamic>>.from(j as List? ?? const []),
       );
       if (mounted) setState(() => _orders = list);
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
-    } catch (e) {
-      setState(() => _error = 'Could not load radiology orders: $e');
+    } catch (_) {
+      setState(() => _error = 'Could not load radiology orders — check your connection.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -238,12 +241,20 @@ class _RadiologyScreenState extends State<RadiologyScreen> {
                     icon: Icons.radio_button_checked_outlined,
                     title: _loading ? 'Loading…' : 'No radiology orders',
                     message: _isDoctor ? 'Order a study with "Order study".' : 'No studies yet.')
-                : Card(
-                    child: ListView.separated(
-                      itemCount: _orders.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) => _tile(theme, _orders[i]),
-                    ),
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Card(
+                          child: ListView.separated(
+                            itemCount: _orders.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, i) => _tile(theme, _orders[i]),
+                          ),
+                        ),
+                      ),
+                      if (_orders.length >= _limit)
+                        const TruncationNotice(limit: _limit),
+                    ],
                   ),
           ),
         ],

@@ -56,11 +56,17 @@ class _PharmacyQueueScreenState extends State<PharmacyQueueScreen> {
         fromJson: (json) => json as Map<String, dynamic>,
       );
       if (mounted) {
-        setState(() =>
-            _items = List<Map<String, dynamic>>.from(page['content'] as List? ?? []));
+        setState(() {
+          _items = List<Map<String, dynamic>>.from(page['content'] as List? ?? []);
+          _error = null;
+        });
       }
     } catch (_) {
-      // silent on poll errors; surfaced on user actions
+      // Stay quiet on transient poll failures once the queue is on screen;
+      // surface only when the first load failed (nothing to show).
+      if (mounted && _items.isEmpty) {
+        setState(() => _error = 'Could not load the dispense queue — check your connection.');
+      }
     }
   }
 
