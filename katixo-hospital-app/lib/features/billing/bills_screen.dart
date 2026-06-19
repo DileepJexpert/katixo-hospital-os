@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/util/pdf_actions.dart';
+import '../../core/util/step_up.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -496,7 +497,11 @@ class _BillsScreenState extends State<BillsScreen> {
     });
     try {
       final api = context.read<ApiClient>();
-      await api.post<dynamic>(path, body, fromJson: (json) => json);
+      // Sensitive actions (discount approve, payment void, bill cancel) are
+      // gated by step-up MFA; withStepUp re-issues with the code if challenged.
+      final done = await withStepUp(context, (headers) =>
+          api.post<dynamic>(path, body, fromJson: (json) => json, headers: headers));
+      if (done == null) return; // user cancelled the step-up prompt
       setState(() => _info = successMessage);
       await _loadConsolidated(billId);
     } on ApiException catch (e) {

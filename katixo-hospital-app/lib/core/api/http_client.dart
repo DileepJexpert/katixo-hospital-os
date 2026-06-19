@@ -23,8 +23,13 @@ class ApiClient {
   static const _maxRetries = 3;
   static const _retryDelayMs = 500;
 
-  /// Common headers: JWT + tenant context + correlation ID.
-  Map<String, String> _headers([String? correlationId, String accept = 'application/json']) {
+  /// Common headers: JWT + tenant context + correlation ID. [extra] (e.g. a
+  /// step-up `X-Step-Up-Code`) is merged in, overriding defaults on collision.
+  Map<String, String> _headers([
+    String? correlationId,
+    String accept = 'application/json',
+    Map<String, String>? extra,
+  ]) {
     final token = authState.token;
     final user = authState.currentUser;
 
@@ -39,6 +44,7 @@ class ApiClient {
       },
       'X-Correlation-Id': correlationId ?? _generateCorrelationId(),
       'X-Client-Version': '0.1.0',
+      if (extra != null) ...extra,
     };
   }
 
@@ -90,11 +96,12 @@ class ApiClient {
     Object body, {
     required T Function(dynamic) fromJson,
     String? correlationId,
+    Map<String, String>? headers,
   }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
     final response = await _client.post(
       uri,
-      headers: _headers(correlationId),
+      headers: _headers(correlationId, 'application/json', headers),
       body: jsonEncode(body),
     );
     return _handleResponse(response, fromJson);

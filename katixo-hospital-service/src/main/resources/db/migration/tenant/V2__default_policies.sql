@@ -44,6 +44,8 @@ INSERT INTO hospital_policy VALUES (23, '${tenantId}', 1, 1, 'opd.referral.fee_p
 INSERT INTO hospital_policy VALUES (24, '${tenantId}', 1, 1, 'ipd.bed.isolation_default_hours', '24', 'Default bed isolation duration in hours when no explicit end time is given', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
 INSERT INTO hospital_policy VALUES (25, '${tenantId}', 1, 1, 'pharmacy.enabled', 'true', 'Hospital runs its own in-house pharmacy (module + menus on/off)', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
 INSERT INTO hospital_policy VALUES (26, '${tenantId}', 1, 1, 'expense.approval.threshold', '0', 'Expense amount above which admin approval is required before it posts (0 = no approval needed)', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
+INSERT INTO hospital_policy VALUES (27, '${tenantId}', 1, 1, 'security.step_up.enabled', 'false', 'Re-challenge for a TOTP code at sensitive actions (discount approval, payment void, bill cancel, discharge sign-off). Seeded OFF for pre-go-live testing — flip to true at go-live.', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
+INSERT INTO hospital_policy VALUES (28, '${tenantId}', 1, 1, 'security.step_up.require_mfa', 'false', 'When step-up is enabled, block sensitive actions for users who have not enrolled in 2FA (false = pass through)', '2026-06-12 10:32:37.561799', NULL, 1, 1, '2026-06-12 10:32:37.561799', 1, '2026-06-12 10:32:37.561799');
 
 
 --

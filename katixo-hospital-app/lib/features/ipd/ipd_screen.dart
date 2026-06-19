@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/realtime/board_socket.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/step_up.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
@@ -1028,7 +1029,12 @@ class _IpdScreenState extends State<IpdScreen> {
     });
     try {
       final api = context.read<ApiClient>();
-      await api.post<Map<String, dynamic>>(path, body, fromJson: (j) => j as Map<String, dynamic>);
+      // Discharge sign-off is gated by step-up MFA; withStepUp re-issues with
+      // the authenticator code if the server challenges. Other IPD posts are
+      // never challenged, so this is transparent for them.
+      final done = await withStepUp(context, (headers) => api.post<Map<String, dynamic>>(
+          path, body, fromJson: (j) => j as Map<String, dynamic>, headers: headers));
+      if (done == null) return; // user cancelled the step-up prompt
       setState(() => _info = ok);
       await _loadAll();
       if (reloadDetailId != null) await _openAdmission(reloadDetailId);

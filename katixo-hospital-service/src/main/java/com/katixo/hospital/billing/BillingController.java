@@ -25,6 +25,7 @@ public class BillingController {
 
     private final BillingService billingService;
     private final BillPdfService billPdfService;
+    private final com.katixo.hospital.auth.StepUpService stepUpService;
 
     // ---------- tariff master ----------
 
@@ -133,7 +134,9 @@ public class BillingController {
 
     @PostMapping("/bills/{id}/discount/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Object>> approveDiscount(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Object>> approveDiscount(@PathVariable Long id,
+            @RequestHeader(value = "X-Step-Up-Code", required = false) String stepUpCode) {
+        stepUpService.verify(stepUpCode, "DISCOUNT_APPROVE");
         return respond(view(billingService.approveDiscount(id)), "Discount approved", HttpStatus.OK);
     }
 
@@ -216,7 +219,9 @@ public class BillingController {
     @PostMapping("/payments/{paymentId}/void")
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> voidPayment(@PathVariable Long paymentId,
-                                                           @RequestBody(required = false) ReasonRequest req) {
+                                                           @RequestBody(required = false) ReasonRequest req,
+            @RequestHeader(value = "X-Step-Up-Code", required = false) String stepUpCode) {
+        stepUpService.verify(stepUpCode, "PAYMENT_VOID");
         String reason = req == null ? null : req.getReason();
         return respond(paymentView(billingService.voidPayment(paymentId, reason)), "Payment voided", HttpStatus.OK);
     }
@@ -225,7 +230,9 @@ public class BillingController {
     @PostMapping("/bills/{id}/cancel")
     @PreAuthorize("hasAnyRole('BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> cancelBill(@PathVariable Long id,
-                                                          @RequestBody(required = false) ReasonRequest req) {
+                                                          @RequestBody(required = false) ReasonRequest req,
+            @RequestHeader(value = "X-Step-Up-Code", required = false) String stepUpCode) {
+        stepUpService.verify(stepUpCode, "BILL_CANCEL");
         String reason = req == null ? null : req.getReason();
         return respond(view(billingService.cancelBill(id, reason)), "Bill cancelled", HttpStatus.OK);
     }
