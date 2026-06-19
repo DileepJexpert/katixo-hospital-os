@@ -70,6 +70,27 @@ public class OPDController {
                 "Appointment cancelled", HttpStatus.OK);
     }
 
+    /**
+     * The doctor's "patients I've seen" list. Optional {@code q} matches patient
+     * name / mobile / UHID / visit number; optional {@code status} filters
+     * (e.g. COMPLETED). Newest first.
+     */
+    @GetMapping("/visits")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<DoctorVisitView>>> doctorVisits(
+            @RequestParam Long doctorId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) OPDVisit.VisitStatus status,
+            @RequestParam(required = false, defaultValue = "100") int limit) {
+        return respond(opdService.searchDoctorVisits(doctorId, q, status, limit), "Doctor visits", HttpStatus.OK);
+    }
+
+    @GetMapping("/doctor/{doctorId}/stats")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<ApiResponse<DoctorStats>> doctorStats(@PathVariable Long doctorId) {
+        return respond(opdService.doctorStats(doctorId), "Doctor stats", HttpStatus.OK);
+    }
+
     @GetMapping("/queue/doctor/{doctorId}")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<TokenResponse>>> worklist(@PathVariable Long doctorId) {

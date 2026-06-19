@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/api/http_client.dart';
 import '../../core/api/rx_models.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
@@ -197,11 +198,27 @@ class _PrescriptionPanelState extends State<PrescriptionPanel> {
             MessageBanner.error(_error!),
             const SizedBox(height: Space.md),
           ],
-          OutlinedButton.icon(
-            onPressed: _sendingToPharmacy ? null : _sendToPharmacy,
-            icon: const Icon(Icons.local_pharmacy_outlined, size: 18),
-            label: Text(
-                _sendingToPharmacy ? 'Sending…' : 'Send to Pharmacy Queue'),
+          Wrap(
+            spacing: Space.sm,
+            runSpacing: Space.sm,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _sendingToPharmacy ? null : _sendToPharmacy,
+                icon: const Icon(Icons.local_pharmacy_outlined, size: 18),
+                label: Text(
+                    _sendingToPharmacy ? 'Sending…' : 'Send to Pharmacy Queue'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => openPdf(
+                  context,
+                  context.read<ApiClient>(),
+                  '/api/v1/prescriptions/${rx.id}/print.pdf',
+                  filename: 'prescription-${rx.id}.pdf',
+                ),
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Print'),
+              ),
+            ],
           ),
         ],
       );

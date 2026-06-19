@@ -19,6 +19,7 @@ import static com.katixo.hospital.prescription.PrescriptionDtos.*;
 public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
+    private final PrescriptionPdfService prescriptionPdfService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
@@ -33,6 +34,17 @@ public class PrescriptionController {
     @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'PHARMACIST', 'BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<PrescriptionResponse>> get(@PathVariable Long id) {
         return respond(PrescriptionResponse.from(prescriptionService.get(id)), "Prescription found", HttpStatus.OK);
+    }
+
+    /** Printable A4 prescription (Rx) PDF. */
+    @GetMapping("/{id}/print.pdf")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'PHARMACIST', 'ADMIN')")
+    public ResponseEntity<byte[]> printPdf(@PathVariable Long id) {
+        byte[] pdf = prescriptionPdfService.renderPrescriptionPdf(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=prescription-" + id + ".pdf")
+                .body(pdf);
     }
 
     @GetMapping("/visit/{visitId}")

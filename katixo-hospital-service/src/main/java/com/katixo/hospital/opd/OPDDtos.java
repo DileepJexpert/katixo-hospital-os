@@ -160,4 +160,59 @@ public final class OPDDtos {
                     .build();
         }
     }
+
+    /** A visit enriched with patient identity — the doctor's "patients I've seen" row. */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DoctorVisitView {
+        private Long visitId;
+        private String visitNumber;
+        private Long patientId;
+        private String patientName;
+        private String uhid;
+        private String mobile;
+        private Integer age;
+        private OPDVisit.VisitType visitType;
+        private OPDVisit.VisitStatus visitStatus;
+        private String chiefComplaint;
+        private String diagnosis;
+        private LocalDateTime consultationEndedAt;
+        private LocalDateTime createdAt;
+
+        public static DoctorVisitView of(OPDVisit v, com.katixo.hospital.patient.Patient p) {
+            String name = ((p.getFirstName() == null ? "" : p.getFirstName()) + " "
+                    + (p.getLastName() == null ? "" : p.getLastName())).trim();
+            Integer age = p.getDateOfBirth() == null ? null
+                    : java.time.Period.between(p.getDateOfBirth(), LocalDate.now()).getYears();
+            return DoctorVisitView.builder()
+                    .visitId(v.getId())
+                    .visitNumber(v.getVisitNumber())
+                    .patientId(v.getPatientId())
+                    .patientName(name.isEmpty() ? "Patient #" + v.getPatientId() : name)
+                    .uhid(p.getUhid())
+                    .mobile(p.getMobile())
+                    .age(age)
+                    .visitType(v.getVisitType())
+                    .visitStatus(v.getVisitStatus())
+                    .chiefComplaint(v.getChiefComplaint())
+                    .diagnosis(v.getDiagnosis())
+                    .consultationEndedAt(v.getConsultationEndedAt())
+                    .createdAt(v.getCreatedAt())
+                    .build();
+        }
+    }
+
+    /** Headline counts for a doctor's activity. */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DoctorStats {
+        private long visitsCompleted;
+        private long distinctPatients;
+        private long completedToday;
+    }
 }

@@ -406,6 +406,40 @@ public class OPDService {
         return saved;
     }
 
+    /**
+     * The doctor's "patients I've seen" list: their visits (newest first) joined
+     * with patient identity, with an optional status filter and free-text search
+     * over patient name / mobile / UHID / visit number.
+     */
+    @Transactional(readOnly = true)
+    public List<OPDDtos.DoctorVisitView> searchDoctorVisits(Long doctorId, String q,
+                                                            OPDVisit.VisitStatus status, int limit) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        String like = (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase() + "%";
+        int capped = Math.max(1, Math.min(limit, 500));
+        return visitRepository.searchDoctorVisits(context.getTenantId(), branchId, doctorId, status, like,
+                        org.springframework.data.domain.PageRequest.of(0, capped)).stream()
+                .map(r -> OPDDtos.DoctorVisitView.of((OPDVisit) r[0], (Patient) r[1]))
+                .toList();
+    }
+
+    /** Headline counts for a doctor: completed visits, distinct patients, completed today. */
+    @Transactional(readOnly = true)
+    public OPDDtos.DoctorStats doctorStats(Long doctorId) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        return OPDDtos.DoctorStats.builder()
+                .visitsCompleted(visitRepository.countByDoctorAndStatus(
+                        context.getTenantId(), branchId, doctorId, OPDVisit.VisitStatus.COMPLETED))
+                .distinctPatients(visitRepository.countDistinctPatientsByDoctorAndStatus(
+                        context.getTenantId(), branchId, doctorId, OPDVisit.VisitStatus.COMPLETED))
+                .completedToday(visitRepository.countByDoctorAndStatusSince(
+                        context.getTenantId(), branchId, doctorId, OPDVisit.VisitStatus.COMPLETED, startOfDay))
+                .build();
+    }
+
     private String generateVisitNumber() {
         String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         return "OPD-" + datePart + "-" + String.format("%05d", visitRepository.nextVisitSequence());
