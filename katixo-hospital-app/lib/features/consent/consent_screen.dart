@@ -131,7 +131,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<int?>(
-                      value: templateId,
+                      initialValue: templateId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Template'),
                       items: [
@@ -144,7 +144,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                     const SizedBox(height: Space.sm),
                     if (freeForm) ...[
                       DropdownButtonFormField<String>(
-                        value: type,
+                        initialValue: type,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Consent type'),
                         items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],
@@ -157,7 +157,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       const SizedBox(height: Space.sm),
                     ],
                     DropdownButtonFormField<String>(
-                      value: signatory,
+                      initialValue: signatory,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Signed by'),
                       items: [for (final s in _signatories) DropdownMenuItem(value: s, child: Text(_title(s)))],
@@ -172,7 +172,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                         decoration: const InputDecoration(labelText: 'Witness name')),
                     const SizedBox(height: Space.sm),
                     DropdownButtonFormField<String>(
-                      value: source,
+                      initialValue: source,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Linked encounter (optional)'),
                       items: [
@@ -320,7 +320,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title *')),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: type,
+                    initialValue: type,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Consent type'),
                     items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],

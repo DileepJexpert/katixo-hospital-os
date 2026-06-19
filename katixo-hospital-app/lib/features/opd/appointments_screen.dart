@@ -93,6 +93,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     TimeOfDay end = const TimeOfDay(hour: 9, minute: 15);
     final notesCtrl = TextEditingController();
 
+    if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(

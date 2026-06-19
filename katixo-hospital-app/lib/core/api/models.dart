@@ -1,5 +1,6 @@
 /// Typed DTOs for the Spring Boot backend API.
 /// Shapes mirror the backend controllers exactly — update together.
+library;
 
 class ApiResponse<T> {
   const ApiResponse({

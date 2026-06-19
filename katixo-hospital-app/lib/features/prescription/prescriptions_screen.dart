@@ -205,6 +205,7 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.put<dynamic>(
         '/api/v1/prescriptions/${rx['id']}',

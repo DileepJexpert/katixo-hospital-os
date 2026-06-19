@@ -140,7 +140,7 @@ class _StaffScreenState extends State<StaffScreen> {
                 const SizedBox(height: Space.sm),
                 StatefulBuilder(
                   builder: (context, setLocal) => DropdownButtonFormField<String>(
-                    value: role,
+                    initialValue: role,
                     decoration: const InputDecoration(labelText: 'Role *'),
                     items: [
                       for (final r in _roles)
@@ -191,6 +191,7 @@ class _StaffScreenState extends State<StaffScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       if (isEdit) {
         await api.put<dynamic>(
@@ -262,6 +263,7 @@ class _StaffScreenState extends State<StaffScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<dynamic>(
         '/api/v1/staff/${u['id']}/reset-password',

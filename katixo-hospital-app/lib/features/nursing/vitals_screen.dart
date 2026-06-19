@@ -249,6 +249,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.delete<Map<String, dynamic>>('/api/v1/nursing/vitals/$id',
           fromJson: (j) => j as Map<String, dynamic>? ?? const {});
@@ -377,6 +378,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       if (isEdit) {
         await api.put<Map<String, dynamic>>('/api/v1/nursing/vitals/${existing['id']}', body,

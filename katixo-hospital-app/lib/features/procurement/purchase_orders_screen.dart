@@ -110,6 +110,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
     final lines = <Map<String, dynamic>>[]; // {itemId,itemName,quantity,unitCost}
     String iso(DateTime d) => d.toIso8601String().split('T').first;
 
+    if (!mounted) return;
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -123,7 +124,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<int?>(
-                    value: vendorId,
+                    initialValue: vendorId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Vendor'),
                     items: [
@@ -219,6 +220,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
     String itemName = '${items.first['name'] ?? ''}';
     final qtyCtrl = TextEditingController();
     final costCtrl = TextEditingController();
+    if (!mounted) return null;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -230,7 +232,7 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<int?>(
-                  value: itemId,
+                  initialValue: itemId,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Item'),
                   items: [

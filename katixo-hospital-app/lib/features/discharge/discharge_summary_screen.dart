@@ -359,7 +359,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
             ),
             const SizedBox(height: Space.md),
             DropdownButtonFormField<String>(
-              value: _selectedCondition,
+              initialValue: _selectedCondition,
               decoration: const InputDecoration(labelText: 'Condition at Discharge'),
               hint: const Text('Select condition'),
               isExpanded: true,
@@ -512,6 +512,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/discharge/summaries/$id/sign',
@@ -562,7 +563,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
                       decoration: const InputDecoration(labelText: 'Procedures Performed', alignLabelWithHint: true)),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: cond,
+                    initialValue: cond,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Condition at Discharge'),
                     items: [
@@ -601,6 +602,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.put<Map<String, dynamic>>(
         '/api/v1/discharge/summaries/$id',

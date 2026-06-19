@@ -292,7 +292,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: gender,
+                          initialValue: gender,
                           decoration: const InputDecoration(labelText: 'Gender'),
                           items: const [
                             DropdownMenuItem(value: 'MALE', child: Text('Male')),
@@ -307,7 +307,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                       const SizedBox(width: Space.md),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: marital,
+                          initialValue: marital,
                           decoration: const InputDecoration(labelText: 'Marital status'),
                           items: const [
                             DropdownMenuItem(value: 'SINGLE', child: Text('Single')),
@@ -364,6 +364,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.put<Map<String, dynamic>>(
         '/api/v1/patients/${p['id']}',

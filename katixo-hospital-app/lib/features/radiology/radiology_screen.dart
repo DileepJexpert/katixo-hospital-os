@@ -88,12 +88,14 @@ class _RadiologyScreenState extends State<RadiologyScreen> {
   Future<void> _orderDialog() async {
     final patient = await showPatientPicker(context);
     if (patient == null) return;
+    if (!mounted) return;
     final doctor = await showDoctorPicker(context);
     if (doctor == null) return;
     String modality = 'XRAY';
     final studyCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
 
+    if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -108,7 +110,7 @@ class _RadiologyScreenState extends State<RadiologyScreen> {
                     style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: Space.sm),
                 DropdownButtonFormField<String>(
-                  value: modality,
+                  initialValue: modality,
                   decoration: const InputDecoration(labelText: 'Modality'),
                   items: [
                     for (final m in _modalities)

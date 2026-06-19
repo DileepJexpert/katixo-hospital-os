@@ -126,7 +126,7 @@ class _CertificateScreenState extends State<CertificateScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<int?>(
-                      value: templateId,
+                      initialValue: templateId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Template'),
                       items: [
@@ -139,7 +139,7 @@ class _CertificateScreenState extends State<CertificateScreen> {
                     const SizedBox(height: Space.sm),
                     if (freeForm) ...[
                       DropdownButtonFormField<String>(
-                        value: type,
+                        initialValue: type,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Certificate type'),
                         items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],
@@ -285,7 +285,7 @@ class _CertificateScreenState extends State<CertificateScreen> {
                   TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title *')),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: type,
+                    initialValue: type,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Certificate type'),
                     items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],

@@ -176,7 +176,7 @@ class _TariffsScreenState extends State<TariffsScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _category,
+                          initialValue: _category,
                           decoration:
                               const InputDecoration(labelText: 'Category'),
                           items: [

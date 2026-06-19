@@ -398,7 +398,7 @@ class _NursingScreenState extends State<NursingScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
-                        value: code,
+                        initialValue: code,
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Medicine / item *'),
                         items: [
@@ -413,7 +413,7 @@ class _NursingScreenState extends State<NursingScreen> {
                           decoration: const InputDecoration(labelText: 'Quantity *')),
                       const SizedBox(height: Space.sm),
                       DropdownButtonFormField<String>(
-                        value: category,
+                        initialValue: category,
                         decoration: const InputDecoration(labelText: 'Category'),
                         items: const [
                           DropdownMenuItem(value: 'MEDICINE', child: Text('Medicine')),
@@ -454,7 +454,7 @@ class _NursingScreenState extends State<NursingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: admissionId,
+                      initialValue: admissionId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Inpatient (admission) *'),
                       items: [
@@ -514,6 +514,7 @@ class _NursingScreenState extends State<NursingScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final created = await api.post<Map<String, dynamic>>(
         '/api/v1/nursing/indents',

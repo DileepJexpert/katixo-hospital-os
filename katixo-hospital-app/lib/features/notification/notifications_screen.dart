@@ -325,7 +325,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   onChanged: (v) => setState(() => _smsEnabled = v),
                 ),
                 DropdownButtonFormField<String>(
-                  value: _smsProvider,
+                  initialValue: _smsProvider,
                   decoration: const InputDecoration(labelText: 'Provider'),
                   items: const [
                     DropdownMenuItem(value: 'MSG91', child: Text('MSG91 (DLT)')),
@@ -368,7 +368,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   onChanged: (v) => setState(() => _waEnabled = v),
                 ),
                 DropdownButtonFormField<String>(
-                  value: _waProvider,
+                  initialValue: _waProvider,
                   decoration: const InputDecoration(labelText: 'Provider'),
                   items: const [
                     DropdownMenuItem(value: 'META', child: Text('Meta Cloud API')),
@@ -433,7 +433,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _tplType,
+                        initialValue: _tplType,
                         decoration: const InputDecoration(labelText: 'Type'),
                         items: [
                           for (final t in _types)
@@ -445,7 +445,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     const SizedBox(width: Space.md),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _tplChannel,
+                        initialValue: _tplChannel,
                         decoration: const InputDecoration(labelText: 'Channel'),
                         items: [
                           for (final c in _channels)
@@ -531,7 +531,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Column(
           children: [
             DropdownButtonFormField<String>(
-              value: _sendType,
+              initialValue: _sendType,
               decoration: const InputDecoration(labelText: 'Type'),
               items: [
                 for (final t in _types)

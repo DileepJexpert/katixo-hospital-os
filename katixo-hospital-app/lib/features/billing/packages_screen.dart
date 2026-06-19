@@ -103,7 +103,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: type,
+                          initialValue: type,
                           isExpanded: true,
                           decoration: const InputDecoration(labelText: 'Type'),
                           items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],
@@ -209,6 +209,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
     if (patient == null) return;
     String sourceType = 'IPD_ADMISSION';
     final sourceIdCtrl = TextEditingController();
+    if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -223,7 +224,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: Space.sm),
                 DropdownButtonFormField<String>(
-                  value: sourceType,
+                  initialValue: sourceType,
                   decoration: const InputDecoration(labelText: 'Encounter'),
                   items: const [
                     DropdownMenuItem(value: 'OPD_VISIT', child: Text('OPD Visit')),

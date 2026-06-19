@@ -130,7 +130,7 @@ class _NabhScreenState extends State<NabhScreen> {
                   ),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: type,
+                    initialValue: type,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Type'),
                     items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(_title(t)))],
@@ -138,7 +138,7 @@ class _NabhScreenState extends State<NabhScreen> {
                   ),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: severity,
+                    initialValue: severity,
                     decoration: const InputDecoration(labelText: 'Severity'),
                     items: [for (final s in _severities) DropdownMenuItem(value: s, child: Text(_title(s)))],
                     onChanged: (v) => setLocal(() => severity = v ?? 'MINOR'),
