@@ -711,6 +711,8 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
                           const SizedBox(height: Space.sm),
                           _section(theme, 'Diet Advice', '${s['dietAdvice']}'),
                         ],
+                        const SizedBox(height: Space.md),
+                        DocumentsPanel(entityType: 'DISCHARGE_SUMMARY', entityId: id),
                       ],
                     ),
                   ),

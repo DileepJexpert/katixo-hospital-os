@@ -412,6 +412,12 @@ class _LabScreenState extends State<LabScreen> {
           if (_report != null) ...[
             const SizedBox(height: Space.md),
             _reportCard(theme, _report!),
+            const SizedBox(height: Space.md),
+            DocumentsPanel(
+              entityType: 'LAB_ORDER',
+              entityId: _reportOrderId,
+              title: 'Report attachments',
+            ),
           ],
         ],
       ),
