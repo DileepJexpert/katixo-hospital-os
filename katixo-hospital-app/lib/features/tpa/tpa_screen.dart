@@ -364,7 +364,8 @@ class _TpaScreenState extends State<TpaScreen> {
     final id = c['id'] as int;
     final events =
         List<Map<String, dynamic>>.from(c['events'] as List? ?? const []);
-    return Column(
+    return SingleChildScrollView(
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextButton.icon(
@@ -409,32 +410,32 @@ class _TpaScreenState extends State<TpaScreen> {
         const SizedBox(height: Space.md),
         Text('History', style: theme.textTheme.titleMedium),
         const SizedBox(height: Space.sm),
-        Expanded(
-          child: events.isEmpty
-              ? Center(
-                  child: Text('No events',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)))
-              : ListView.separated(
-                  itemCount: events.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final e = events[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text('${e['eventType']}'
-                          '${e['amount'] != null ? ' · ₹${e['amount']}' : ''}'),
-                      subtitle: e['note'] == null
-                          ? null
-                          : Text('${e['note']}',
-                              style: theme.textTheme.bodySmall),
-                      trailing: Text('${e['at'] ?? ''}'.split('T').first,
-                          style: theme.textTheme.bodySmall),
-                    );
-                  },
-                ),
-        ),
+        if (events.isEmpty)
+          Text('No events',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: events.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final e = events[i];
+              return ListTile(
+                dense: true,
+                title: Text('${e['eventType']}'
+                    '${e['amount'] != null ? ' · ₹${e['amount']}' : ''}'),
+                subtitle: e['note'] == null
+                    ? null
+                    : Text('${e['note']}', style: theme.textTheme.bodySmall),
+                trailing: Text('${e['at'] ?? ''}'.split('T').first,
+                    style: theme.textTheme.bodySmall),
+              );
+            },
+          ),
       ],
+      ),
     );
   }
 
