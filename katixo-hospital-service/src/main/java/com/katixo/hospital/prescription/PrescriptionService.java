@@ -203,14 +203,19 @@ public class PrescriptionService {
 
     @Transactional(readOnly = true)
     public List<Prescription> getLatestByVisit(Long visitId) {
-        return prescriptionRepository.findLatestByVisit(TenantContext.get().getTenantId(), visitId);
+        List<Prescription> list =
+                prescriptionRepository.findLatestByVisit(TenantContext.get().getTenantId(), visitId);
+        list.forEach(p -> p.getItems().size()); // initialise lazy items inside the tx
+        return list;
     }
 
     @Transactional(readOnly = true)
     public List<Prescription> getHistory(Long prescriptionId) {
         Prescription rx = getOwned(prescriptionId);
-        return prescriptionRepository.findByTenantIdAndPrescriptionNumberOrderByVersionAsc(
+        List<Prescription> list = prescriptionRepository.findByTenantIdAndPrescriptionNumberOrderByVersionAsc(
                 rx.getTenantId(), rx.getPrescriptionNumber());
+        list.forEach(p -> p.getItems().size()); // initialise lazy items inside the tx
+        return list;
     }
 
     // ------------------------------------------------------------
@@ -264,10 +269,12 @@ public class PrescriptionService {
 
     private Prescription getOwned(Long prescriptionId) {
         var context = TenantContext.get();
-        return prescriptionRepository.findByIdAndTenantIdAndBranchId(prescriptionId,
+        Prescription rx = prescriptionRepository.findByIdAndTenantIdAndBranchId(prescriptionId,
                         context.getTenantId(), Long.parseLong(context.getBranchId()))
                 .orElseThrow(() -> new BusinessException("PRESCRIPTION_NOT_FOUND",
                         "Prescription not found: " + prescriptionId));
+        rx.getItems().size(); // initialise lazy items inside the tx (OSIV is disabled)
+        return rx;
     }
 
     private void attachItem(Prescription rx, PrescriptionItem item) {
