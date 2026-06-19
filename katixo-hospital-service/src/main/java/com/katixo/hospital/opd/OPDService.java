@@ -22,6 +22,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -438,6 +440,97 @@ public class OPDService {
                 .completedToday(visitRepository.countByDoctorAndStatusSince(
                         context.getTenantId(), branchId, doctorId, OPDVisit.VisitStatus.COMPLETED, startOfDay))
                 .build();
+    }
+
+    /**
+     * The doctor's bookable day: every slot from working start→end (minus the
+     * lunch window) flagged FREE or BOOKED. Working hours / slot length / lunch
+     * are policy-driven (keys {@code opd.appointment.*}) with sensible defaults,
+     * so nothing is hardcoded per hospital. Empty slots when the doctor is on
+     * leave (available=false).
+     */
+    @Transactional(readOnly = true)
+    public OPDDtos.DaySlots doctorDaySlots(Long doctorId, LocalDate date) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        LocalDate day = date == null ? LocalDate.now() : date;
+        boolean available = doctorAvailabilityService.isAvailable(doctorId, day);
+
+        LocalTime workStart = parseTime(policyService.getPolicyValueByCode("opd.appointment.work_start", "09:00"), LocalTime.of(9, 0));
+        LocalTime workEnd = parseTime(policyService.getPolicyValueByCode("opd.appointment.work_end", "17:00"), LocalTime.of(17, 0));
+        LocalTime lunchStart = parseTime(policyService.getPolicyValueByCode("opd.appointment.lunch_start", "13:00"), null);
+        LocalTime lunchEnd = parseTime(policyService.getPolicyValueByCode("opd.appointment.lunch_end", "14:00"), null);
+        int slotMin;
+        try {
+            slotMin = Integer.parseInt(policyService.getPolicyValueByCode("opd.appointment.slot_minutes", "15").trim());
+        } catch (NumberFormatException e) {
+            slotMin = 15;
+        }
+        if (slotMin <= 0) slotMin = 15;
+
+        List<Appointment> appts = available
+                ? appointmentRepository.findByDoctorAndDate(context.getTenantId(), branchId, doctorId, day).stream()
+                .filter(a -> a.getAppointmentStatus() != Appointment.AppointmentStatus.CANCELLED).toList()
+                : List.of();
+
+        Map<Long, String> names = new HashMap<>();
+        for (Appointment a : appts) {
+            if (a.getPatientId() != null && !names.containsKey(a.getPatientId())) {
+                patientRepository.findByIdAndTenantIdAndBranchId(a.getPatientId(), context.getTenantId(), branchId)
+                        .ifPresent(p -> names.put(a.getPatientId(),
+                                ((p.getFirstName() == null ? "" : p.getFirstName()) + " "
+                                        + (p.getLastName() == null ? "" : p.getLastName())).trim()));
+            }
+        }
+
+        List<OPDDtos.SlotView> slots = new ArrayList<>();
+        if (available) {
+            for (LocalTime t = workStart; !t.plusMinutes(slotMin).isAfter(workEnd); t = t.plusMinutes(slotMin)) {
+                final LocalTime st = t;
+                final LocalTime en = t.plusMinutes(slotMin);
+                if (lunchStart != null && lunchEnd != null
+                        && !st.isBefore(lunchStart) && st.isBefore(lunchEnd)) {
+                    continue; // inside the lunch break
+                }
+                Appointment booked = appts.stream()
+                        .filter(a -> overlaps(a.getSlotStart(), a.getSlotEnd(), st, en))
+                        .findFirst().orElse(null);
+                slots.add(OPDDtos.SlotView.builder()
+                        .start(fmtTime(st))
+                        .end(fmtTime(en))
+                        .status(booked == null ? "FREE" : "BOOKED")
+                        .appointmentId(booked == null ? null : booked.getId())
+                        .patientId(booked == null ? null : booked.getPatientId())
+                        .patientName(booked == null ? null : names.get(booked.getPatientId()))
+                        .appointmentStatus(booked == null ? null : booked.getAppointmentStatus())
+                        .build());
+            }
+        }
+        return OPDDtos.DaySlots.builder()
+                .date(day.toString())
+                .doctorId(doctorId)
+                .available(available)
+                .slotMinutes(slotMin)
+                .slots(slots)
+                .build();
+    }
+
+    private static boolean overlaps(LocalTime aStart, LocalTime aEnd, LocalTime slotStart, LocalTime slotEnd) {
+        if (aStart == null || aEnd == null) return false;
+        return aStart.isBefore(slotEnd) && aEnd.isAfter(slotStart);
+    }
+
+    private static LocalTime parseTime(String value, LocalTime fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return LocalTime.parse(value.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static String fmtTime(LocalTime t) {
+        return String.format("%02d:%02d", t.getHour(), t.getMinute());
     }
 
     private String generateVisitNumber() {
