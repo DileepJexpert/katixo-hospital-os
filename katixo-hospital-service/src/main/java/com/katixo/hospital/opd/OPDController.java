@@ -91,6 +91,17 @@ public class OPDController {
         return respond(opdService.doctorStats(doctorId), "Doctor stats", HttpStatus.OK);
     }
 
+    /** A doctor's bookable day — free + booked slots for the date (defaults to today). */
+    @GetMapping("/doctor/{doctorId}/slots")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<DaySlots>> doctorSlots(
+            @PathVariable Long doctorId,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+            java.time.LocalDate date) {
+        return respond(opdService.doctorDaySlots(doctorId, date), "Doctor day slots", HttpStatus.OK);
+    }
+
     @GetMapping("/queue/doctor/{doctorId}")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<TokenResponse>>> worklist(@PathVariable Long doctorId) {

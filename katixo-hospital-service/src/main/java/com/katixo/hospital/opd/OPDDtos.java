@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 public final class OPDDtos {
 
@@ -214,5 +215,34 @@ public final class OPDDtos {
         private long visitsCompleted;
         private long distinctPatients;
         private long completedToday;
+    }
+
+    /** One bookable slot in a doctor's day. */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SlotView {
+        private String start; // HH:mm
+        private String end;   // HH:mm
+        private String status; // FREE | BOOKED
+        private Long appointmentId;
+        private Long patientId;
+        private String patientName;
+        private Appointment.AppointmentStatus appointmentStatus;
+    }
+
+    /** A doctor's bookable day: free + booked slots (empty when on leave). */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DaySlots {
+        private String date;
+        private Long doctorId;
+        private boolean available; // false when the doctor is on leave that day
+        private int slotMinutes;
+        private List<SlotView> slots;
     }
 }

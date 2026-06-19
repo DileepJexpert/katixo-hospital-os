@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/api/models.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/gender_field.dart';
 import '../../core/widgets/message_banner.dart';
 // MessageBanner moved to core/widgets; re-exported so existing
 // `import '...registration_screen.dart' show MessageBanner;` callers keep working.
@@ -179,25 +180,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                       const SizedBox(width: Space.md),
                       Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedGender,
-                          decoration:
-                              const InputDecoration(labelText: 'Gender *'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'MALE', child: Text('Male')),
-                            DropdownMenuItem(
-                                value: 'FEMALE', child: Text('Female')),
-                            DropdownMenuItem(
-                                value: 'OTHER', child: Text('Other')),
-                            DropdownMenuItem(
-                                value: 'PREFER_NOT_TO_SAY',
-                                child: Text('Prefer not to say')),
-                          ],
-                          onChanged: _isLoading
-                              ? null
-                              : (value) =>
-                                  setState(() => _selectedGender = value),
+                        child: GenderField(
+                          value: _selectedGender,
+                          enabled: !_isLoading,
+                          onChanged: (value) =>
+                              setState(() => _selectedGender = value),
                         ),
                       ),
                     ],
