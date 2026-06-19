@@ -2,9 +2,6 @@ package com.katixo.hospital.document;
 
 import com.katixo.hospital.common.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,17 +15,16 @@ import java.util.UUID;
  * {@code <base>/<tenantId>/<uuid>_<sanitisedName>}. The relative path (e.g.
  * {@code tenant-1/9f..._scan.pdf}) is returned as the storage key.
  *
- * <p>Registered {@code @ConditionalOnMissingBean(DocumentStorageProvider.class)}
- * so an S3 provider can replace it simply by being on the classpath as a bean.
+ * <p>Registered as the default {@code DocumentStorageProvider} by
+ * {@link DocumentStorageConfig} via {@code @Bean @ConditionalOnMissingBean}, so an
+ * S3 provider can replace it simply by being on the classpath as a bean.
  */
-@Component
-@ConditionalOnMissingBean(DocumentStorageProvider.class)
 @Slf4j
 public class LocalDiskStorageProvider implements DocumentStorageProvider {
 
     private final Path baseDir;
 
-    public LocalDiskStorageProvider(@Value("${katixo.documents.local-dir:./data/documents}") String baseDir) {
+    public LocalDiskStorageProvider(String baseDir) {
         this.baseDir = Paths.get(baseDir).toAbsolutePath().normalize();
     }
 
