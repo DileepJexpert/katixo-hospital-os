@@ -7,8 +7,10 @@ import '../../core/api/opd_models.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/status_chip.dart';
+import '../patient/patient_picker.dart';
 
-/// Walk-in OPD visit: look up patient by UHID, pick doctor, issue token.
+/// Walk-in OPD visit: find the patient (search name/mobile/UHID or register a
+/// new one), pick a doctor, optionally flag urgent, and issue a queue token.
 class WalkInScreen extends StatefulWidget {
   const WalkInScreen({super.key});
 
@@ -17,16 +19,14 @@ class WalkInScreen extends StatefulWidget {
 }
 
 class _WalkInScreenState extends State<WalkInScreen> {
-  final _uhidCtrl = TextEditingController();
   final _complaintCtrl = TextEditingController();
   final _priorityReasonCtrl = TextEditingController();
 
-  PatientResponse? _patient;
+  Map<String, dynamic>? _patient;
   List<StaffMember> _doctors = [];
   int? _selectedDoctorId;
   bool _urgent = false;
 
-  bool _searching = false;
   bool _creating = false;
   String? _error;
   String? _success;
@@ -39,7 +39,6 @@ class _WalkInScreenState extends State<WalkInScreen> {
 
   @override
   void dispose() {
-    _uhidCtrl.dispose();
     _complaintCtrl.dispose();
     _priorityReasonCtrl.dispose();
     super.dispose();
@@ -64,31 +63,9 @@ class _WalkInScreenState extends State<WalkInScreen> {
     }
   }
 
-  Future<void> _searchPatient() async {
-    final uhid = _uhidCtrl.text.trim();
-    if (uhid.isEmpty) return;
-
-    setState(() {
-      _searching = true;
-      _error = null;
-      _patient = null;
-    });
-
-    try {
-      final api = context.read<ApiClient>();
-      final patient = await api.get<PatientResponse>(
-        '/api/v1/patients/uhid/$uhid',
-        fromJson: (json) =>
-            PatientResponse.fromJson(json as Map<String, dynamic>),
-      );
-      setState(() => _patient = patient);
-    } on ApiException catch (e) {
-      setState(() => _error = e.error.message);
-    } catch (e) {
-      setState(() => _error = 'Search failed: $e');
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
+  Future<void> _pickPatient() async {
+    final p = await showPatientPicker(context);
+    if (p != null) setState(() => _patient = p);
   }
 
   Future<void> _createVisit() async {
@@ -112,7 +89,7 @@ class _WalkInScreenState extends State<WalkInScreen> {
       final visit = await api.post<VisitResponse>(
         '/api/v1/opd/visits',
         CreateWalkInRequest(
-          patientId: _patient!.id,
+          patientId: _patient!['id'] as int,
           doctorId: _selectedDoctorId!,
           chiefComplaint: _complaintCtrl.text.trim().isEmpty
               ? null
@@ -129,7 +106,6 @@ class _WalkInScreenState extends State<WalkInScreen> {
         _success =
             'Visit ${visit.visitNumber} created — fee ₹${visit.consultationFee} (${visit.feeType})';
         _patient = null;
-        _uhidCtrl.clear();
         _complaintCtrl.clear();
         _priorityReasonCtrl.clear();
         _urgent = false;
@@ -174,38 +150,31 @@ class _WalkInScreenState extends State<WalkInScreen> {
                 children: [
                   Text('1. Find Patient', style: theme.textTheme.titleMedium),
                   const SizedBox(height: Space.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _uhidCtrl,
-                          enabled: !_searching,
-                          decoration: const InputDecoration(
-                            labelText: 'UHID',
-                            hintText: 'HOS-1-100001',
-                            prefixIcon: Icon(Icons.qr_code_outlined),
-                          ),
-                          onSubmitted: (_) => _searchPatient(),
-                        ),
-                      ),
-                      const SizedBox(width: Space.md),
-                      FilledButton.icon(
-                        onPressed: _searching ? null : _searchPatient,
-                        icon: const Icon(Icons.search, size: 18),
-                        label: Text(_searching ? 'Searching…' : 'Search'),
-                      ),
-                    ],
-                  ),
-                  if (_patient != null) ...[
-                    const SizedBox(height: Space.md),
+                  if (_patient == null)
+                    OutlinedButton.icon(
+                      onPressed: _creating ? null : _pickPatient,
+                      icon: const Icon(Icons.person_search_outlined, size: 18),
+                      label: const Text('Search or register patient'),
+                    )
+                  else
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.person_outline),
-                      title: Text(_patient!.fullName),
+                      title: Text('${_patient!['fullName'] ?? ''}'),
                       subtitle: Text(
-                          '${_patient!.uhid} · ${_patient!.gender ?? ''} · ${_patient!.age ?? '-'} yrs · ${_patient!.mobile}'),
-                      trailing: StatusChip.auto('ACTIVE'),
+                          '${_patient!['uhid'] ?? '—'} · ${_patient!['gender'] ?? ''} · ${_patient!['age'] ?? '-'} yrs · ${_patient!['mobile'] ?? ''}'),
+                      trailing: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: Space.xs,
+                        children: [
+                          StatusChip.auto('ACTIVE'),
+                          TextButton(
+                            onPressed: _creating ? null : _pickPatient,
+                            child: const Text('Change'),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
                 ],
               ),
             ),
