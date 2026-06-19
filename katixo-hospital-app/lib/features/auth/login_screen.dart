@@ -269,8 +269,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Text(
                       _platformMode
-                          ? 'Demo operator: platformadmin / platform123'
-                          : 'Demo: admin / admin123\nFront Desk: reception / desk123\nDoctor: doctor1 / pass123',
+                          ? 'Demo operator:\nplatformadmin / platform123'
+                          : 'Demo logins (username / password):\n'
+                              'Super Admin: superadmin / super123\n'
+                              'Admin: admin / admin123\n'
+                              'Front Desk: reception / desk123\n'
+                              'Doctor: doctor1 / pass123\n'
+                              'Nurse: nurse1 / pass123\n'
+                              'Pharmacist: pharmacist1 / pass123\n'
+                              'Lab Tech: labtech1 / pass123\n'
+                              'Billing: billing1 / pass123',
                       style: theme.textTheme.labelSmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
