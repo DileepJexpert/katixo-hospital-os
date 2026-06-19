@@ -9,15 +9,15 @@ features**, not bugs. Roughly ordered by value.
 > when it lands.
 
 ## In progress / partially done
-- **Embedded documents on detail screens** — reusable `DocumentsPanel(entityType, entityId)`
-  already exists and is now wired into **IPD admission detail** (`ADMISSION`) and
-  **TPA case detail** (`TPA_CASE`). Remaining screens to wire:
-  - Lab order / report detail (`LAB_ORDER`)
-  - Radiology order detail (`RADIOLOGY_ORDER`)
-  - Discharge summary (`DISCHARGE_SUMMARY`) — currently a per-summary card list; needs a
-    single-summary detail view (or an attachments action per card)
-  - Consent (`CONSENT_RECORD`), Certificate (`CERTIFICATE`)
-  - Purchase order / GRN (`PURCHASE_ORDER`)
+- **Embedded documents on detail screens** — reusable `DocumentsPanel(entityType, entityId)`.
+  Wired into the screens that have a single-entity detail view:
+  **IPD admission** (`ADMISSION`), **TPA case** (`TPA_CASE`), **lab order** (`LAB_ORDER`),
+  **discharge summary** (`DISCHARGE_SUMMARY`), **purchase order / GRN** (`PURCHASE_ORDER`).
+  Remaining screens need a single-entity detail view built first (today they are tabbed
+  list screens with no per-record detail), then wire the panel in:
+  - Radiology order (`RADIOLOGY_ORDER`) — worklist only
+  - Consent record (`CONSENT_RECORD`) — tabbed list only
+  - Certificate (`CERTIFICATE`) — tabbed list only
 
 ## High value
 1. **Full EMR** — structured clinical notes, ICD-10 coded diagnoses, allergy + problem

@@ -10,6 +10,7 @@ import '../../core/util/validators.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Lab console: worklist (collect sample → enter result), doctor approvals,
@@ -309,6 +310,12 @@ class _LabScreenState extends State<LabScreen> {
           if (_order != null) ...[
             const SizedBox(height: Space.md),
             _orderDetail(theme, _order!),
+            const SizedBox(height: Space.md),
+            DocumentsPanel(
+              entityType: 'LAB_ORDER',
+              entityId: (_order!['id'] as num?)?.toInt(),
+              title: 'Report attachments',
+            ),
           ],
         ],
       ),

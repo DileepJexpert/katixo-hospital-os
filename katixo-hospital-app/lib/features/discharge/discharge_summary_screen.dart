@@ -10,6 +10,7 @@ import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Clinical discharge summary screen.
@@ -196,7 +197,18 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
               : null,
         );
       }
-      return SingleChildScrollView(child: _summaryCard(theme, _singleSummary!));
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            _summaryCard(theme, _singleSummary!),
+            const SizedBox(height: Space.md),
+            DocumentsPanel(
+              entityType: 'DISCHARGE_SUMMARY',
+              entityId: (_singleSummary!['id'] as num?)?.toInt(),
+            ),
+          ],
+        ),
+      );
     }
 
     // Full list
