@@ -131,10 +131,10 @@ jobs:
           cache: maven
 
       - name: CheckStyle Analysis
-        run: mvn checkstyle:check
+        run: mvn -B checkstyle:check
 
       - name: SpotBugs Analysis
-        run: mvn spotbugs:check
+        run: mvn -B compile spotbugs:check
 
   deploy-staging:
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
