@@ -10,6 +10,7 @@ import '../../features/front_desk/front_desk_home.dart';
 import '../../features/lab/lab_tech_home.dart';
 import '../../features/nursing/nurse_home.dart';
 import '../../features/pharmacy/pharmacist_home.dart';
+import '../../features/platform/platform_console_home.dart';
 import '../auth/auth_state.dart';
 
 /// Central routing. `refreshListenable` re-evaluates redirects whenever
@@ -43,6 +44,7 @@ GoRouter createRouter(AuthState authState) {
 /// dedicated module yet land on the front-desk home.
 Widget _roleHome(AuthState authState) {
   return switch (authState.currentUser?.role) {
+    'PLATFORM_ADMIN' => const PlatformConsoleHome(),
     'SUPER_ADMIN' => const SuperAdminHome(),
     'DOCTOR' => const DoctorHome(),
     'PHARMACIST' => const PharmacistHome(),

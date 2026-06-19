@@ -21,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   late TextEditingController _mfaCtrl;
   bool _isLoading = false;
   bool _mfaRequired = false;
+  bool _platformMode = false; // platform-operator (control plane) sign-in
   String? _error;
 
   @override
@@ -39,12 +40,21 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _toggleMode() {
+    setState(() {
+      _platformMode = !_platformMode;
+      _mfaRequired = false;
+      _error = null;
+      _mfaCtrl.clear();
+    });
+  }
+
   Future<void> _handleLogin() async {
     if (_usernameCtrl.text.isEmpty || _passwordCtrl.text.isEmpty) {
       setState(() => _error = 'Username and password required');
       return;
     }
-    if (_mfaRequired && _mfaCtrl.text.isEmpty) {
+    if (!_platformMode && _mfaRequired && _mfaCtrl.text.isEmpty) {
       setState(() => _error = 'Enter the 6-digit code from your authenticator app');
       return;
     }
@@ -58,24 +68,29 @@ class _LoginScreenState extends State<LoginScreen> {
       final authState = context.read<AuthState>();
       final apiClient = context.read<ApiClient>();
 
-      await authState.login(
-        _usernameCtrl.text,
-        _passwordCtrl.text,
-        apiClient,
-        mfaCode: _mfaRequired ? _mfaCtrl.text : null,
-      );
+      if (_platformMode) {
+        await authState.loginPlatform(
+            _usernameCtrl.text, _passwordCtrl.text, apiClient);
+      } else {
+        await authState.login(
+          _usernameCtrl.text,
+          _passwordCtrl.text,
+          apiClient,
+          mfaCode: _mfaRequired ? _mfaCtrl.text : null,
+        );
+      }
 
       // Navigation handled by router redirect watching authState.
     } on UnauthorizedException {
       setState(() => _error = 'Invalid credentials');
     } on ApiException catch (e) {
       // The account has two-factor on: reveal the code field and prompt.
-      if (e.error.error == 'MFA_REQUIRED') {
+      if (!_platformMode && e.error.error == 'MFA_REQUIRED') {
         setState(() {
           _mfaRequired = true;
           _error = 'Enter the 6-digit code from your authenticator app';
         });
-      } else if (e.error.error == 'INVALID_MFA_CODE') {
+      } else if (!_platformMode && e.error.error == 'INVALID_MFA_CODE') {
         setState(() {
           _mfaRequired = true;
           _error = e.error.message;
@@ -128,7 +143,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: Corners.mdRadius,
                     ),
                     child: Icon(
-                      Icons.local_hospital_outlined,
+                      _platformMode
+                          ? Icons.cloud_outlined
+                          : Icons.local_hospital_outlined,
                       size: 56,
                       color: scheme.onPrimaryContainer,
                     ),
@@ -136,13 +153,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: Space.xl),
 
                   Text(
-                    'Hospital Management',
+                    _platformMode ? 'Platform Console' : 'Hospital Management',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: Space.xs),
                   Text(
-                    'Sign in to your account',
+                    _platformMode
+                        ? 'Operator sign-in (manage hospital tenants)'
+                        : 'Sign in to your account',
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: scheme.onSurfaceVariant),
                     textAlign: TextAlign.center,
@@ -181,9 +200,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _usernameCtrl,
                     enabled: !_isLoading,
-                    decoration: const InputDecoration(
-                      labelText: 'Username or Email',
-                      prefixIcon: Icon(Icons.person_outline),
+                    decoration: InputDecoration(
+                      labelText:
+                          _platformMode ? 'Operator username' : 'Username or Email',
+                      prefixIcon: const Icon(Icons.person_outline),
                     ),
                   ),
                   const SizedBox(height: Space.md),
@@ -194,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabled: !_isLoading,
                     obscureText: true,
                     onSubmitted: (_) {
-                      if (!_mfaRequired) _handleLogin();
+                      if (_platformMode || !_mfaRequired) _handleLogin();
                     },
                     decoration: const InputDecoration(
                       labelText: 'Password',
@@ -202,8 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  // Two-factor code (shown once the account asks for it)
-                  if (_mfaRequired) ...[
+                  // Two-factor code (hospital staff only, once asked for it)
+                  if (!_platformMode && _mfaRequired) ...[
                     const SizedBox(height: Space.md),
                     TextField(
                       controller: _mfaCtrl,
@@ -248,10 +268,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: Border.all(color: scheme.outlineVariant),
                     ),
                     child: Text(
-                      'Demo: admin / admin123\nFront Desk: reception / desk123\nDoctor: doctor1 / pass123',
+                      _platformMode
+                          ? 'Demo operator: platformadmin / platform123'
+                          : 'Demo: admin / admin123\nFront Desk: reception / desk123\nDoctor: doctor1 / pass123',
                       style: theme.textTheme.labelSmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
+                  ),
+                  const SizedBox(height: Space.sm),
+
+                  // Switch between hospital staff and platform operator sign-in.
+                  TextButton.icon(
+                    onPressed: _isLoading ? null : _toggleMode,
+                    icon: Icon(
+                      _platformMode
+                          ? Icons.local_hospital_outlined
+                          : Icons.cloud_outlined,
+                      size: 18,
+                    ),
+                    label: Text(_platformMode
+                        ? 'Hospital staff sign-in'
+                        : 'Platform operator sign-in'),
                   ),
                 ],
               ),

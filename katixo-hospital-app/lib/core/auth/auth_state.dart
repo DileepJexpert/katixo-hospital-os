@@ -46,6 +46,36 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Platform-operator login (control plane). Hits the tenant-less endpoint and
+  /// builds a CurrentUser carrying only the PLATFORM_ADMIN role — no tenant, so
+  /// the tenant headers go out empty (platform endpoints authorise off the JWT).
+  Future<void> loginPlatform(
+      String username, String password, ApiClient apiClient) async {
+    final response = await apiClient.post<Map<String, dynamic>>(
+      '/api/v1/auth/platform/login',
+      {'username': username, 'password': password},
+      fromJson: (json) => json as Map<String, dynamic>,
+    );
+
+    _token = response['token'] as String;
+    final u = response['user'] as Map<String, dynamic>;
+    final name = (u['displayName'] as String?) ?? (u['username'] as String);
+    _user = CurrentUser(
+      userId: 'platform:${u['username']}',
+      username: u['username'] as String,
+      name: name,
+      role: (u['role'] as String?) ?? 'PLATFORM_ADMIN',
+      tenantId: '',
+      hospitalGroupId: '',
+      branchId: '',
+    );
+
+    await _prefs.setString(_kToken, _token!);
+    await _prefs.setString(_kUser, jsonEncode(_user!.toJson()));
+
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _token = null;
     _user = null;
