@@ -10,6 +10,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
+import 'medicine_picker.dart';
 
 /// Doctor's prescriptions hub: "patients I've seen" (searchable by name /
 /// mobile / visit no), per-visit prescriptions with version history, edit
@@ -329,50 +330,20 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
     }
   }
 
+  /// Add a medicine while editing — uses the shared pick-don't-type picker
+  /// (item-master search + 1-0-1 / dosage dropdowns), same as the consultation
+  /// panel. Returns the editable-row map the edit dialog works with.
   Future<Map<String, dynamic>?> _addItemDialog() async {
-    final code = TextEditingController();
-    final name = TextEditingController();
-    final dosage = TextEditingController();
-    final freq = TextEditingController();
-    final days = TextEditingController();
-    final qty = TextEditingController(text: '1');
-    final instr = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add medicine'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: code, decoration: const InputDecoration(labelText: 'Medicine code *')),
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Medicine name *')),
-                TextField(controller: dosage, decoration: const InputDecoration(labelText: 'Dosage')),
-                TextField(controller: freq, decoration: const InputDecoration(labelText: 'Frequency')),
-                TextField(controller: days, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Duration (days)')),
-                TextField(controller: qty, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantity')),
-                TextField(controller: instr, decoration: const InputDecoration(labelText: 'Instructions')),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
-        ],
-      ),
-    );
-    if (ok != true || code.text.trim().isEmpty || name.text.trim().isEmpty) return null;
+    final item = await showMedicinePicker(context);
+    if (item == null) return null;
     return {
-      'medicineCode': code.text.trim(),
-      'medicineName': name.text.trim(),
-      'dosage': dosage.text.trim(),
-      'frequency': freq.text.trim(),
-      'durationDays': int.tryParse(days.text.trim()),
-      'quantity': int.tryParse(qty.text.trim()) ?? 1,
-      'instructions': instr.text.trim(),
+      'medicineCode': item.medicineCode,
+      'medicineName': item.medicineName,
+      'dosage': item.dosage ?? '',
+      'frequency': item.frequency ?? '',
+      'durationDays': item.durationDays,
+      'quantity': item.quantity,
+      'instructions': item.instructions ?? '',
     };
   }
 
