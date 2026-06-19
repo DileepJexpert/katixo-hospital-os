@@ -12,6 +12,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../discharge/discharge_summary_screen.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import '../nursing/vitals_screen.dart';
 import '../patient/patient_picker.dart';
@@ -398,6 +399,8 @@ class _IpdScreenState extends State<IpdScreen> {
                     ],
                   ),
           ),
+          const SizedBox(height: Space.md),
+          DocumentsPanel(entityType: 'ADMISSION', entityId: id, title: 'Admission documents'),
         ],
       ),
     );

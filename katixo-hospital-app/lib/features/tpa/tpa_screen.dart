@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/status_chip.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// TPA / insurance claims: payer master + case lifecycle (pre-auth → approve →
@@ -403,6 +404,8 @@ class _TpaScreenState extends State<TpaScreen> {
             ),
           ),
         ),
+        const SizedBox(height: Space.md),
+        DocumentsPanel(entityType: 'TPA_CASE', entityId: id, title: 'Claim documents'),
         const SizedBox(height: Space.md),
         Text('History', style: theme.textTheme.titleMedium),
         const SizedBox(height: Space.sm),
