@@ -69,6 +69,7 @@ class _PlatformTenantsScreenState extends State<PlatformTenantsScreen> {
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(path, body,
           fromJson: (j) => j as Map<String, dynamic>);
+      if (!mounted) return; // operator may have signed out mid-request
       setState(() => _info = ok);
       await _load();
     } on ApiException catch (e) {
