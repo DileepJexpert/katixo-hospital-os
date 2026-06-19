@@ -1,0 +1,40 @@
+name: Flutter App CI
+
+# Static analysis + tests for the Flutter web app. Runs whenever the app (or
+# this workflow) changes, on any PR and on pushes to the long-lived branches.
+# This is the gate the backend CI never covered — it catches the Dart
+# compile/analyze issues that can't be verified in the Claude Code environment.
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'katixo-hospital-app/**'
+      - '.github/workflows/flutter-ci.yml'
+  pull_request:
+    paths:
+      - 'katixo-hospital-app/**'
+      - '.github/workflows/flutter-ci.yml'
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: katixo-hospital-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze (static checks)
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test

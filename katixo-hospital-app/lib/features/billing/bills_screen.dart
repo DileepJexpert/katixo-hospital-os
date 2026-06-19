@@ -5,10 +5,12 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../../core/util/pdf_actions.dart';
 import '../../core/util/step_up.dart';
+import '../../core/util/validators.dart';
+import '../../core/widgets/message_banner.dart';
 import '../../core/widgets/status_chip.dart';
-import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Generate a consolidated bill for an OPD visit / IPD admission, request a
 /// discount, finalize, collect payment, and view the receipt. Body widget.
@@ -146,6 +148,11 @@ class _BillsScreenState extends State<BillsScreen> {
     );
 
     if (collect != true) return;
+    final amountError = positiveAmount(amountCtrl.text, field: 'Payment amount');
+    if (amountError != null) {
+      setState(() => _error = amountError);
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -155,13 +162,13 @@ class _BillsScreenState extends State<BillsScreen> {
       final payment = await api.post<Map<String, dynamic>>(
         '/api/v1/billing/bills/$billId/payments',
         {
-          'amount': double.tryParse(amountCtrl.text) ?? 0,
+          'amount': double.parse(amountCtrl.text.trim()),
           'paymentMode': mode,
           if (referenceCtrl.text.trim().isNotEmpty) 'reference': referenceCtrl.text.trim(),
         },
         fromJson: (json) => json as Map<String, dynamic>,
       );
-      setState(() => _info = 'Payment of ₹${payment['amount']} recorded ($mode)');
+      setState(() => _info = 'Payment of ${formatMoney(payment['amount'])} recorded ($mode)');
       await _loadConsolidated(billId);
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
@@ -201,6 +208,14 @@ class _BillsScreenState extends State<BillsScreen> {
     if (apply != true) return;
     final billId = _billId;
     if (billId == null) return;
+    final discountError = firstError([
+      positiveAmount(amountCtrl.text, field: 'Discount amount'),
+      requiredText(reasonCtrl.text, field: 'Reason'),
+    ]);
+    if (discountError != null) {
+      setState(() => _error = discountError);
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -209,7 +224,7 @@ class _BillsScreenState extends State<BillsScreen> {
       final api = context.read<ApiClient>();
       final bill = await api.post<Map<String, dynamic>>(
         '/api/v1/billing/bills/$billId/discount',
-        {'amount': double.tryParse(amountCtrl.text) ?? 0, 'reason': reasonCtrl.text.trim()},
+        {'amount': double.parse(amountCtrl.text.trim()), 'reason': reasonCtrl.text.trim()},
         fromJson: (json) => json as Map<String, dynamic>,
       );
       setState(() => _info = 'Discount ${bill['discountStatus']}');
@@ -424,15 +439,27 @@ class _BillsScreenState extends State<BillsScreen> {
   /// payments are still posted, so the UI surfaces that error.
   Future<void> _cancelBillDialog() async {
     final billId = _billId;
-    if (billId == null) return;
+    final bill = _consolidated?['bill'] as Map<String, dynamic>?;
+    if (billId == null || bill == null) return;
     final reasonCtrl = TextEditingController();
+    final amount = formatMoney(bill['netAmount'] ?? bill['grandTotal']);
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel bill'),
-        content: TextField(
-          controller: reasonCtrl,
-          decoration: const InputDecoration(labelText: 'Reason'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reverse bill ${bill['billNumber']} for $amount? '
+                'This posts a reversing journal and cannot be undone.',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: Space.md),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(labelText: 'Reason'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -461,7 +488,7 @@ class _BillsScreenState extends State<BillsScreen> {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Void payment of ₹${payment['amount']}'),
+        title: Text('Void payment of ${formatMoney(payment['amount'])}'),
         content: TextField(
           controller: reasonCtrl,
           decoration: const InputDecoration(labelText: 'Reason'),

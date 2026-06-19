@@ -5,6 +5,10 @@ import '../../core/api/http_client.dart';
 import '../../core/api/models.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/message_banner.dart';
+// MessageBanner moved to core/widgets; re-exported so existing
+// `import '...registration_screen.dart' show MessageBanner;` callers keep working.
+export '../../core/widgets/message_banner.dart' show MessageBanner;
 
 /// Patient registration form (body only — lives inside FrontDeskHome shell).
 class RegistrationScreen extends StatefulWidget {
@@ -263,45 +267,3 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 }
 
-/// Shared inline message banner (error / success).
-class MessageBanner extends StatelessWidget {
-  const MessageBanner._(this.message, this.color, this.icon, {super.key});
-
-  factory MessageBanner.error(String message, {Key? key}) => MessageBanner._(
-      message, StatusColors.danger, Icons.error_outline,
-      key: key);
-
-  factory MessageBanner.success(String message, {Key? key}) =>
-      MessageBanner._(
-          message, StatusColors.success, Icons.check_circle_outline,
-          key: key);
-
-  final String message;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Space.md),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: Corners.smRadius,
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: Space.sm),
-          Expanded(
-            child: Text(message,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: color)),
-          ),
-        ],
-      ),
-    );
-  }
-}

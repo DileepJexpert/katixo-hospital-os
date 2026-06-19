@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/realtime/board_socket.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/formatters.dart';
 import '../../core/util/step_up.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
@@ -1058,9 +1059,5 @@ class _IpdScreenState extends State<IpdScreen> {
     );
   }
 
-  String _date(Object? iso) {
-    if (iso == null) return '—';
-    final s = '$iso';
-    return s.contains('T') ? s.split('T').first : s;
-  }
+  String _date(Object? iso) => formatDate(iso, ifEmpty: '—');
 }
