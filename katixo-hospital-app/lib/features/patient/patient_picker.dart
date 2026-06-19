@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../core/api/http_client.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/gender_field.dart';
 
 /// Opens a searchable patient picker. Returns the selected patient map
-/// (id, uhid, fullName, mobile, age, gender) or null if cancelled.
+/// (id, uhid, fullName, mobile, age, gender) or null if cancelled. If the
+/// patient is new, "New patient" registers one inline and returns it.
 /// Reuse anywhere a patient must be chosen (IPD admit, TPA case, billing, lab).
 Future<Map<String, dynamic>?> showPatientPicker(BuildContext context) {
   return showDialog<Map<String, dynamic>>(
@@ -120,11 +122,179 @@ class _PatientPickerDialogState extends State<_PatientPickerDialog> {
         ),
       ),
       actions: [
+        TextButton.icon(
+          onPressed: _loading ? null : _addNewPatient,
+          icon: const Icon(Icons.person_add_alt_1, size: 18),
+          label: const Text('New patient'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
       ],
     );
+  }
+
+  String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Inline quick-registration for a patient who isn't in the system yet.
+  /// On success, closes the picker returning the newly created patient.
+  Future<void> _addNewPatient() async {
+    final first = TextEditingController(text: _q.text.trim());
+    final last = TextEditingController();
+    final mobile = TextEditingController();
+    DateTime? dob;
+    String? gender;
+    bool consent = false;
+    bool saving = false;
+    String? localError;
+
+    final created = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setLocal) {
+          Future<void> submit() async {
+            if (first.text.trim().isEmpty ||
+                last.text.trim().isEmpty ||
+                mobile.text.trim().isEmpty ||
+                gender == null ||
+                dob == null) {
+              setLocal(() =>
+                  localError = 'Name, mobile, gender and date of birth are required');
+              return;
+            }
+            if (!consent) {
+              setLocal(() => localError = 'Privacy consent is required');
+              return;
+            }
+            setLocal(() {
+              saving = true;
+              localError = null;
+            });
+            try {
+              final api = context.read<ApiClient>();
+              final p = await api.post<Map<String, dynamic>>(
+                '/api/v1/patients',
+                {
+                  'firstName': first.text.trim(),
+                  'lastName': last.text.trim(),
+                  'mobile': mobile.text.trim(),
+                  'dateOfBirth': _iso(dob!),
+                  'gender': gender,
+                  'privacyConsentGiven': true,
+                },
+                fromJson: (j) => Map<String, dynamic>.from(j as Map),
+              );
+              if (dialogCtx.mounted) Navigator.pop(dialogCtx, p);
+            } on ApiException catch (e) {
+              setLocal(() {
+                saving = false;
+                localError = e.error.message;
+              });
+            } catch (e) {
+              setLocal(() {
+                saving = false;
+                localError = 'Registration failed: $e';
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('New patient'),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (localError != null) ...[
+                      Text(localError!,
+                          style: TextStyle(
+                              color: Theme.of(dialogCtx).colorScheme.error)),
+                      const SizedBox(height: Space.sm),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: first,
+                            autofocus: true,
+                            decoration:
+                                const InputDecoration(labelText: 'First name *'),
+                          ),
+                        ),
+                        const SizedBox(width: Space.md),
+                        Expanded(
+                          child: TextField(
+                            controller: last,
+                            decoration:
+                                const InputDecoration(labelText: 'Last name *'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Space.sm),
+                    TextField(
+                      controller: mobile,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                          labelText: 'Mobile *', prefixText: '+91 '),
+                    ),
+                    const SizedBox(height: Space.sm),
+                    GenderField(
+                      value: gender,
+                      enabled: !saving,
+                      onChanged: (v) => setLocal(() => gender = v),
+                    ),
+                    const SizedBox(height: Space.sm),
+                    OutlinedButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final d = await showDatePicker(
+                                context: dialogCtx,
+                                initialDate: DateTime(2000),
+                                firstDate: DateTime(1900),
+                                lastDate: DateTime.now(),
+                              );
+                              if (d != null) setLocal(() => dob = d);
+                            },
+                      icon: const Icon(Icons.cake_outlined, size: 18),
+                      label: Text(dob == null ? 'Date of birth *' : _iso(dob!)),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: consent,
+                      onChanged: saving
+                          ? null
+                          : (v) => setLocal(() => consent = v ?? false),
+                      title:
+                          const Text('Patient consents to data privacy terms'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : submit,
+                child: Text(saving ? 'Saving…' : 'Register'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (created != null && mounted) {
+      Navigator.pop(context, created); // return the new patient to the caller
+    }
   }
 }
