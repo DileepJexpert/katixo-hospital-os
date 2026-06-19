@@ -74,9 +74,17 @@ class _DoctorWorklistScreenState extends State<DoctorWorklistScreen> {
             .map((e) => QueueTokenResponse.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
-      if (mounted) setState(() => _tokens = tokens);
+      if (mounted) setState(() {
+        _tokens = tokens;
+        _error = null;
+      });
     } catch (_) {
-      // Silent on poll errors; surfaced on user actions instead.
+      // Stay quiet on transient poll failures once a worklist is on screen
+      // (avoids error flicker every poll); surface only when there is nothing
+      // to show, i.e. the very first load failed.
+      if (mounted && _tokens.isEmpty) {
+        setState(() => _error = 'Could not load the queue — check your connection.');
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
+import '../../core/widgets/truncation_notice.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Purchase orders + goods receipt. Raise a PO to a vendor, then receive goods
@@ -21,6 +22,8 @@ class PurchaseOrdersScreen extends StatefulWidget {
 }
 
 class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
+  static const _limit = 50;
+
   List<Map<String, dynamic>> _orders = const [];
   Map<String, dynamic>? _selected; // PO detail with lines
   bool _loading = false;
@@ -46,15 +49,15 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
     try {
       final api = context.read<ApiClient>();
       final list = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/purchase-orders?limit=50',
+        '/api/v1/purchase-orders?limit=$_limit',
         fromJson: (json) =>
             List<Map<String, dynamic>>.from(json as List? ?? const []),
       );
       if (mounted) setState(() => _orders = list);
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
-    } catch (e) {
-      setState(() => _error = 'Could not load purchase orders: $e');
+    } catch (_) {
+      setState(() => _error = 'Could not load purchase orders — check your connection.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -497,8 +500,11 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
         message: _canEdit ? 'Raise a PO to a vendor with "New PO".' : 'No purchase orders yet.',
       );
     }
-    return Card(
-      child: ListView.separated(
+    return Column(
+      children: [
+        Expanded(
+          child: Card(
+            child: ListView.separated(
         itemCount: _orders.length,
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, i) {
@@ -521,7 +527,11 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
             onTap: () => _openPo(po['id'] as int),
           );
         },
-      ),
+            ),
+          ),
+        ),
+        if (_orders.length >= _limit) const TruncationNotice(limit: _limit),
+      ],
     );
   }
 
