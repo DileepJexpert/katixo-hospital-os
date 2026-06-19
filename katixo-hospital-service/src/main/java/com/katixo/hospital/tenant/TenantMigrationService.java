@@ -31,6 +31,10 @@ public class TenantMigrationService {
 
     private final DataSource dataSource;
 
+    /** Seeds the step-up MFA default into each new tenant's policies (off in dev, on in prod). */
+    @org.springframework.beans.factory.annotation.Value("${katixo.security.step-up.default-enabled:false}")
+    private boolean stepUpDefaultEnabled;
+
     public void migratePlatformSchema() {
         Flyway.configure()
                 .dataSource(dataSource)
@@ -53,7 +57,9 @@ public class TenantMigrationService {
                 .createSchemas(true)
                 // Lets seed migrations stamp rows with the owning tenant
                 // (e.g. hospital_policy.tenant_id = '${tenantId}').
-                .placeholders(java.util.Map.of("tenantId", tenantId))
+                .placeholders(java.util.Map.of(
+                        "tenantId", tenantId,
+                        "stepUpEnabled", String.valueOf(stepUpDefaultEnabled)))
                 .load()
                 .migrate();
         log.info("Tenant schema '{}' migrated", schemaName);

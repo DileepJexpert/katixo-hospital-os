@@ -1,0 +1,44 @@
+# ============================================================
+# Production profile overrides (SPRING_PROFILES_ACTIVE=prod).
+#
+# Everything secret/environment-specific comes from env vars with NO insecure
+# fallback — the app fails fast if a required value is missing rather than
+# booting with a dev default. The Docker image sets this profile by default.
+# ============================================================
+
+spring:
+  datasource:
+    # Required in prod (no localhost fallback).
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+katixo:
+  security:
+    # Required — boot fails if JWT_SECRET is unset (no dev default in prod).
+    jwt-secret: ${JWT_SECRET}
+    step-up:
+      # Sensitive actions are gated by step-up MFA in production.
+      default-enabled: ${STEP_UP_DEFAULT_ENABLED:true}
+  # Must be set to the hospital's real web origins (comma-separated https URLs).
+  # No localhost / no "*".
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  tenant:
+    demo:
+      # Never auto-provision the demo tenant in prod; real tenants come via
+      # POST /api/v1/platform/tenants. (DevUserSeeder is also @Profile("!prod").)
+      enabled: false
+
+# Quieter, no SQL/security debug; Swagger UI off in prod.
+logging:
+  level:
+    com.katixo.hospital: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false

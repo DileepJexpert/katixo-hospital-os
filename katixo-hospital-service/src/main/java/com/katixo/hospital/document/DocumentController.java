@@ -50,8 +50,11 @@ public class DocumentController {
             @RequestParam(required = false) String entityType,
             @RequestParam(required = false) Long entityId,
             @RequestParam(name = "limit", required = false) Integer limit) {
-        return respond(documentService.list(entityType, entityId).stream().map(this::view).toList(),
-                "Documents", HttpStatus.OK);
+        var stream = documentService.list(entityType, entityId).stream().map(this::view);
+        if (limit != null && limit > 0) {
+            stream = stream.limit(limit);
+        }
+        return respond(stream.toList(), "Documents", HttpStatus.OK);
     }
 
     @GetMapping("/{id}")

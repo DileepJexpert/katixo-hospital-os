@@ -37,5 +37,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Expose port
 EXPOSE 8081
 
+# Published image runs the prod profile by default: no demo tenant, no seeded
+# dev users, step-up MFA on, and CORS/JWT/DB required via env. Override at run
+# time (-e SPRING_PROFILES_ACTIVE=...) only for non-prod containers.
+ENV SPRING_PROFILES_ACTIVE=prod
+
 # Run application
 ENTRYPOINT ["java", "-jar", "app.jar"]

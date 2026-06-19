@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclude filter for Katixo Hospital OS.
+
+  We run SpotBugs at the High-priority threshold (real, high-confidence bugs).
+  A few categories are noise in a Spring/JPA/Lombok codebase and are excluded
+  here so the gate stays signal, not ceremony.
+-->
+<FindBugsFilter>
+  <!-- Spring injects fields/beans; "may expose internal representation" (EI/EI2)
+       on entities and Spring-managed components is expected, not a defect. -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP"/>
+  </Match>
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+  <!-- Generated code (MapStruct mappers, Lombok). -->
+  <Match>
+    <Class name="~.*MapperImpl"/>
+  </Match>
+</FindBugsFilter>
