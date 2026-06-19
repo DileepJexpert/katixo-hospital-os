@@ -5,13 +5,15 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
-/// Prescription management: look up by visit, view items + version history,
-/// edit (ACTIVE only), cancel (doctor), and mark dispensed (pharmacist).
+/// Doctor's prescriptions hub: "patients I've seen" (searchable by name /
+/// mobile / visit no), per-visit prescriptions with version history, edit
+/// (ACTIVE only), cancel (doctor), dispense (pharmacist) and a printable Rx.
 /// Body widget. Read for clinical roles; mutations gated server-side.
 class PrescriptionsScreen extends StatefulWidget {
   const PrescriptionsScreen({super.key});
@@ -21,8 +23,12 @@ class PrescriptionsScreen extends StatefulWidget {
 }
 
 class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
-  final _visitCtrl = TextEditingController();
-  List<Map<String, dynamic>> _list = const [];
+  final _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _visits = const []; // patients/visits seen
+  Map<String, dynamic>? _stats; // headline counts
+  int? _openVisitId; // visit whose prescriptions are shown
+  String? _openVisitLabel;
+  List<Map<String, dynamic>> _list = const []; // prescriptions for open visit
   List<Map<String, dynamic>>? _history; // version history for one rx
   bool _loading = false;
   String? _error;
@@ -31,23 +37,72 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
   String get _role => context.read<AuthState>().currentUser?.role ?? '';
   bool get _isDoctor => _role == 'DOCTOR' || _role == 'ADMIN' || _role == 'SUPER_ADMIN';
   bool get _isPharmacist => _role == 'PHARMACIST' || _role == 'ADMIN' || _role == 'SUPER_ADMIN';
+  int? get _doctorId => context.read<AuthState>().currentUser?.staffId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+    _loadVisits();
+  }
 
   @override
   void dispose() {
-    _visitCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadVisit() async {
-    final visitId = int.tryParse(_visitCtrl.text.trim());
-    if (visitId == null) {
-      setState(() => _error = 'Enter a valid visit ID');
-      return;
+  Future<void> _loadStats() async {
+    final id = _doctorId;
+    if (id == null) return;
+    try {
+      final api = context.read<ApiClient>();
+      final stats = await api.get<Map<String, dynamic>>(
+        '/api/v1/opd/doctor/$id/stats',
+        fromJson: (json) => Map<String, dynamic>.from(json as Map? ?? const {}),
+      );
+      if (mounted) setState(() => _stats = stats);
+    } catch (_) {
+      // stats are best-effort; never block the page
     }
+  }
+
+  /// Loads the doctor's "patients I've seen" list, optionally filtered by the
+  /// search box (name / mobile / UHID / visit number).
+  Future<void> _loadVisits() async {
+    final id = _doctorId;
+    if (id == null) return;
     setState(() {
       _loading = true;
       _error = null;
       _history = null;
+      _openVisitId = null;
+    });
+    try {
+      final api = context.read<ApiClient>();
+      final q = _searchCtrl.text.trim();
+      final visits = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/opd/visits?doctorId=$id&limit=100'
+        '${q.isEmpty ? '' : '&q=${Uri.encodeQueryComponent(q)}'}',
+        fromJson: (json) =>
+            List<Map<String, dynamic>>.from(json as List? ?? const []),
+      );
+      if (mounted) setState(() => _visits = visits);
+    } on ApiException catch (e) {
+      setState(() => _error = e.error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Opens a single visit's prescriptions.
+  Future<void> _openVisit(int visitId, String label) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _history = null;
+      _openVisitId = visitId;
+      _openVisitLabel = label;
     });
     try {
       final api = context.read<ApiClient>();
@@ -62,6 +117,45 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Reloads the currently-open visit's prescriptions (after edit/cancel/etc).
+  Future<void> _reloadOpenVisit() async {
+    final id = _openVisitId;
+    if (id != null) await _openVisit(id, _openVisitLabel ?? 'Visit $id');
+  }
+
+  Future<void> _openByIdDialog() async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Open by Visit ID'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Visit ID'),
+          onSubmitted: (_) => Navigator.pop(context, true),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Open')),
+        ],
+      ),
+    );
+    final id = int.tryParse(ctrl.text.trim());
+    if (ok == true && id != null) _openVisit(id, 'Visit $id');
+  }
+
+  Future<void> _print(int rxId) async {
+    if (!mounted) return;
+    await openPdf(
+      context,
+      context.read<ApiClient>(),
+      '/api/v1/prescriptions/$rxId/print.pdf',
+      filename: 'prescription-$rxId.pdf',
+    );
   }
 
   Future<void> _showHistory(int id) async {
@@ -94,7 +188,7 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
       final api = context.read<ApiClient>();
       await api.put<dynamic>(path, const <String, dynamic>{}, fromJson: (j) => j);
       setState(() => _info = okMsg);
-      await _loadVisit();
+      await _reloadOpenVisit();
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -227,7 +321,7 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
         fromJson: (j) => j,
       );
       setState(() => _info = 'Prescription updated (new version)');
-      await _loadVisit();
+      await _reloadOpenVisit();
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -301,8 +395,12 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Prescriptions', style: theme.textTheme.titleLarge),
+          Text('My Patients & Prescriptions', style: theme.textTheme.titleLarge),
           const SizedBox(height: Space.md),
+          if (_stats != null) ...[
+            _statsStrip(theme),
+            const SizedBox(height: Space.md),
+          ],
           if (_error != null) ...[
             MessageBanner.error(_error!),
             const SizedBox(height: Space.md),
@@ -315,36 +413,166 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: _visitCtrl,
-                  keyboardType: TextInputType.number,
+                  controller: _searchCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Visit ID',
+                    labelText: 'Search patient — name, mobile, UHID or visit no',
                     prefixIcon: Icon(Icons.search, size: 18),
                   ),
-                  onSubmitted: (_) => _loadVisit(),
+                  onSubmitted: (_) => _loadVisits(),
                 ),
               ),
               const SizedBox(width: Space.md),
               FilledButton.icon(
-                onPressed: _loading ? null : _loadVisit,
+                onPressed: _loading ? null : _loadVisits,
                 icon: const Icon(Icons.search, size: 18),
-                label: const Text('Load'),
+                label: const Text('Search'),
+              ),
+              const SizedBox(width: Space.sm),
+              TextButton.icon(
+                onPressed: _loading ? null : _openByIdDialog,
+                icon: const Icon(Icons.tag, size: 18),
+                label: const Text('By Visit ID'),
               ),
             ],
           ),
           const SizedBox(height: Space.md),
-          Expanded(child: _history != null ? _historyView(theme) : _listView(theme)),
+          Expanded(
+            child: _history != null
+                ? _historyView(theme)
+                : _openVisitId != null
+                    ? _openVisitView(theme)
+                    : _visitsListView(theme),
+          ),
         ],
       ),
     );
   }
 
+  Widget _statsStrip(ThemeData theme) {
+    final s = _stats!;
+    Widget tile(String label, Object? value, IconData icon) => Expanded(
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(Space.md),
+              child: Row(
+                children: [
+                  Icon(icon, size: 22, color: theme.colorScheme.primary),
+                  const SizedBox(width: Space.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('${value ?? 0}', style: theme.textTheme.titleLarge),
+                      Text(label,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+    return Row(
+      children: [
+        tile('Patients seen', s['distinctPatients'], Icons.groups_outlined),
+        const SizedBox(width: Space.sm),
+        tile('Consultations', s['visitsCompleted'], Icons.assignment_turned_in_outlined),
+        const SizedBox(width: Space.sm),
+        tile('Completed today', s['completedToday'], Icons.today_outlined),
+      ],
+    );
+  }
+
+  Widget _visitsListView(ThemeData theme) {
+    if (_loading && _visits.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_visits.isEmpty) {
+      return EmptyState(
+        icon: Icons.groups_outlined,
+        title: _searchCtrl.text.trim().isEmpty
+            ? 'No patients yet'
+            : 'No matches',
+        message: _searchCtrl.text.trim().isEmpty
+            ? 'Patients you consult will appear here.'
+            : 'Try a different name, mobile or visit number.',
+      );
+    }
+    return ListView.builder(
+      itemCount: _visits.length,
+      itemBuilder: (_, i) {
+        final v = _visits[i];
+        final name = '${v['patientName'] ?? 'Patient'}';
+        final age = v['age'];
+        final sub = [
+          if (v['uhid'] != null) '${v['uhid']}',
+          if (v['mobile'] != null) '${v['mobile']}',
+          if (age != null) '$age yrs',
+        ].join(' · ');
+        final visitNo = '${v['visitNumber'] ?? v['visitId']}';
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: Space.xxs),
+          child: ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: Text('$name${sub.isEmpty ? '' : '  ·  $sub'}'),
+            subtitle: Text(
+              '$visitNo'
+              '${(v['diagnosis'] ?? '').toString().isNotEmpty ? '  ·  ${v['diagnosis']}' : ''}'
+              '${(v['chiefComplaint'] ?? '').toString().isNotEmpty ? '  ·  ${v['chiefComplaint']}' : ''}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: Space.xs,
+              children: [
+                StatusChip.auto('${v['visitStatus']}'),
+                const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: () => _openVisit(v['visitId'] as int, '$name · $visitNo'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _openVisitView(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () => setState(() => _openVisitId = null),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Back to patients'),
+            ),
+            const SizedBox(width: Space.sm),
+            Expanded(
+              child: Text(_openVisitLabel ?? '',
+                  style: theme.textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        const SizedBox(height: Space.sm),
+        Expanded(child: _listView(theme)),
+      ],
+    );
+  }
+
   Widget _listView(ThemeData theme) {
+    if (_loading && _list.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_list.isEmpty) {
       return const EmptyState(
         icon: Icons.medical_information_outlined,
-        title: 'No prescriptions loaded',
-        message: 'Enter a visit ID to view its prescriptions.',
+        title: 'No prescriptions for this visit',
+        message: 'Create one from the consultation worklist.',
       );
     }
     return ListView(
@@ -383,6 +611,11 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
           Wrap(
             spacing: Space.sm,
             children: [
+              OutlinedButton.icon(
+                onPressed: _loading ? null : () => _print(rx['id'] as int),
+                icon: const Icon(Icons.print_outlined, size: 18),
+                label: const Text('Print'),
+              ),
               OutlinedButton.icon(
                 onPressed: _loading ? null : () => _showHistory(rx['id'] as int),
                 icon: const Icon(Icons.history, size: 18),
