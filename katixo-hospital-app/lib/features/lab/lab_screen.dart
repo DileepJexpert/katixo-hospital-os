@@ -568,7 +568,7 @@ class _LabScreenState extends State<LabScreen> {
                   TextField(controller: name, decoration: const InputDecoration(labelText: 'Test name *')),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<String>(
-                    value: specimen,
+                    initialValue: specimen,
                     decoration: const InputDecoration(labelText: 'Specimen'),
                     items: const [
                       DropdownMenuItem(value: 'BLOOD', child: Text('Blood')),
@@ -716,7 +716,7 @@ class _NewOrderFormState extends State<_NewOrderForm> {
               SizedBox(
                 width: 200,
                 child: DropdownButtonFormField<String>(
-                  value: _sourceType,
+                  initialValue: _sourceType,
                   decoration: const InputDecoration(labelText: 'Source'),
                   items: const [
                     DropdownMenuItem(value: 'OPD_VISIT', child: Text('OPD visit')),

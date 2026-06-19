@@ -81,10 +81,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       } catch (_) {
         // vendor list is optional; ignore (e.g. role without vendor read)
       }
-      if (mounted) setState(() {
-        _expenses = list;
-        _vendors = vendors;
-      });
+      if (mounted) {
+        setState(() {
+          _expenses = list;
+          _vendors = vendors;
+        });
+      }
     } on ApiException catch (e) {
       setState(() => _error = e.error.message);
     } finally {
@@ -150,7 +152,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               Text('Amount: ₹${expense['amount']}'),
               const SizedBox(height: Space.md),
               DropdownButtonFormField<String>(
-                value: mode,
+                initialValue: mode,
                 decoration: const InputDecoration(labelText: 'Pay via *'),
                 items: const [
                   DropdownMenuItem(value: 'BANK', child: Text('Bank')),
@@ -185,6 +187,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/expenses/${expense['id']}/pay',
@@ -232,6 +235,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/expenses/${expense['id']}/reverse',
@@ -296,6 +300,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/expenses/${expense['id']}/reject',
@@ -360,7 +365,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 SizedBox(
                   width: 180,
                   child: DropdownButtonFormField<String>(
-                    value: _category,
+                    initialValue: _category,
                     decoration: const InputDecoration(labelText: 'Category'),
                     items: [
                       for (final c in _categories)
@@ -392,7 +397,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             if (_vendors.isNotEmpty) ...[
               const SizedBox(height: Space.md),
               DropdownButtonFormField<int?>(
-                value: _vendorId,
+                initialValue: _vendorId,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Vendor (optional — fills "Paid to" if blank)',
@@ -414,7 +419,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 SizedBox(
                   width: 180,
                   child: DropdownButtonFormField<String>(
-                    value: _paymentMode,
+                    initialValue: _paymentMode,
                     decoration: const InputDecoration(labelText: 'Mode'),
                     items: const [
                       DropdownMenuItem(value: 'CASH', child: Text('Cash')),

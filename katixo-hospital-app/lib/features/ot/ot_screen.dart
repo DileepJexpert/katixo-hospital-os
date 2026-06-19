@@ -112,6 +112,7 @@ class _OtScreenState extends State<OtScreen> {
     int? roomId = _rooms.first['id'] as int?;
     final patient = await showPatientPicker(context);
     if (patient == null) return;
+    if (!mounted) return;
     final surgeon = await showDoctorPicker(context);
     if (surgeon == null) return;
     final procCtrl = TextEditingController();
@@ -119,6 +120,7 @@ class _OtScreenState extends State<OtScreen> {
     TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay end = const TimeOfDay(hour: 11, minute: 0);
 
+    if (!mounted) return;
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -135,7 +137,7 @@ class _OtScreenState extends State<OtScreen> {
                       style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: Space.sm),
                   DropdownButtonFormField<int?>(
-                    value: roomId,
+                    initialValue: roomId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'OT room'),
                     items: [

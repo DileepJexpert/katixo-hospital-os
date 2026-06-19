@@ -194,7 +194,7 @@ class _PatientCreditPanelState extends State<PatientCreditPanel> {
         title: const Text('Change account status'),
         content: StatefulBuilder(
           builder: (context, setLocal) => DropdownButtonFormField<String>(
-            value: status,
+            initialValue: status,
             decoration: const InputDecoration(labelText: 'Status'),
             items: const [
               DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),

@@ -222,7 +222,7 @@ class _WalkInScreenState extends State<WalkInScreen> {
                   Text('2. Visit Details', style: theme.textTheme.titleMedium),
                   const SizedBox(height: Space.md),
                   DropdownButtonFormField<int>(
-                    value: _selectedDoctorId,
+                    initialValue: _selectedDoctorId,
                     decoration: const InputDecoration(labelText: 'Doctor *'),
                     items: [
                       for (final d in _doctors)

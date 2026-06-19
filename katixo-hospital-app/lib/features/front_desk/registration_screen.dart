@@ -180,7 +180,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       const SizedBox(width: Space.md),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedGender,
+                          initialValue: _selectedGender,
                           decoration:
                               const InputDecoration(labelText: 'Gender *'),
                           items: const [

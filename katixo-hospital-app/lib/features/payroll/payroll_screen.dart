@@ -274,6 +274,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final e = await api.post<Map<String, dynamic>>(
         '/api/v1/payroll/employees',
@@ -527,6 +528,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final run = await api.post<Map<String, dynamic>>(
         '/api/v1/payroll/runs',

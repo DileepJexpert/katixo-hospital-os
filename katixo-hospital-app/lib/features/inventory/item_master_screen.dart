@@ -107,6 +107,7 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final item = await api.post<Map<String, dynamic>>(
         '/api/v1/inventory/items',
@@ -181,6 +182,7 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/inventory/items/${item['id']}/receive',

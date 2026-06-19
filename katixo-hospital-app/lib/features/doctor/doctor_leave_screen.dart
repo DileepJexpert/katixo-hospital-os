@@ -161,7 +161,7 @@ class _DoctorLeaveScreenState extends State<DoctorLeaveScreen> {
                 ),
                 const SizedBox(height: Space.sm),
                 DropdownButtonFormField<String>(
-                  value: type,
+                  initialValue: type,
                   decoration: const InputDecoration(labelText: 'Leave type'),
                   items: [
                     for (final t in _leaveTypes)

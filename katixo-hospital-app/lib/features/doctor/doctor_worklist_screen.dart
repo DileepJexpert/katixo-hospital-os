@@ -74,10 +74,12 @@ class _DoctorWorklistScreenState extends State<DoctorWorklistScreen> {
             .map((e) => QueueTokenResponse.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
-      if (mounted) setState(() {
-        _tokens = tokens;
-        _error = null;
-      });
+      if (mounted) {
+        setState(() {
+          _tokens = tokens;
+          _error = null;
+        });
+      }
     } catch (_) {
       // Stay quiet on transient poll failures once a worklist is on screen
       // (avoids error flicker every poll); surface only when there is nothing

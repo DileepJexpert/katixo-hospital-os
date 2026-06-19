@@ -1,5 +1,8 @@
 // Web implementation: open PDF bytes in a new browser tab via a Blob URL.
-// ignore: avoid_web_libraries_in_flutter
+// dart:html is deprecated in favour of package:web, but this is intentional,
+// dependency-free web-only interop (loaded via conditional import) that works as
+// is; migration is tracked separately.
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html' as html;
 import 'dart:typed_data';
 

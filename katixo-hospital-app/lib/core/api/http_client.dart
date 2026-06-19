@@ -206,7 +206,7 @@ class ApiClient {
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      if (!json['success'] as bool) {
+      if (json['success'] != true) {
         throw ApiException(
           ErrorResponse.fromJson(json),
         );

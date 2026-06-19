@@ -121,7 +121,7 @@ class _BillsScreenState extends State<BillsScreen> {
               ),
               const SizedBox(height: Space.md),
               DropdownButtonFormField<String>(
-                value: mode,
+                initialValue: mode,
                 decoration: const InputDecoration(labelText: 'Payment mode *'),
                 items: const [
                   DropdownMenuItem(value: 'CASH', child: Text('Cash')),
@@ -158,6 +158,7 @@ class _BillsScreenState extends State<BillsScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final payment = await api.post<Map<String, dynamic>>(
         '/api/v1/billing/bills/$billId/payments',
@@ -221,6 +222,7 @@ class _BillsScreenState extends State<BillsScreen> {
       _error = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final bill = await api.post<Map<String, dynamic>>(
         '/api/v1/billing/bills/$billId/discount',
@@ -330,7 +332,7 @@ class _BillsScreenState extends State<BillsScreen> {
               ),
               const SizedBox(height: Space.sm),
               DropdownButtonFormField<String>(
-                value: docType,
+                initialValue: docType,
                 decoration: const InputDecoration(labelText: 'Doc type'),
                 items: const [
                   DropdownMenuItem(value: 'INVOICE', child: Text('Invoice')),
@@ -565,7 +567,7 @@ class _BillsScreenState extends State<BillsScreen> {
                   SizedBox(
                     width: 180,
                     child: DropdownButtonFormField<String>(
-                      value: _sourceType,
+                      initialValue: _sourceType,
                       decoration: const InputDecoration(labelText: 'Source'),
                       items: const [
                         DropdownMenuItem(value: 'OPD_VISIT', child: Text('OPD Visit')),

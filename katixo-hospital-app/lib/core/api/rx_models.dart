@@ -1,4 +1,5 @@
 /// Prescription DTOs — mirror PrescriptionDtos on the backend.
+library;
 
 class RxItemInput {
   RxItemInput({

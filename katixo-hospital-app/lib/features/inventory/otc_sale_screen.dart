@@ -64,7 +64,7 @@ class _OtcSaleScreenState extends State<OtcSaleScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: code,
+                initialValue: code,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Item *'),
                 items: [
@@ -241,7 +241,7 @@ class _OtcSaleScreenState extends State<OtcSaleScreen> {
                       SizedBox(
                         width: 180,
                         child: DropdownButtonFormField<String>(
-                          value: _paymentMode,
+                          initialValue: _paymentMode,
                           decoration:
                               const InputDecoration(labelText: 'Payment mode'),
                           items: const [

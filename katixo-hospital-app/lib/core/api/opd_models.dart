@@ -1,4 +1,5 @@
 /// OPD DTOs — mirror OPDController / OPDDtos on the backend.
+library;
 
 class StaffMember {
   const StaffMember({

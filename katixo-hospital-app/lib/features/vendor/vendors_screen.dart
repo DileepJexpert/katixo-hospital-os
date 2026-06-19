@@ -125,7 +125,7 @@ class _VendorsScreenState extends State<VendorsScreen> {
                 field('name', 'Name *'),
                 StatefulBuilder(
                   builder: (context, setLocal) => DropdownButtonFormField<String>(
-                    value: type,
+                    initialValue: type,
                     decoration: const InputDecoration(labelText: 'Type'),
                     items: [
                       for (final t in _types)
@@ -176,6 +176,7 @@ class _VendorsScreenState extends State<VendorsScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       if (isEdit) {
         await api.put<dynamic>('/api/v1/vendors/${existing['id']}', body, fromJson: (j) => j);

@@ -223,7 +223,7 @@ class _TpaScreenState extends State<TpaScreen> {
                   decoration: const InputDecoration(labelText: 'Name *')),
               const SizedBox(height: Space.sm),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: const InputDecoration(labelText: 'Type'),
                 items: const [
                   DropdownMenuItem(value: 'INSURER', child: Text('Insurer')),
@@ -259,6 +259,7 @@ class _TpaScreenState extends State<TpaScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       await api.post<Map<String, dynamic>>(
         '/api/v1/tpa/payers',
@@ -579,7 +580,7 @@ class _TpaScreenState extends State<TpaScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: payerId,
+                initialValue: payerId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Payer *'),
                 items: [
@@ -630,6 +631,7 @@ class _TpaScreenState extends State<TpaScreen> {
       _info = null;
     });
     try {
+      if (!mounted) return;
       final api = context.read<ApiClient>();
       final c = await api.post<Map<String, dynamic>>(
         '/api/v1/tpa/cases',
