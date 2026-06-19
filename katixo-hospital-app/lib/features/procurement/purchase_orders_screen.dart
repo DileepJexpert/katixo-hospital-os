@@ -9,6 +9,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../core/widgets/truncation_notice.dart';
+import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Purchase orders + goods receipt. Raise a PO to a vendor, then receive goods
@@ -610,6 +611,12 @@ class _PurchaseOrdersScreenState extends State<PurchaseOrdersScreen> {
                 ],
               ],
             ),
+          ),
+          const SizedBox(height: Space.md),
+          DocumentsPanel(
+            entityType: 'PURCHASE_ORDER',
+            entityId: (po['id'] as num?)?.toInt(),
+            title: 'PO / GRN documents',
           ),
         ],
       ),
