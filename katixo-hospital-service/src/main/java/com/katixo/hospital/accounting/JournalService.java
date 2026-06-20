@@ -50,8 +50,6 @@ public class JournalService {
 
     public JournalEntry post(LocalDate entryDate, String description, String sourceModule,
                              String sourceReference, List<Line> lines) {
-        var ctx = TenantContext.get();
-
         if (lines == null || lines.size() < 2) {
             throw new BusinessException("JOURNAL_TOO_FEW_LINES", "A journal entry needs at least two lines");
         }
