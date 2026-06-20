@@ -11,6 +11,8 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../document/documents_panel.dart';
+import '../ipd/admission_picker.dart';
+import '../opd/visit_picker.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Lab console: worklist (collect sample → enter result), doctor approvals,
@@ -705,8 +707,33 @@ class _NewOrderForm extends StatefulWidget {
 class _NewOrderFormState extends State<_NewOrderForm> {
   String _sourceType = 'OPD_VISIT';
   final _sourceId = TextEditingController();
+  String? _sourceLabel; // patient/visit-or-admission shown after picking
   final _notes = TextEditingController();
   final Set<String> _selected = {};
+
+  Future<void> _pickSource() async {
+    if (_sourceType == 'IPD_ADMISSION') {
+      final a = await showAdmissionPicker(context);
+      if (a != null) {
+        setState(() {
+          _sourceId.text = '${a['id']}';
+          final name = a['patientName']?.toString();
+          _sourceLabel =
+              '${(name != null && name.isNotEmpty) ? name : 'Patient #${a['patientId']}'} · ${a['admissionNumber'] ?? ''}';
+        });
+      }
+    } else {
+      final v = await showVisitPicker(context);
+      if (v != null) {
+        setState(() {
+          _sourceId.text = '${v['visitId']}';
+          final name = v['patientName']?.toString();
+          _sourceLabel =
+              '${(name != null && name.isNotEmpty) ? name : 'Patient #${v['patientId']}'} · ${v['visitNumber'] ?? ''}';
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -735,15 +762,39 @@ class _NewOrderFormState extends State<_NewOrderForm> {
                     DropdownMenuItem(value: 'OPD_VISIT', child: Text('OPD visit')),
                     DropdownMenuItem(value: 'IPD_ADMISSION', child: Text('IPD admission')),
                   ],
-                  onChanged: (v) => setState(() => _sourceType = v ?? 'OPD_VISIT'),
+                  onChanged: (v) => setState(() {
+                    _sourceType = v ?? 'OPD_VISIT';
+                    _sourceId.clear();
+                    _sourceLabel = null;
+                  }),
                 ),
               ),
               const SizedBox(width: Space.md),
               Expanded(
-                child: TextField(
-                  controller: _sourceId,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Visit / Admission ID *'),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: _sourceType == 'IPD_ADMISSION'
+                        ? 'Admission *'
+                        : 'OPD visit *',
+                    helperText: _sourceLabel,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _sourceId.text.isEmpty
+                              ? 'None selected'
+                              : (_sourceLabel ?? '#${_sourceId.text}'),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _pickSource,
+                        icon: const Icon(Icons.search, size: 18),
+                        label: Text(_sourceId.text.isEmpty ? 'Select' : 'Change'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

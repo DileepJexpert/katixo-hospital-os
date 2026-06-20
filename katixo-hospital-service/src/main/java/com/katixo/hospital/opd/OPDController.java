@@ -91,6 +91,15 @@ public class OPDController {
         return respond(opdService.doctorStats(doctorId), "Doctor stats", HttpStatus.OK);
     }
 
+    /** Branch-wide visit search for pickers (e.g. attaching a lab order to a visit). */
+    @GetMapping("/visit-search")
+    @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'LAB_TECH', 'BILLING', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<DoctorVisitView>>> visitSearch(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false, defaultValue = "50") int limit) {
+        return respond(opdService.searchVisits(q, limit), "Visits", HttpStatus.OK);
+    }
+
     /** A doctor's bookable day — free + booked slots for the date (defaults to today). */
     @GetMapping("/doctor/{doctorId}/slots")
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'DOCTOR', 'NURSE', 'ADMIN')")

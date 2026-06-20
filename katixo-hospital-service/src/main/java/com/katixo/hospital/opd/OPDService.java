@@ -426,6 +426,22 @@ public class OPDService {
                 .toList();
     }
 
+    /**
+     * Branch-wide visit search (any doctor) for pickers — e.g. attaching a lab
+     * order to a visit. Matches patient name / mobile / UHID / visit number.
+     */
+    @Transactional(readOnly = true)
+    public List<OPDDtos.DoctorVisitView> searchVisits(String q, int limit) {
+        var context = TenantContext.get();
+        Long branchId = Long.parseLong(context.getBranchId());
+        String like = (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase() + "%";
+        int capped = Math.max(1, Math.min(limit, 200));
+        return visitRepository.searchVisits(context.getTenantId(), branchId, like,
+                        org.springframework.data.domain.PageRequest.of(0, capped)).stream()
+                .map(r -> OPDDtos.DoctorVisitView.of((OPDVisit) r[0], (Patient) r[1]))
+                .toList();
+    }
+
     /** Headline counts for a doctor: completed visits, distinct patients, completed today. */
     @Transactional(readOnly = true)
     public OPDDtos.DoctorStats doctorStats(Long doctorId) {
