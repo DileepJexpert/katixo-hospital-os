@@ -57,6 +57,22 @@ public interface OPDVisitRepository extends BaseRepository<OPDVisit> {
                                      @Param("status") OPDVisit.VisitStatus status,
                                      @Param("since") LocalDateTime since);
 
+    /**
+     * Visits (any doctor) joined with the patient, newest first, with an optional
+     * free-text match on patient name / mobile / UHID / visit number. For
+     * pickers that need to find a visit across the whole branch (e.g. lab order
+     * creation). {@code q} must already be lower-cased and wrapped in % (or null).
+     */
+    @Query("SELECT v, p FROM OPDVisit v, Patient p " +
+            "WHERE p.id = v.patientId AND v.tenantId = :tenantId AND v.branchId = :branchId " +
+            "AND (:q IS NULL OR LOWER(p.firstName) LIKE :q OR LOWER(p.lastName) LIKE :q " +
+            "OR p.mobile LIKE :q OR LOWER(p.uhid) LIKE :q OR LOWER(v.visitNumber) LIKE :q) " +
+            "ORDER BY v.createdAt DESC")
+    List<Object[]> searchVisits(@Param("tenantId") String tenantId,
+                                @Param("branchId") Long branchId,
+                                @Param("q") String q,
+                                Pageable pageable);
+
     @Query("SELECT v FROM OPDVisit v WHERE v.tenantId = :tenantId AND v.branchId = :branchId " +
             "AND v.patientId = :patientId AND v.primaryDoctorId = :doctorId " +
             "AND v.visitStatus = 'COMPLETED' AND v.consultationEndedAt >= :since " +

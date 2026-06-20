@@ -351,6 +351,21 @@ public class IPDService {
                 status == null ? IPDAdmission.AdmissionStatus.ADMITTED : status);
     }
 
+    /** Resolves "First Last" display names for the given patient ids (for pickers). */
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, String> patientNames(java.util.Collection<Long> ids) {
+        var ctx = TenantContext.get();
+        java.util.Map<Long, String> out = new java.util.HashMap<>();
+        for (Long id : ids) {
+            if (id == null || out.containsKey(id)) continue;
+            patientRepository.findByIdAndTenantIdAndBranchId(id, ctx.getTenantId(), branchId())
+                    .ifPresent(p -> out.put(id,
+                            ((p.getFirstName() == null ? "" : p.getFirstName()) + " "
+                                    + (p.getLastName() == null ? "" : p.getLastName())).trim()));
+        }
+        return out;
+    }
+
     @Transactional(readOnly = true)
     public List<BedAllocation> getAllocations(Long admissionId) {
         var ctx = TenantContext.get();

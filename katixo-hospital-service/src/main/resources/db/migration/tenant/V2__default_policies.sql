@@ -122,3 +122,51 @@ INSERT INTO account (tenant_id, hospital_group_id, branch_id, code, name, accoun
 VALUES
   ('${tenantId}', 1, 1, '1110', 'Insurance/TPA Receivable',   'ASSET',     TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, '5300', 'Claim Disallowance Write-off', 'EXPENSE', TRUE, 'ACTIVE', 1, NOW(), 1, NOW());
+
+-- ============================================================
+-- Starter medicine master (pharmacy_item) — a common-OPD drug list so the
+-- prescription search / item master isn't empty on day one. The hospital
+-- edits/extends this from the Item Master screen (new MR brings a drug → add
+-- it there). HSN 3004 = medicaments; GST 12% is the usual formulation rate,
+-- 5% for ORS/glucose. MRP is indicative and overridden when stock is received.
+-- ON CONFLICT keeps it safe if a tenant already added the same code.
+-- ============================================================
+INSERT INTO pharmacy_item (tenant_id, hospital_group_id, branch_id, code, name, hsn_code, gst_rate, mrp,
+                           manufacturer, track_batches, status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, 'PARA500',  'Paracetamol 500mg Tablet',          '3004', 12,  15.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'PARASYP',  'Paracetamol Syrup 125mg/5ml 60ml',  '3004', 12,  45.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'IBU400',   'Ibuprofen 400mg Tablet',            '3004', 12,  18.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DICLO50',  'Diclofenac 50mg Tablet',            '3004', 12,  20.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'ACE-P',    'Aceclofenac 100mg + Paracetamol 325mg Tablet', '3004', 12, 35.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'AMOX500',  'Amoxicillin 500mg Capsule',         '3004', 12,  45.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'AMC625',   'Amoxicillin 500mg + Clavulanic 125mg Tablet', '3004', 12, 120.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'AZIT500',  'Azithromycin 500mg Tablet',         '3004', 12,  75.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'CIPRO500', 'Ciprofloxacin 500mg Tablet',        '3004', 12,  40.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'METRO400', 'Metronidazole 400mg Tablet',        '3004', 12,  25.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DOXY100',  'Doxycycline 100mg Capsule',         '3004', 12,  35.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'CET10',    'Cetirizine 10mg Tablet',            '3004', 12,  12.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LEVO5',    'Levocetirizine 5mg Tablet',         '3004', 12,  18.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'PAN40',    'Pantoprazole 40mg Tablet',          '3004', 12,  55.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'OME20',    'Omeprazole 20mg Capsule',           '3004', 12,  40.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'RAN150',   'Ranitidine 150mg Tablet',           '3004', 12,  15.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DOMP10',   'Domperidone 10mg Tablet',           '3004', 12,  22.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'OND4',     'Ondansetron 4mg Tablet',            '3004', 12,  28.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'ORS',      'ORS Sachet (WHO formula)',          '3004',  5,  20.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'METF500',  'Metformin 500mg Tablet',            '3004', 12,  18.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'GLIM1',    'Glimepiride 1mg Tablet',            '3004', 12,  30.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'AMLO5',    'Amlodipine 5mg Tablet',             '3004', 12,  16.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'TELMI40',  'Telmisartan 40mg Tablet',           '3004', 12,  45.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'ATEN50',   'Atenolol 50mg Tablet',              '3004', 12,  20.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'ATOR10',   'Atorvastatin 10mg Tablet',          '3004', 12,  40.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'ASP75',    'Aspirin 75mg Tablet',               '3004', 12,  10.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'THYR50',   'Thyroxine 50mcg Tablet',            '3004', 12,  25.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'PRED10',   'Prednisolone 10mg Tablet',          '3004', 12,  18.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'SALBINH',  'Salbutamol Inhaler 100mcg',         '3004', 12, 150.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'COUGHSYP', 'Cough Syrup 100ml',                 '3004', 12,  85.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'BCOMPLEX', 'Vitamin B-Complex Tablet',          '3004', 12,  12.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'CALD3',    'Calcium + Vitamin D3 Tablet',       '3004', 12,  35.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'FOLIC5',   'Folic Acid 5mg Tablet',             '3004', 12,  10.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'FESO',     'Ferrous Sulphate + Folic Acid Tablet', '3004', 12, 15.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'PVDIODINE','Povidone Iodine 5% Solution 100ml', '3004', 12,  60.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW())
+ON CONFLICT (tenant_id, code) DO NOTHING;

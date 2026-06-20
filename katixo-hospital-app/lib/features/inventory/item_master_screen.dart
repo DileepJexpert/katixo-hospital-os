@@ -141,33 +141,52 @@ class _ItemMasterScreenState extends State<ItemMasterScreen> {
 
     final proceed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Receive stock — ${item['name']}'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _field(batch, 'Batch number *'),
-                _field(expiry, 'Expiry (YYYY-MM-DD)'),
-                _field(qty, 'Quantity *', number: true),
-                _field(cost, 'Cost price', number: true),
-                _field(mrp, 'MRP', number: true),
-              ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('Receive stock — ${item['name']}'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Metrics.dialogMaxWidth),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _field(batch, 'Batch number *'),
+                  const SizedBox(height: Space.sm),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(const Duration(days: 365)),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (d != null) {
+                        setLocal(() => expiry.text =
+                            '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}');
+                      }
+                    },
+                    icon: const Icon(Icons.event_outlined, size: 18),
+                    label: Text(expiry.text.isEmpty ? 'Expiry date' : 'Expiry ${expiry.text}'),
+                  ),
+                  _field(qty, 'Quantity *', number: true),
+                  _field(cost, 'Cost price', number: true),
+                  _field(mrp, 'MRP', number: true),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Receive'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Receive'),
-          ),
-        ],
       ),
     );
     if (proceed != true) return;

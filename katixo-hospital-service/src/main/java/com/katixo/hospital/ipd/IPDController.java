@@ -136,7 +136,11 @@ public class IPDController {
     @PreAuthorize("hasAnyRole('FRONT_DESK', 'NURSE', 'DOCTOR', 'BILLING', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<AdmissionView>>> listAdmissions(
             @RequestParam(required = false) IPDAdmission.AdmissionStatus status) {
-        return respond(ipdService.listAdmissions(status).stream().map(AdmissionView::from).toList(),
+        List<IPDAdmission> admissions = ipdService.listAdmissions(status);
+        var names = ipdService.patientNames(admissions.stream().map(IPDAdmission::getPatientId).toList());
+        return respond(admissions.stream()
+                        .map(a -> AdmissionView.from(a, names.get(a.getPatientId())))
+                        .toList(),
                 "Admissions", HttpStatus.OK);
     }
 
@@ -280,6 +284,7 @@ public class IPDController {
         private Long id;
         private String admissionNumber;
         private Long patientId;
+        private String patientName;
         private Long admittingDoctorId;
         private Long currentBedId;
         private IPDAdmission.AdmissionStatus admissionStatus;
@@ -290,10 +295,15 @@ public class IPDController {
         private String diagnosis;
 
         static AdmissionView from(IPDAdmission a) {
+            return from(a, null);
+        }
+
+        static AdmissionView from(IPDAdmission a, String patientName) {
             return AdmissionView.builder()
                     .id(a.getId())
                     .admissionNumber(a.getAdmissionNumber())
                     .patientId(a.getPatientId())
+                    .patientName(patientName)
                     .admittingDoctorId(a.getAdmittingDoctorId())
                     .currentBedId(a.getCurrentBedId())
                     .admissionStatus(a.getAdmissionStatus())
