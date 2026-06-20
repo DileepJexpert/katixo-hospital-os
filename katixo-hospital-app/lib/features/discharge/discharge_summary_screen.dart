@@ -11,6 +11,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
 import '../document/documents_panel.dart';
+import '../ipd/admission_picker.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 
 /// Clinical discharge summary screen.
@@ -41,6 +42,7 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
 
   // Form fields
   final _admissionCtrl = TextEditingController();
+  String? _admissionLabel; // patient/admission shown after picking
   final _diagnosisCtrl = TextEditingController();
   final _courseCtrl = TextEditingController();
   final _proceduresCtrl = TextEditingController();
@@ -330,15 +332,46 @@ class _DischargeSummaryScreenState extends State<DischargeSummaryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _admissionCtrl,
-              keyboardType: TextInputType.number,
-              readOnly: widget.admissionId != null,
-              decoration: const InputDecoration(
-                labelText: 'Admission ID *',
-                hintText: 'Enter IPD admission ID',
+            if (widget.admissionId != null)
+              TextField(
+                controller: _admissionCtrl,
+                readOnly: true,
+                decoration: const InputDecoration(labelText: 'Admission ID *'),
+              )
+            else
+              InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Admission *',
+                  helperText: _admissionLabel,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _admissionCtrl.text.isEmpty
+                            ? 'No admission selected'
+                            : (_admissionLabel ?? 'Admission #${_admissionCtrl.text}'),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final a = await showAdmissionPicker(context);
+                        if (a != null) {
+                          setState(() {
+                            _admissionCtrl.text = '${a['id']}';
+                            final name = a['patientName']?.toString();
+                            _admissionLabel =
+                                '${(name != null && name.isNotEmpty) ? name : 'Patient #${a['patientId']}'} · ${a['admissionNumber'] ?? ''}';
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.search, size: 18),
+                      label: Text(_admissionCtrl.text.isEmpty ? 'Select' : 'Change'),
+                    ),
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: Space.md),
             TextField(
               controller: _diagnosisCtrl,
