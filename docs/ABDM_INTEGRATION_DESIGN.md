@@ -1,290 +1,311 @@
-# ABDM / ABHA / NHCX Integration Design
+# Katixo Hospital OS — ABDM M1–M3 Integration Design
 
-> **Status:** Design only — no code yet. This document describes how to build
-> India's Ayushman Bharat Digital Mission (ABDM) integration **inside the
-> existing `katixo-hospital-service` monolith**, reusing the substrate that is
-> already here (outbox → Kafka, `idempotency_record`, `audit_log`, the
-> per-tenant `notification_settings` config pattern, schema-per-tenant).
+_Design note (reconciled 2026-06-21). Grounds the ABDM/ABHA milestones on the
+**existing** `katixo-hospital-service` architecture (schema-per-tenant, outbox +
+Spring Kafka, `hospital_policy` engine, **`PatientIdentifier`**, Resilience4j,
+Redis). Scope: **M1** (ABHA identity), **M2** (HIP record sharing), **M3** (HIU
+record fetch). **M4 / NHCX** claims is a separate track that reuses the existing
+`tpa/` module._
+
+> **Status:** Design only — no code yet. ABDM/ABHA/FHIR/NHCX appear **only in
+> docs** today; this is greenfield. The substrate it needs already exists and is
+> sound.
 >
-> **Why this is the #1 strategic gap:** ABDM/ABHA/NHCX appear only in our docs
-> today — there is *zero* implementation code. It is the blocker to selling into
-> PMJAY-empanelled hospitals and to **NABH HIS/EMR certification** (which
-> requires ABDM Milestone 3 + three live deployments before you can even apply).
+> **Verified against code (2026-06-21):** `patient/PatientIdentifier` has
+> `identifierType`/`identifierValue`/`issuingAuthority`/`verified`/`verifiedAt`/
+> `verifiedBy`/`status`, unique `(tenant_id, patient_id, identifier_type)` and an
+> `idx_identifier_value` index — so ABHA needs **no new identity table**.
+> `consent/ConsentRecord` is medico-legal consent (ConsentType SURGERY/…) — the
+> ABDM artefact is a **separate** concept. `outbox/OutboxEventService.publish`,
+> `idempotency_record`, `audit_log`, Resilience4j and Redis are all present.
 
 ---
 
-## 1. Scope & milestones
+## 0. The three things to get right up front
 
-| Milestone | Capability | Hospital role |
-|---|---|---|
-| **M1** | ABHA (Health ID) **creation, linking, verification** at registration | — |
-| **M2** | **Link care contexts** + **serve records on consent** | HIP (Health Information Provider) |
-| **M3** | Full FHIR R4 record set, Scan-&-Share, HIU fetch, profile depth | HIP + HIU |
-| **NHCX** | Insurance **claims/pre-auth** over FHIR (parallel track) | Provider |
-
-We deliver **M1 → M2 → M3**, then **NHCX** (it reuses the same gateway,
-encryption and FHIR machinery, and plugs into the existing `tpa/` module).
-
----
-
-## 2. Where it lives (architecture)
-
-Per the project rule (single self-contained service, **never** a microservice),
-ABDM is a new **in-process module**:
-
-```
-com.katixo.hospital.abdm/
-  config/        AbdmSettings (per-tenant), AbdmProperties (sandbox/prod URLs)
-  gateway/       AbdmGatewayClient (token, session, request signing, retries)
-  crypto/        AbdmCrypto (ECDH X25519 + HKDF + AES-GCM for record transfer)
-  abha/          AbhaService (create/link/verify), AbhaController
-  hip/           HipService (care-context link, consent, health-info transfer)
-  hiu/           HiuService (consent request, fetch) — M3, optional
-  fhir/          FhirBundleAssembler + per-resource mappers
-  callback/      AbdmCallbackController (gateway → us), async via outbox
-  nhcx/          NhcxService, claim FHIR bundles (links tpa/)
-```
-
-It calls **outward only to the ABDM gateway** (HTTPS). It must never become a
-dependency of, or depend on, any other product. Everything it needs internally
-(patient, prescription, lab, discharge, TPA) it reads from the existing modules
-in-process.
+1. **Each hospital (tenant) is its own HIP/HIU.** ABDM registration is
+   per-facility: every tenant has its own Health Facility Registry (HFR) ID and
+   its own ABDM client credentials. ABDM config + secrets are **per-tenant**,
+   exactly like `notification_settings`. Do **not** hard-code one org's IDs.
+2. **ABDM consent ≠ `ConsentRecord`.** `ConsentRecord` is medico-legal consent
+   (SURGERY, ANAESTHESIA…) snapshotted for the chart. The ABDM **consent
+   artefact** is a machine-readable grant from the consent manager (HIE-CM)
+   authorising a *record exchange*, with its own id, expiry, HI-types and date
+   range. Separate table (`abha_consent_artefact`); keep them distinct in code
+   and UI.
+3. **Inbound callbacks are latency-bound (~seconds).** The ABDM gateway calls
+   our HIP/HIU asynchronously and expects a fast ACK; integrators routinely fail
+   certification by doing work inline and exceeding the timeout. The fix is the
+   **inverse of our outbox**: persist-and-ACK on receipt, process on a poller.
 
 ---
 
-## 3. The async substrate (the hard part ABDM gets wrong elsewhere)
+## 1. Where the code lives (architecture decision)
 
-ABDM is **callback-driven with tight gateway timeouts**: when the Consent
-Manager or another HIP/HIU calls one of our `/v0.5/**` endpoints, we must
-**ACK within seconds** and do the real work asynchronously. We already have the
-exact substrate for this:
+Per the project rule (single self-contained service — **never** a microservice,
+**never** an ERP dependency), build ABDM as an in-process **`abdm/` package**
+inside `katixo-hospital-service`. Extract to a future `katixo-integration-service`
+**only** if inbound-callback volume or deployment isolation later forces it —
+the `callback/` package is the natural seam (same way
+`LoggingOutboxEventPublisher` can be swapped for a Kafka one without touching
+callers).
 
 ```
-ABDM Gateway  ──POST /callback──▶  AbdmCallbackController
-                                     │  1. verify + persist raw request
-                                     │  2. idempotency_record (dedupe by requestId)
-                                     │  3. OutboxEventService.publish(
-                                     │        "ABDM", <requestId>, "abdm.consent.notify", payload)
-                                     │  4. return 202 Accepted   ◀── fast ACK
-                                     ▼
-            outbox_event (PENDING) ──poller──▶ Kafka topic ──▶ AbdmWorkHandler
-                                                                 (does ECDH, FHIR
-                                                                  assembly, transfer)
+abdm/
+  config/    AbdmProperties (sandbox/prod URLs), AbdmSettings (per-tenant, masked secrets)
+  client/    AbdmGatewayClient (token, ABHA, link, data-push) — JDK HttpClient + Resilience4j
+  crypto/    AbdmCrypto (X25519 ECDH + HKDF + AES-GCM for record transfer)
+  identity/  AbhaService            (M1: create / verify / scan-and-share)
+  hip/       HipLinkService, HipDataPushService, CareContextEventListener (M2)
+  hiu/       HiuRequestService, HiuConsentService, RecordViewerController  (M3)
+  consent/   AbhaConsentArtefact (+repo), AbhaConsentService   (ABDM consent, NOT ConsentRecord)
+  fhir/      FhirBundleFactory (Patient, Encounter, Composition, MedicationRequest, DiagnosticReport…)
+  callback/  AbdmCallbackController (persist + fast ACK), AbdmCallback (+repo), poller
+  nhcx/      (M4) Claim/ClaimResponse adapter over tpa/
 ```
 
-- **Reuse `OutboxEventService.publish(aggregateType, aggregateId, eventType, payload)`**
-  (`outbox/OutboxEvent`: `tenantId, eventId, aggregateType, aggregateId, eventType, payload, status, retryCount`).
-  ABDM work becomes `aggregateType="ABDM"`, `eventType="abdm.*"` — same poller,
-  same retry/back-off, same Kafka path (`OutboxPublisherConfig`).
-- **Reuse `idempotency_record`** (`tenantId, idempotencyKey, operation, responseStatus, responseBody, expiresAt`)
-  keyed on the gateway `requestId` so duplicate callbacks are no-ops.
-- **Reuse `audit_log`** for every ABHA create/link, consent grant/revoke, and
-  record transfer (immutable, before/after hash) — also our consent-ledger
-  evidence for audits.
-- **Correlation:** ABDM's `requestId` / `transactionId` is the correlation key;
-  store it on a new `abdm_transaction` row and thread it through outbox events.
+**Reuse what exists:** Resilience4j (circuit-break the gateway), Redis
+(short-lived OTP/txn-id + gateway-token cache), outbox + Kafka (outbound
+dispatch), `PolicyService` (toggles), the masked `*_settings` pattern (secrets),
+`AuditService` (consent ledger), `idempotency_record` (callback dedupe).
 
-This is why the existing outbox + Kafka choice is the right call — we do not add
-new infra, we add topics and handlers.
+**Strongly recommended:** build the `client/` layer on the **NHA open-source
+ABDM wrapper** (Spring Boot) rather than hand-rolling gateway session/crypto/
+consent flows — it matches the stack and removes the most error-prone code.
 
 ---
 
-## 4. Per-tenant configuration
+## 2. Data model changes (small)
 
-Mirror the **`notification_settings`** pattern exactly (`NotificationSettings extends BaseEntity`,
-secrets write-only/masked in the API). New table **`abdm_settings`** (one row per tenant):
+### 2.1 Reuse `PatientIdentifier` for ABHA — no new identity table
+Add two `IdentifierType` enum values:
+```java
+public enum IdentifierType {
+    AADHAR, PAN, /* … existing … */ OTHER,
+    ABHA_NUMBER,   // 14-digit ABHA   (issuingAuthority = "ABDM")
+    ABHA_ADDRESS   // user@abdm health address
+}
+```
+A verified ABHA is an `ACTIVE`, `verified=true` row with
+`issuingAuthority="ABDM"`. The unique `(tenant_id, patient_id, identifier_type)`
+constraint means one ABHA number + one ABHA address per patient; lookups by ABHA
+ride the existing `idx_identifier_value`. (This **supersedes** the earlier draft's
+`Patient.abha_*` columns.)
 
-| Column | Purpose |
+### 2.2 New table — ABDM consent artefact (M3)
+```
+abha_consent_artefact   (+ BaseEntity: id, tenant_id, hospital_group_id, branch_id, audit cols)
+  patient_id            FK
+  consent_request_id    our request id to the consent manager
+  artefact_id           granted artefact id from HIE-CM
+  status                REQUESTED | GRANTED | DENIED | EXPIRED | REVOKED
+  hi_types              CSV: DiagnosticReport, Prescription, OPConsultation, DischargeSummary…
+  date_range_from, date_range_to, expiry
+  hiu_id, requester
+  granted_at, raw_artefact (JSONB)
+```
+
+### 2.3 New table — inbound callback inbox (latency control)
+```
+abdm_callback
+  id, tenant_id, branch_id, request_id (gateway correlation), type, payload (JSONB),
+  status (PENDING|PROCESSED|FAILED), retry_count, created_at, processed_at
+  index (status, created_at)
+```
+The outbox pattern pointed **inward**: the callback endpoint writes a row and
+returns 2xx immediately; a `@Scheduled` poller (mirror of `OutboxPublisherJob`,
+binding a system `TenantContext` per tenant) does the real work. Dedupe inbound
+`request_id` via the existing `idempotency_record`.
+
+### 2.4 New per-tenant config
+- **Toggles** → `HospitalPolicyCode` (config only, not secret):
+  ```
+  ABDM_ENABLED                "abdm.enabled"
+  ABDM_MODE                   "abdm.mode"                  (SANDBOX | PRODUCTION)
+  ABDM_HIP_ENABLED            "abdm.hip.enabled"
+  ABDM_HIU_ENABLED            "abdm.hiu.enabled"
+  ABDM_AUTO_LINK_ON_DISCHARGE "abdm.hip.autolink_discharge"
+  ```
+- **Secrets/identity** → new masked **`abdm_settings`** table mirroring
+  `notification_settings` (keys write-only/masked in the API): `hfr_id`,
+  `hip_id`, `hiu_id`, `client_id`, `client_secret`, `bridge_url`, NHCX
+  participant codes. **Never** store secrets in a `hospital_policy` value.
+
+> Per the **dev-phase migration policy**, all schema additions go **directly into
+> `V1__tenant_baseline.sql`** (and any `abdm_settings`/policy seeds into `V2`),
+> then `./scripts/reset-db.sh`. No new migration files until go-live.
+
+---
+
+## 3. Milestone 1 — ABHA identity (do this first)
+
+Standalone, immediately useful, prerequisite for everything else. **No FHIR yet.**
+
+**Capabilities:** create ABHA (Aadhaar OTP / mobile OTP) at registration; verify
+/ link an existing ABHA (number or address + OTP); **scan-and-share** (scan the
+patient's ABHA QR → pull demographic token → match/auto-fill a `Patient`).
+
+**Create flow:** front desk → `AbhaService.initiateAadhaarOtp(aadhaar)` →
+`AbdmGatewayClient` (txnId cached in Redis, TTL ~5 min) → `verifyOtp(txnId, otp)`
+→ gateway returns ABHA number + address → write verified
+`PatientIdentifier(ABHA_NUMBER)` + `PatientIdentifier(ABHA_ADDRESS)` → audit.
+
+**Endpoints** (`AbhaController`, FRONT_DESK/ADMIN, `Idempotency-Key` required):
+```
+POST /api/v1/abdm/abha/enroll/aadhaar/otp     → {txnId}
+POST /api/v1/abdm/abha/enroll/aadhaar/verify  → creates ABHA
+POST /api/v1/abdm/abha/link/init | /verify    (existing ABHA)
+POST /api/v1/abdm/abha/scan                    (QR → demographic match)
+GET  /api/v1/patients/{id}/abha                (status from PatientIdentifier)
+```
+
+**UI:** an "ABHA" panel (Create / Link / Scan tabs) on the registration screen
+and the inline new-patient flow, gated by `abdm.enabled` (same pattern as
+`pharmacy.enabled`). **Effort: small–medium.** Ship on its own.
+
+---
+
+## 4. Milestone 2 — HIP: share records (FHIR R4)
+
+Two parts: **care-context linking** and **data push on consent**.
+
+### 4.1 Care-context linking — reuse the outbox
+We already emit domain signals at the right moments (walk-in registration,
+appointment booked, lab report released, bill finalised, **discharge summary**).
+At each clinically-meaningful completion, enqueue a linkage intent through the
+**existing** `OutboxEventService` — in the same transaction as the clinical write,
+so we never link a context for a record that didn't commit:
+```java
+outboxEventService.publish(
+    "ABHA_CARE_CONTEXT",            // aggregateType
+    dischargeSummaryId.toString(),  // aggregateId
+    "CARE_CONTEXT_CREATED",         // eventType
+    new CareContextPayload(patientId, branchId, abhaAddress, encounterRef, "DischargeSummary"));
+```
+An `ABDM_*`-aware `OutboxEventPublisher` (or a consumer on the Kafka topic) calls
+`HipLinkService` → gateway "link care context"; all other event types are
+ignored. The poller's retry / `FAILED`-after-N semantics give at-least-once
+delivery for free.
+
+> The current `OutboxEvent` carries `tenantId` but the handler also needs
+> **branch** to resolve per-tenant `abdm_settings` — carry `branchId` in the
+> payload (shown above) or add a column. Minor.
+
+### 4.2 Data push on consent — FHIR bundles from existing entities
+When an HIU request arrives (callback → inbox → poller), validate the consent
+artefact (scope, HI-types, date range, not expired), gather the in-scope episodes,
+build a **FHIR R4 Bundle** and push it to the gateway. `FhirBundleFactory` maps:
+
+| Your entity | FHIR resource |
 |---|---|
-| `enabled` | master toggle (policy-style, like `pharmacy.enabled`) |
-| `environment` | `SANDBOX` / `PRODUCTION` (selects base URLs) |
-| `client_id`, `client_secret` | ABDM gateway session creds (secret masked) |
-| `hip_id`, `hip_name` | our Health Facility Registry (HFR) identity as a HIP |
-| `hiu_id` | HIU identity (M3) |
-| `hfr_id` | facility id |
-| `bridge_url` | our public callback base URL registered with ABDM |
-| `nhcx_participant_code`, `nhcx_*` | NHCX onboarding identity (claims track) |
-| `encryption_*` | optional pinned key material / rotation settings |
+| `Patient` | `Patient` |
+| OPD visit / consultation (`OPDVisit` + diagnosis) | `Encounter` + `Composition` (OPConsultation) |
+| `Prescription` / `PrescriptionItem` | `MedicationRequest` (+ `Composition` Prescription) |
+| `LabReport` / `LabOrder` / results | `DiagnosticReport` + `Observation` |
+| `RadiologyOrder` / report | `DiagnosticReport` (imaging) |
+| `DischargeSummary` | `Composition` (DischargeSummary) |
+| generated PDFs (`*PdfService` + `document/`) | `DocumentReference` + `Binary` |
+| `StaffUser` (+ `hpr_id`), tenant facility | `Practitioner`, `Organization` |
 
-Base URLs (sandbox vs prod gateway, abha service, healthid, NHCX) live in
-`AbdmProperties` (application.yml, env-overridable) — not per tenant.
-Doctors' **HPR (Health Professional Registry) IDs** go on `staff_user`
-(new nullable column) so records carry the practitioner identifier.
+Use **HAPI FHIR R4** (`hapi-fhir-structures-r4`) for resource modelling/validation.
 
----
-
-## 5. Data model additions
-
-> Per the **dev-phase migration policy**, these go **directly into
-> `V1__tenant_baseline.sql`** (and `abdm_settings` seed defaults, if any, into
-> `V2`), then `./scripts/reset-db.sh`. No new migration files until go-live.
-
-- `patient`: add `abha_number` (14-digit), `abha_address` (`name@abdm`),
-  `abha_linked_at`, `abha_kyc_verified`.
-- `staff_user`: add `hpr_id` (nullable).
-- New tables (all carry `tenant_id, hospital_group_id, branch_id` + audit cols):
-  - `abdm_settings` — §4.
-  - `abha_link` — patient ↔ ABHA link history / KYC status.
-  - `care_context_link` — (patientReference, careContextReference, hiType, sourceType, sourceId) so we know which visits/admissions are discoverable.
-  - `consent_artefact` — granted consents (id, hiu, hiTypes, fromDate/toDate, expiry, status, raw artefact JSON).
-  - `health_info_request` — incoming HI requests + transfer status.
-  - `abdm_transaction` — generic correlation row (requestId, transactionId, kind, status, error) for every gateway round-trip.
-  - `nhcx_request` — claim/pre-auth exchange state (links `tpa_case_id`).
-
-All reads/writes go through Hibernate schema multi-tenancy (already wired), so
-ABDM data is tenant-isolated like everything else.
+**Terminology gap to flag now:** ABDM FHIR profiles expect **coded** data —
+diagnoses in **SNOMED CT**, labs in **LOINC**, medicines in a coded list — but we
+store these as free text today. M2 needs a **minimal coding layer**: a lookup
+mapping the high-frequency diagnoses/tests/medicines to codes. Build it as its own
+step so M2 isn't blocked on it. **Effort: medium–large** (dominated by FHIR
+mapping + terminology — this is the real work).
 
 ---
 
-## 6. M1 — ABHA at registration
+## 5. Milestone 3 — HIU: fetch records + viewer
 
-**Flows** (ABDM ABHA service, v3 APIs):
-1. **Create via Aadhaar OTP** → request OTP → verify OTP → create ABHA → set ABHA address.
-2. **Create via mobile OTP** (non-Aadhaar, limited ABHA).
-3. **Link existing ABHA** (patient already has one) → verify via OTP → store number+address.
-4. **Verify/KYC** for an existing record.
+1. **Consent request** → `HiuConsentService.requestConsent(patient, hiTypes, range)`
+   → `abha_consent_artefact` row (`REQUESTED`) + call consent manager.
+2. **Consent callback** (grant/deny) → `AbdmCallbackController` persists +
+   fast-ACK → poller updates artefact to `GRANTED`/`DENIED`, and on grant triggers
+   the data request.
+3. **Data callback** (records arrive, encrypted) → persisted → poller **decrypts**
+   (`AbdmCrypto`) and stores the FHIR bundles against the patient (via the existing
+   pluggable `document/` storage, or an `abha_fetched_record` table).
+4. **Unified viewer** → `RecordViewerController` + a Flutter screen on the patient
+   detail view, rendering fetched FHIR resources (reuse the documents-panel pattern).
 
-**Endpoints** (`AbhaController`, FRONT_DESK/ADMIN, idempotency-key required):
-```
-POST /api/v1/abdm/abha/enroll/aadhaar/otp        → {txnId}
-POST /api/v1/abdm/abha/enroll/aadhaar/verify     → creates ABHA, returns number+address
-POST /api/v1/abdm/abha/link/init                  (existing ABHA → OTP)
-POST /api/v1/abdm/abha/link/verify
-GET  /api/v1/patients/{id}/abha                    (status)
-```
-
-**Integration point:** the registration screen (`registration_screen.dart`) and
-the patient picker's inline "New patient" gain an optional **"Create / link
-ABHA"** step. ABHA is **optional** (toggle via `abdm_settings.enabled`) so
-hospitals without ABDM onboarding are unaffected — same pattern as
-`pharmacy.enabled`.
+Steps 2–3 are gateway-initiated and timing-sensitive — the persist-and-ACK +
+poller split is what keeps us inside the gateway window, and the strongest
+argument for eventually moving `callback/` into the +1 service. **Effort: medium.**
 
 ---
 
-## 7. M2 — HIP: link care contexts + serve records on consent
+## 6. Record encryption (M2/M3)
 
-Once a patient has an ABHA, each clinical episode becomes a **care context** the
-patient can discover and share.
-
-**7a. Care-context linking**
-- On visit complete / admission / discharge / lab report ready, enqueue an
-  outbox event → handler calls the gateway to **link the care context** to the
-  patient's ABHA (or respond to gateway **discovery/link** callbacks).
-- Persist in `care_context_link` so we can map a care-context reference back to
-  the concrete `OPDVisit` / `IPDAdmission` / `LabReport`.
-
-**7b. Consent notification (callback)**
-- Consent Manager calls our callback when a patient grants a consent →
-  `AbdmCallbackController` ACKs 202, outbox event `abdm.consent.notify` →
-  handler stores the `consent_artefact` (hiTypes, date range, expiry, HIU).
-
-**7c. Health-information request → transfer (callback)**
-- HIU requests data under a consent → callback → outbox `abdm.hi.request`.
-- Handler: validate the consent artefact (scope, date range, not expired) →
-  gather the in-scope episodes from `care_context_link` → **assemble FHIR R4
-  bundles** (§8) → **encrypt** (§9) → push to the HIU's data-push URL via the
-  gateway → notify transfer status.
-- Every transfer is `audit_log`-ed (which consent, which HIU, which records).
-
-**Consent is enforced in code**, not assumed: the handler refuses to assemble or
-transfer anything outside the artefact's `hiTypes` and `from/to` window.
+ABDM record transfer is end-to-end encrypted between HIP and HIU: **ECDH on
+Curve25519 (X25519)** → HKDF-derived key → **AES-GCM** payload, with exchanged
+public keys + nonce per request. Implement in `abdm/crypto/AbdmCrypto` using
+**BouncyCastle**. Keep key material and bundles **out of logs** (existing rule:
+no PHI/payloads in logs); never persist plaintext bundles — assemble, encrypt,
+transfer, discard.
 
 ---
 
-## 8. FHIR R4 mapping (the assembler)
+## 7. Sequencing & rationale
 
-`FhirBundleAssembler` maps **existing entities** → ABDM/NRCES-profiled FHIR R4.
-Use HAPI FHIR (`hapi-fhir-structures-r4`) — add as a dependency; it slots into
-the Maven build.
+1. **M1 (ABHA)** — standalone, low-risk, immediate value, prerequisite. Ship alone.
+2. **Terminology layer (minimal SNOMED/LOINC) + `FhirBundleFactory`** — the gating
+   dependency for M2; build as its own step.
+3. **M2 (HIP)** — care-context linking via outbox first (cheap, high-signal), then
+   consent-driven data push. Commercially the most important (NABH HIS/EMR
+   certification needs M3 + 3 live deployments; the DHIS incentive rewards the
+   records-shared posture).
+4. **M3 (HIU)** — consent artefacts + callback inbox + viewer.
+5. **M4 / NHCX (separate track)** — electronic cashless claims. **Reuse `tpa/`**:
+   the case lifecycle (PREAUTH → APPROVED → CLAIM_SUBMITTED → SETTLED) and its
+   accounting (Patient AR → Insurance Receivable 1110, write-off 5300) are already
+   the right backbone; NHCX adds a FHIR Claim/ClaimResponse exchange over the same
+   outbox/callback machinery. Extend TPA with an `nhcx/` adapter — don't rebuild it.
 
-| ABDM HI Type | FHIR bundle (Composition + …) | Source in our code |
+---
+
+## 8. Cross-cutting checklist
+
+- **Per-tenant onboarding screen** (tenant admin): HFR/HIP/HIU IDs + ABDM client
+  creds (masked, `abdm_settings`), `SANDBOX`/`PRODUCTION`, HIP/HIU toggles.
+- **Secrets:** masked settings only — never `hospital_policy`.
+- **Audit:** every ABHA create/link, consent grant/revoke, record push/fetch →
+  `AuditService` (same pattern as journals/consent/documents) = the consent ledger.
+- **Callback auth:** callback endpoints verify the ABDM gateway session/signature
+  (not open) — add to `SecurityConfig` with their own verification, like `/ws/**`.
+- **Resilience:** wrap `AbdmGatewayClient` in Resilience4j; cache session token +
+  OTP txnIds in Redis.
+- **Fail-soft (like notifications):** ABDM unavailability must never break a
+  clinical or billing flow. Outbox/poller gives this outbound; make identity +
+  inbound degrade gracefully too.
+- **Certification:** ABDM requires CERT-In/WASA security testing and a
+  sandbox-exit demonstration of milestone flows on the **V3 / FHIR R4** APIs —
+  budget for it. New deps: HAPI FHIR R4, BouncyCastle (both standard, fit Maven).
+- **Open decision:** self-integrate (direct gateway) vs an HRP/aggregator.
+  Recommendation: **direct** — our outbox/Kafka/crypto substrate already covers
+  the hard parts and avoids per-transaction middleman fees.
+
+---
+
+## 9. What to reuse vs build (summary)
+
+| Concern | Reuse (already in repo) | Build new |
 |---|---|---|
-| **OPConsultation** | Composition + Encounter + Condition + MedicationRequest + (DocumentReference) | `OPDVisit` (+ `diagnosis`), `Prescription`/`PrescriptionItem` |
-| **Prescription** | Composition + MedicationRequest[] | `Prescription` (already has dosage/frequency/duration) |
-| **DiagnosticReport** | Composition + DiagnosticReport + Observation[] | `LabOrder`/`LabReport`/`LabResult` |
-| **DischargeSummary** | Composition + Encounter + Condition + CarePlan | `DischargeSummary` |
-| **HealthDocumentRecord** | DocumentReference + Binary | our generated PDFs (`*PdfService`) via the `document/` storage |
-| Common | **Patient**, **Practitioner**, **Organization** | `Patient`, `StaffUser` (+ `hpr_id`), tenant facility |
-
-The PDF services we already have (`BillPdfService`, `PrescriptionPdfService`,
-`LabReportPdfService`, `DischargeSummaryPdfService`) give us the
-`DocumentReference`/`Binary` path essentially for free.
-
----
-
-## 9. Record encryption
-
-ABDM record transfer is **end-to-end encrypted** between HIP and HIU:
-- ECDH key agreement on **Curve25519 (X25519)**, HKDF-derived key, **AES-GCM**
-  payload encryption, with exchanged public keys + nonce per request.
-- Implement in `abdm/crypto/AbdmCrypto` using BouncyCastle (add dependency).
-- Keep key material **out of logs** (existing rule: no PHI/payloads in logs) and
-  never persist plaintext bundles — assemble, encrypt, transfer, discard.
-
----
-
-## 10. NHCX (claims track — after M2)
-
-NHCX is the same shape as ABDM (gateway, async callbacks, ECDH encryption, FHIR
-R4) but for **insurance**:
-- Map a `TPACase` (+ bill lines) → FHIR **Claim** / pre-auth `CommunicationRequest`
-  bundle in `nhcx/`.
-- Submit via the gateway; handle async responses (`abdm.nhcx.*` outbox events) →
-  update `TPACase` status + `nhcx_request`.
-- This finally closes the "electronic NHCX claims (FHIR R4)" item the TPA module
-  already lists as pending — and it reuses §3/§8/§9 wholesale.
-
----
-
-## 11. Security, consent & audit (reuse what exists)
-
-- **AuthZ:** new endpoints behind `@PreAuthorize` (FRONT_DESK/ADMIN for ABHA;
-  system/handler for callbacks). Callback endpoints are **gateway-authenticated**
-  (verify the ABDM session/signature), **not** open — add to `SecurityConfig`
-  with their own verification, mirroring how `/ws/**` does its own handshake.
-- **Consent ledger:** `consent_artefact` + `audit_log` = tamper-evident proof of
-  what was shared, with whom, under which consent. Required for certification.
-- **Idempotency + outbox** make callbacks safe under retries and broker outages.
-- **Tenant isolation:** all ABDM tables are per-tenant-schema; `hip_id` etc. come
-  from `abdm_settings`, never from request input.
-
----
-
-## 12. Delivery plan
-
-| Phase | Deliverable | Depends on |
-|---|---|---|
-| **0** | `abdm/` skeleton, `AbdmProperties`, `abdm_settings` + masked settings API, sandbox onboarding | — |
-| **1 (M1)** | `AbdmGatewayClient` (session/token), `AbhaService` create/link/verify, `Patient.abha_*`, registration UI hook | 0 |
-| **2 (substrate)** | `AbdmCallbackController` (202 + outbox), `abdm_transaction`, `AbdmCrypto` (X25519/AES-GCM), idempotent handlers | 1 |
-| **3 (M2 HIP)** | care-context linking, consent-artefact handling, `FhirBundleAssembler` (OPConsultation/Prescription/DiagnosticReport/DischargeSummary), encrypted HI transfer | 2 |
-| **4 (M3)** | remaining HI types, HIU fetch, Scan-&-Share, NRCES profile conformance | 3 |
-| **5 (NHCX)** | Claim/pre-auth FHIR bundles, `nhcx/`, TPA wiring | 3 |
-| **Cert** | M1→M2→M3 sandbox passes → **3 live deployments** → NABH HIS/EMR application | 4 |
-
-**New dependencies:** HAPI FHIR R4, BouncyCastle. Both are standard, MIT/Apache,
-and fit the existing Maven build.
-
----
-
-## 13. Open decisions (need a call before Phase 1)
-
-1. **Self-integrate vs HRP/aggregator.** Direct gateway integration (max
-   control, more crypto/cert work) vs going through a registered Health
-   Repository Provider / aggregator (faster onboarding, recurring cost, less
-   control). Recommendation: **direct**, since our outbox/Kafka/crypto substrate
-   already covers the hard parts and avoids per-transaction middleman fees.
-2. **ABHA API generation** — adopt the current **v3** ABHA enrolment APIs
-   (Aadhaar + mobile) from day one (don't build on the deprecated v1).
-3. **Public callback URL / mTLS** — the bridge URL registered with ABDM must be
-   reachable in prod; decide ingress + secret management (env, not DB, for the
-   gateway client secret in production).
-4. **Per-tenant vs platform onboarding** — is each hospital its own HIP (its own
-   HFR id, recommended) or do we onboard as a single platform HIP with sub-IDs?
-   This determines whether `abdm_settings` is mandatory-per-tenant.
+| Outbound dispatch + retry | `outbox/*` + Spring Kafka | `ABDM_*`-aware `OutboxEventPublisher` |
+| Inbound callbacks | outbox idea, inverted; `idempotency_record` | `abdm_callback` inbox + poller + `AbdmCallbackController` |
+| ABHA identity storage | `PatientIdentifier` (+2 enum values) | `AbhaService`, ABHA UI panel |
+| Per-tenant config | `PolicyService` (toggles) | `abdm_settings` masked secrets + onboarding screen |
+| ABDM consent | — (distinct from `ConsentRecord`) | `abha_consent_artefact` + `AbhaConsentService` |
+| FHIR | — | `FhirBundleFactory` + minimal SNOMED/LOINC map (HAPI FHIR R4) |
+| Encryption | existing "no PHI in logs" rule | `AbdmCrypto` (X25519/AES-GCM, BouncyCastle) |
+| Gateway protocol | **NHA open-source ABDM wrapper** | thin `AbdmGatewayClient` over it |
+| Resilience / cache | Resilience4j, Redis | wiring only |
+| Claims (M4) | `tpa/*` lifecycle + accounting | `nhcx/` FHIR Claim adapter |
 
 ---
 
 *Built fresh in-process; never call any external ERP. This design adds only
-topics, handlers, tables and outbound gateway calls on top of the substrate that
+topics, handlers, tables, and outbound gateway calls on top of substrate that
 already exists.*
