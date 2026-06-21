@@ -4350,6 +4350,29 @@ CREATE TABLE notification_settings (
     UNIQUE (tenant_id, branch_id)
 );
 
+-- ABDM per-tenant config + secrets (each hospital is its own HIP/HIU).
+-- Secrets are write-only/masked in the API (never stored in hospital_policy).
+CREATE TABLE abdm_settings (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    environment         VARCHAR(20)  NOT NULL DEFAULT 'SANDBOX',  -- SANDBOX | PRODUCTION
+    hfr_id              VARCHAR(100),     -- Health Facility Registry id
+    hip_id             VARCHAR(100),     -- HIP identifier
+    hiu_id             VARCHAR(100),     -- HIU identifier
+    client_id           VARCHAR(255),
+    client_secret       VARCHAR(255),     -- masked on read
+    bridge_url          VARCHAR(255),     -- our public callback base URL registered with ABDM
+    nhcx_participant_code VARCHAR(100),   -- NHCX claims onboarding identity
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, branch_id)
+);
+
 CREATE TABLE notification_template (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,

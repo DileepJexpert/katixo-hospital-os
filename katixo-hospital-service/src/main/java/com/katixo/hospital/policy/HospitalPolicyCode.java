@@ -55,7 +55,14 @@ public enum HospitalPolicyCode {
     // General Policies
     ENABLE_PATIENT_PORTAL("general.enable_patient_portal", "Enable patient self-service portal"),
     ENABLE_SMS_NOTIFICATION("general.enable_sms_notification", "Enable SMS notifications"),
-    ENABLE_WHATSAPP_NOTIFICATION("general.enable_whatsapp_notification", "Enable WhatsApp notifications");
+    ENABLE_WHATSAPP_NOTIFICATION("general.enable_whatsapp_notification", "Enable WhatsApp notifications"),
+
+    // ABDM / ABHA (config toggles only — secrets live in the masked abdm_settings table)
+    ABDM_ENABLED("abdm.enabled", "Hospital participates in ABDM"),
+    ABDM_MODE("abdm.mode", "ABDM environment: SANDBOX | PRODUCTION"),
+    ABDM_HIP_ENABLED("abdm.hip.enabled", "Publish records as a HIP (M2)"),
+    ABDM_HIU_ENABLED("abdm.hiu.enabled", "Fetch records as an HIU (M3)"),
+    ABDM_AUTO_LINK_ON_DISCHARGE("abdm.hip.autolink_discharge", "Auto-create a care context at discharge");
 
     private final String code;
     private final String description;
