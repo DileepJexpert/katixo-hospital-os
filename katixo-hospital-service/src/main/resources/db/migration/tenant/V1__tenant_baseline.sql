@@ -4373,6 +4373,49 @@ CREATE TABLE abdm_settings (
     UNIQUE (tenant_id, branch_id)
 );
 
+-- ABDM inbound callback inbox: the outbox pattern inverted. The gateway calls
+-- our HIP/HIU endpoints with tight timeouts, so we persist + fast-ACK here and a
+-- poller processes asynchronously. request_id dedupes duplicate callbacks.
+CREATE TABLE abdm_callback (
+    id            BIGSERIAL PRIMARY KEY,
+    tenant_id     VARCHAR(50)  NOT NULL,
+    request_id    VARCHAR(100),
+    callback_type VARCHAR(80)  NOT NULL,   -- CONSENT_NOTIFY | HI_REQUEST | ON_DISCOVER | ...
+    payload       JSONB        NOT NULL,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING',  -- PENDING | PROCESSED | FAILED
+    retry_count   INTEGER      NOT NULL DEFAULT 0,
+    error         VARCHAR(500),
+    created_at    TIMESTAMP    NOT NULL DEFAULT now(),
+    processed_at  TIMESTAMP
+);
+CREATE INDEX idx_abdm_callback_status ON abdm_callback(status, created_at);
+
+-- ABDM consent artefact — machine-readable grant from the consent manager
+-- authorising a record exchange. DISTINCT from medico-legal consent_record.
+CREATE TABLE abha_consent_artefact (
+    id                 BIGSERIAL PRIMARY KEY,
+    tenant_id          VARCHAR(50)  NOT NULL,
+    hospital_group_id  BIGINT       NOT NULL,
+    branch_id          BIGINT       NOT NULL,
+    patient_id         BIGINT,
+    consent_request_id VARCHAR(100),
+    artefact_id        VARCHAR(100),
+    status             VARCHAR(20)  NOT NULL DEFAULT 'REQUESTED', -- REQUESTED|GRANTED|DENIED|EXPIRED|REVOKED
+    hi_types           VARCHAR(255),
+    date_range_from    TIMESTAMP,
+    date_range_to      TIMESTAMP,
+    expiry             TIMESTAMP,
+    hiu_id             VARCHAR(100),
+    requester          VARCHAR(150),
+    granted_at         TIMESTAMP,
+    raw_artefact       JSONB,
+    created_by         BIGINT       NOT NULL,
+    created_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by         BIGINT       NOT NULL,
+    updated_at         TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_abha_consent_patient ON abha_consent_artefact(tenant_id, patient_id);
+
 CREATE TABLE notification_template (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,
