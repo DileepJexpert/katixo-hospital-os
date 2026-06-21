@@ -1,5 +1,6 @@
 package com.katixo.hospital.abdm.callback;
 
+import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,13 +30,21 @@ public class AbdmCallbackController {
     public ResponseEntity<Void> receive(@PathVariable("tenant") String tenant,
                                         @PathVariable("type") String type,
                                         @RequestBody(required = false) String body) {
+        // This path is unauthenticated (the gateway has no JWT), so no TenantContext
+        // is bound by the filter. Bind a system context for the path tenant so
+        // Hibernate routes the insert to the tenant schema (where abdm_callback lives)
+        // instead of the platform schema.
+        TenantContext.set(TenantContext.systemContext(tenant));
         try {
             callbackService.enqueue(tenant, type, body);
+            return ResponseEntity.status(HttpStatus.ACCEPTED).build();
         } catch (Exception e) {
-            // Never fail the ACK on a storage hiccup beyond logging — the gateway
-            // will retry, and a duplicate is deduped on requestId.
+            // Do NOT ACK a failed persist — return 503 so the gateway retries and the
+            // callback isn't lost. Duplicates on retry are deduped on requestId.
             log.warn("Failed to persist ABDM callback (tenant {}, type {}): {}", tenant, type, e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        } finally {
+            TenantContext.clear();
         }
-        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 }

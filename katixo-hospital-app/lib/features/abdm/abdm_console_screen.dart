@@ -192,7 +192,7 @@ class _HipPanelState extends State<_HipPanel> {
               _field(_pGender, 'Gender', hint: 'male / female / other'),
               _field(_pDoctor, 'Practitioner name'),
               DropdownButtonFormField<String>(
-                value: _hiType,
+                initialValue: _hiType,
                 decoration: const InputDecoration(labelText: 'HI type'),
                 items: const [
                   DropdownMenuItem(value: 'Prescription', child: Text('Prescription')),
@@ -388,7 +388,7 @@ class _NhcxPanelState extends State<_NhcxPanel> {
           child: Column(
             children: [
               DropdownButtonFormField<String>(
-                value: _useCase,
+                initialValue: _useCase,
                 decoration: const InputDecoration(labelText: 'Use case'),
                 items: const [
                   DropdownMenuItem(value: 'claim', child: Text('Claim')),

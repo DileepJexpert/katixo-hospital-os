@@ -44,6 +44,7 @@ public class AbdmCryptoService {
     private static final int GCM_TAG_BITS = 128;
     private static final int IV_BYTES = 12;
     private static final int NONCE_BYTES = 32;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @PostConstruct
     void registerProvider() {
@@ -74,7 +75,7 @@ public class AbdmCryptoService {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance(CURVE, BouncyCastleProvider.PROVIDER_NAME);
             KeyPair kp = kpg.generateKeyPair();
             byte[] nonce = new byte[NONCE_BYTES];
-            new SecureRandom().nextBytes(nonce);
+            SECURE_RANDOM.nextBytes(nonce);
             return new KeyMaterial(kp,
                     Base64.getEncoder().encodeToString(kp.getPublic().getEncoded()),
                     Base64.getEncoder().encodeToString(nonce));
@@ -130,7 +131,7 @@ public class AbdmCryptoService {
 
     private byte[] hkdf(byte[] ikm, byte[] salt) {
         HKDFBytesGenerator gen = new HKDFBytesGenerator(new SHA256Digest());
-        gen.init(new HKDFParameters(ikm, salt, "abdm".getBytes()));
+        gen.init(new HKDFParameters(ikm, salt, "abdm".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         byte[] out = new byte[AES_KEY_BYTES];
         gen.generateBytes(out, 0, out.length);
         return out;

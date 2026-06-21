@@ -38,6 +38,7 @@ public class AbdmCallback {
     @Column(nullable = false)
     private String payload;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Status status = Status.PENDING;
 

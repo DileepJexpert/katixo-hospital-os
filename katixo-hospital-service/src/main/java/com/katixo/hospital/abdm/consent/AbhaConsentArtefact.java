@@ -45,6 +45,7 @@ public class AbhaConsentArtefact {
     @Column(length = 100)
     private String artefactId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Status status = Status.REQUESTED;
 
