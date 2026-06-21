@@ -4416,6 +4416,27 @@ CREATE TABLE abha_consent_artefact (
 );
 CREATE INDEX idx_abha_consent_patient ON abha_consent_artefact(tenant_id, patient_id);
 
+-- ABDM data-exchange transaction log: one row per HIP care-context link / HIP
+-- data push / HIU consent or data request / NHCX claim, with status + references.
+CREATE TABLE abdm_data_flow (
+    id                 BIGSERIAL PRIMARY KEY,
+    tenant_id          VARCHAR(50)  NOT NULL,
+    hospital_group_id  BIGINT       NOT NULL,
+    branch_id          BIGINT       NOT NULL,
+    role               VARCHAR(10)  NOT NULL,  -- HIP | HIU | NHCX
+    flow_type          VARCHAR(15)  NOT NULL,  -- LINK | CONSENT | DATA | CLAIM
+    status             VARCHAR(15)  NOT NULL DEFAULT 'INITIATED', -- INITIATED|SENT|RECEIVED|COMPLETED|FAILED
+    patient_id         BIGINT,
+    reference_id       VARCHAR(120),           -- consent/transaction/correlation id
+    detail             TEXT,
+    created_by         BIGINT       NOT NULL,
+    created_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by         BIGINT       NOT NULL,
+    updated_at         TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_abdm_data_flow_ref ON abdm_data_flow(tenant_id, reference_id);
+CREATE INDEX idx_abdm_data_flow_patient ON abdm_data_flow(tenant_id, patient_id);
+
 -- Minimal clinical terminology map (SNOMED CT / LOINC) so free-text diagnoses,
 -- tests and medicines can be emitted as coded FHIR for ABDM. Seeded with a
 -- high-frequency starter set in V2; the hospital extends it as needed.

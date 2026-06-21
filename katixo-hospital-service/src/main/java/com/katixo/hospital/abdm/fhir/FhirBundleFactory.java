@@ -93,6 +93,11 @@ public class FhirBundleFactory {
         return fhirContext.newJsonParser().encodeResourceToString(bundle);
     }
 
+    /** Serialize any FHIR resource to JSON (e.g. an NHCX Claim). */
+    public String encode(org.hl7.fhir.instance.model.api.IBaseResource resource) {
+        return fhirContext.newJsonParser().encodeResourceToString(resource);
+    }
+
     // ---- builders ----
     private Bundle newDocumentBundle(Date when) {
         Bundle b = new Bundle();
