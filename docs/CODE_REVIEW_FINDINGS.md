@@ -43,10 +43,10 @@ Severity key: **S2** = should fix before production / before selling into regula
 
 | # | Severity | Area | Finding | Status |
 |---|---|---|---|---|
-| F1 | **S2** | Clinical safety | `prescription/AllergyChecker` is a substring token match, not interaction checking | Open |
-| F2 | **S3** | Accounting integrity | `JournalService` balance check uses a `±0.01` tolerance — not a hard zero | Open |
-| F3 | **S3** | Security (prod) | Swagger UI / `v3/api-docs` are `permitAll` in the single security chain | Open |
-| F4 | **S3** | Secrets handling | Confirm no third-party secret is ever stored in the `hospital_policy` table in plaintext | Open |
+| F1 | **S2** | Clinical safety | `prescription/AllergyChecker` is a substring token match, not interaction checking | **Relabelled** (near-term); real drug-DB fix still open |
+| F2 | **S3** | Accounting integrity | `JournalService` balance check uses a `±0.01` tolerance — not a hard zero | **Fixed** (hard zero) |
+| F3 | **S3** | Security (prod) | Swagger UI / `v3/api-docs` are `permitAll` in the single security chain | **Already handled** — `application-prod.yml` disables springdoc |
+| F4 | **S3** | Secrets handling | Confirm no third-party secret is ever stored in the `hospital_policy` table in plaintext | **Fixed** (CLAUDE.md convention; settings tables are masked) |
 | F5 | **S4** | Code hygiene | Dead `var ctx = TenantContext.get();` assignment in `JournalService.post()` | **Fixed** |
 | F6 | **S4** | Docs hygiene | `IMPLEMENTATION_STATUS_AND_PLAN.md` "18 backend test classes (68 tests)" line is stale | **Fixed** |
 

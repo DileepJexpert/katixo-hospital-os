@@ -95,12 +95,19 @@ class _PrescriptionPanelState extends State<PrescriptionPanel> {
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.warning_amber_rounded,
             color: StatusColors.danger, size: 32),
-        title: const Text('Allergy Conflict'),
+        title: const Text('Allergy name-match'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(conflictMessage),
+            const SizedBox(height: Space.sm),
+            const Text(
+              'Note: this is a name-match prompt against the recorded allergy '
+              'text — not drug-interaction or contraindication checking. Use '
+              'clinical judgement.',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
             const SizedBox(height: Space.lg),
             const Text('To proceed anyway, give a clinical reason. '
                 'The override is recorded in the audit log.'),

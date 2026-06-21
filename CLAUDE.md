@@ -41,6 +41,11 @@ Katixo Hospital OS is a cloud SaaS hospital management platform for Indian hospi
 - Service layer reads policy value before executing configurable logic.
 - NEVER hardcode business rules that vary by hospital. Always check policy engine.
 - Policy codes defined in `HospitalPolicyCode` enum.
+- **SECRETS NEVER GO IN `hospital_policy`.** The policy table is for non-secret *configuration*
+  (toggles, thresholds, rates) only. Any third-party secret (SMS/WhatsApp keys, ABDM
+  `client_secret`, payment-gateway keys) goes in a **masked `*_settings` table** (write-only via
+  the API, masked on read) — see `notification_settings` / `abdm_settings`. New modules must
+  follow this pattern, never store a secret in a policy value.
 
 ### Audit Trail (from Sprint 0)
 - Every create/update/delete on clinical or financial data MUST write to `audit_log`.
