@@ -4416,6 +4416,28 @@ CREATE TABLE abha_consent_artefact (
 );
 CREATE INDEX idx_abha_consent_patient ON abha_consent_artefact(tenant_id, patient_id);
 
+-- Minimal clinical terminology map (SNOMED CT / LOINC) so free-text diagnoses,
+-- tests and medicines can be emitted as coded FHIR for ABDM. Seeded with a
+-- high-frequency starter set in V2; the hospital extends it as needed.
+CREATE TABLE clinical_code (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    category            VARCHAR(20)  NOT NULL,   -- DIAGNOSIS | LAB | MEDICINE
+    code_system         VARCHAR(20)  NOT NULL,   -- SNOMED_CT | LOINC | OTHER
+    code                VARCHAR(50)  NOT NULL,
+    display             VARCHAR(255) NOT NULL,
+    local_term          VARCHAR(255) NOT NULL,   -- lower-cased free-text key we map from
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, category, local_term)
+);
+CREATE INDEX idx_clinical_code_lookup ON clinical_code(tenant_id, category, local_term);
+
 CREATE TABLE notification_template (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,

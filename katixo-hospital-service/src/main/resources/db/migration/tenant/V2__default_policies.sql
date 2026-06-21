@@ -170,3 +170,29 @@ VALUES
   ('${tenantId}', 1, 1, 'FESO',     'Ferrous Sulphate + Folic Acid Tablet', '3004', 12, 15.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, 'PVDIODINE','Povidone Iodine 5% Solution 100ml', '3004', 12,  60.00, 'Generic', TRUE, 'ACTIVE', 1, NOW(), 1, NOW())
 ON CONFLICT (tenant_id, code) DO NOTHING;
+
+-- ============================================================
+-- Minimal clinical terminology starter map (SNOMED CT diagnoses + LOINC labs)
+-- so common free-text terms can be emitted as coded FHIR for ABDM. Extend from
+-- the terminology admin API as needed.
+-- ============================================================
+INSERT INTO clinical_code (tenant_id, hospital_group_id, branch_id, category, code_system, code, display, local_term,
+                           status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '386661006', 'Fever', 'fever', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '38341003',  'Hypertension', 'hypertension', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '44054006',  'Type 2 diabetes mellitus', 'type 2 diabetes mellitus', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '54150009',  'Upper respiratory infection', 'upper respiratory infection', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '25374005',  'Gastroenteritis', 'gastroenteritis', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '195967001', 'Asthma', 'asthma', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '13645005',  'Chronic obstructive pulmonary disease', 'copd', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'SNOMED_CT', '82272006',  'Common cold', 'common cold', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '58410-2', 'CBC panel - Blood', 'complete blood count', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '2339-0',  'Glucose [Mass/volume] in Blood', 'blood glucose', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '4548-4',  'Hemoglobin A1c/Hemoglobin.total in Blood', 'hba1c', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '24331-1', 'Lipid panel - Serum or Plasma', 'lipid profile', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '14749-6', 'Glucose [Moles/volume] in Serum or Plasma', 'fasting blood sugar', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '2160-0',  'Creatinine [Mass/volume] in Serum or Plasma', 'serum creatinine', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '3024-7',  'Thyroxine (T4) free [Mass/volume]', 'free t4', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'LAB', 'LOINC', '3016-3',  'Thyrotropin [Units/volume] in Serum or Plasma', 'tsh', 'ACTIVE', 1, NOW(), 1, NOW())
+ON CONFLICT (tenant_id, category, local_term) DO NOTHING;
