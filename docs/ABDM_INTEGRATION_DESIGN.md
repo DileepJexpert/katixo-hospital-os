@@ -7,9 +7,20 @@ Redis). Scope: **M1** (ABHA identity), **M2** (HIP record sharing), **M3** (HIU
 record fetch). **M4 / NHCX** claims is a separate track that reuses the existing
 `tpa/` module._
 
-> **Status:** Design only — no code yet. ABDM/ABHA/FHIR/NHCX appear **only in
-> docs** today; this is greenfield. The substrate it needs already exists and is
-> sound.
+> **Status (2026-06-21): full skeleton BUILT & compiling — pending sandbox certification.**
+> All milestones are implemented end-to-end in `abdm/` and compile against HAPI
+> FHIR 7.6 + BouncyCastle 1.78: M1 ABHA (backend + Flutter panel), terminology
+> layer (SNOMED/LOINC), `crypto/AbdmCryptoService` (X25519→HKDF→AES-GCM),
+> `fhir/FhirBundleFactory` (Prescription + DiagnosticReport bundles),
+> `hip/HipService` (M2 care-context link + data push), `hiu/HiuService` (M3
+> consent/data/receive), `nhcx/NhcxService` (FHIR Claim submit), with
+> `exchange/AbdmDataFlow` transaction log and role/`abdm.enabled`-gated controllers.
+> **What's left is not code structure but real-world reconciliation:** the actual
+> gateway/NHCX HTTP transport beans (currently `Stub*GatewayClient`, throwing
+> `*_NOT_CONFIGURED`), and bit-for-bit verification of the FHIR profiles + crypto
+> derivation against the **ABDM sandbox** (needs Health Facility registration +
+> credentials). The seams for all of that are isolated in the gateway-client
+> interfaces, `AbdmCryptoService`, and `FhirBundleFactory`.
 >
 > **Verified against code (2026-06-21):** `patient/PatientIdentifier` has
 > `identifierType`/`identifierValue`/`issuingAuthority`/`verified`/`verifiedAt`/
