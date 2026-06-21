@@ -272,7 +272,7 @@ substance already lives in-process. Three residual functional gaps were closed:
   was removed (it collided with the existing bean and broke startup on Windows).
 
 ### Tests
-- 18 backend test classes (68 tests) passing — **notifications (consent gate, template
+- 38 backend test classes passing — **notifications (consent gate, template
   render, SENT/FAILED/SKIPPED, fail-soft)**, payroll (incl. statutory remittance),
   expense (incl. AP loop), **TPA (approval reclassification + settlement + write-off)**,
   **patient credit status**, **pharmacy partial return (proportional reversal)**,

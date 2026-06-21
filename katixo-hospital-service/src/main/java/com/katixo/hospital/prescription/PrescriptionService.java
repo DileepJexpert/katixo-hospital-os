@@ -247,8 +247,9 @@ public class PrescriptionService {
 
         if (!overrideAllergy) {
             throw new BusinessException("ALLERGY_CONFLICT",
-                    "Prescription conflicts with recorded patient allergies: " + detail
-                            + ". Confirm override with a reason to proceed.");
+                    "Medicine name matches a recorded patient allergy: " + detail
+                            + ". This is a name-match prompt, not interaction/contraindication "
+                            + "checking — review clinically and confirm override with a reason to proceed.");
         }
         if (overrideReason == null || overrideReason.isBlank()) {
             throw new BusinessException("ALLERGY_OVERRIDE_REASON_REQUIRED",

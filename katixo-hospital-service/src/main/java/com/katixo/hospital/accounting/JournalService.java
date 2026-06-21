@@ -30,7 +30,9 @@ import java.util.UUID;
 @Slf4j
 public class JournalService {
 
-    private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
+    // Append-only ledger: postings must balance to the exact paisa (no tolerance).
+    // Generated postings balance exactly — the GST residue is absorbed into the
+    // SGST leg and COGS/revenue are computed to match.
 
     private final JournalEntryRepository entryRepository;
     private final JournalLineRepository lineRepository;
@@ -50,8 +52,6 @@ public class JournalService {
 
     public JournalEntry post(LocalDate entryDate, String description, String sourceModule,
                              String sourceReference, List<Line> lines) {
-        var ctx = TenantContext.get();
-
         if (lines == null || lines.size() < 2) {
             throw new BusinessException("JOURNAL_TOO_FEW_LINES", "A journal entry needs at least two lines");
         }
@@ -75,7 +75,7 @@ public class JournalService {
             totalDebit = totalDebit.add(debit);
             totalCredit = totalCredit.add(credit);
         }
-        if (totalDebit.subtract(totalCredit).abs().compareTo(TOLERANCE) > 0) {
+        if (totalDebit.compareTo(totalCredit) != 0) {
             throw new BusinessException("JOURNAL_UNBALANCED",
                     "Debits (" + totalDebit + ") must equal credits (" + totalCredit + ")");
         }

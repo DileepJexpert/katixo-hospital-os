@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/util/formatters.dart';
+import '../abdm/abha_panel.dart';
 import '../document/documents_panel.dart';
 import '../front_desk/registration_screen.dart' show MessageBanner;
 import 'patient_credit_panel.dart';
@@ -242,6 +243,13 @@ class _PatientsScreenState extends State<PatientsScreen> {
               key: ValueKey('docs-${p['id']}'),
               entityType: 'PATIENT',
               entityId: (p['id'] as num).toInt(),
+            ),
+          ],
+          if (p['id'] != null) ...[
+            const SizedBox(height: Space.md),
+            AbhaPanel(
+              key: ValueKey('abha-${p['id']}'),
+              patientId: (p['id'] as num).toInt(),
             ),
           ],
         ],

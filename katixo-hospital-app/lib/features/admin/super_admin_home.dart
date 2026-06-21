@@ -6,6 +6,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/config/feature_flags.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../abdm/abdm_console_screen.dart';
 import '../billing/bills_screen.dart';
 import '../billing/packages_screen.dart';
 import '../billing/tariffs_screen.dart';
@@ -86,6 +87,7 @@ class _SuperAdminHomeState extends State<SuperAdminHome> {
       (dest: const ShellDestination(label: 'Expenses', icon: Icons.receipt_outlined, selectedIcon: Icons.receipt), body: const ExpenseScreen()),
       (dest: const ShellDestination(label: 'Payroll', icon: Icons.payments_outlined, selectedIcon: Icons.payments), body: const PayrollScreen()),
       (dest: const ShellDestination(label: 'TPA', icon: Icons.health_and_safety_outlined, selectedIcon: Icons.health_and_safety), body: const TpaScreen()),
+      (dest: const ShellDestination(label: 'ABDM', icon: Icons.hub_outlined, selectedIcon: Icons.hub), body: const AbdmConsoleScreen()),
       (dest: const ShellDestination(label: 'Vendors', icon: Icons.store_outlined, selectedIcon: Icons.store), body: const VendorsScreen()),
       (dest: const ShellDestination(label: 'Purchase Orders', icon: Icons.shopping_cart_outlined, selectedIcon: Icons.shopping_cart), body: const PurchaseOrdersScreen()),
       (dest: const ShellDestination(label: 'Packages', icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2), body: const PackagesScreen()),

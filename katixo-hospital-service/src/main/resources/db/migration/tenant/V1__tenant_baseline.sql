@@ -4350,6 +4350,115 @@ CREATE TABLE notification_settings (
     UNIQUE (tenant_id, branch_id)
 );
 
+-- ABDM per-tenant config + secrets (each hospital is its own HIP/HIU).
+-- Secrets are write-only/masked in the API (never stored in hospital_policy).
+CREATE TABLE abdm_settings (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    environment         VARCHAR(20)  NOT NULL DEFAULT 'SANDBOX',  -- SANDBOX | PRODUCTION
+    hfr_id              VARCHAR(100),     -- Health Facility Registry id
+    hip_id             VARCHAR(100),     -- HIP identifier
+    hiu_id             VARCHAR(100),     -- HIU identifier
+    client_id           VARCHAR(255),
+    client_secret       VARCHAR(255),     -- masked on read
+    bridge_url          VARCHAR(255),     -- our public callback base URL registered with ABDM
+    nhcx_participant_code VARCHAR(100),   -- NHCX claims onboarding identity
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, branch_id)
+);
+
+-- ABDM inbound callback inbox: the outbox pattern inverted. The gateway calls
+-- our HIP/HIU endpoints with tight timeouts, so we persist + fast-ACK here and a
+-- poller processes asynchronously. request_id dedupes duplicate callbacks.
+CREATE TABLE abdm_callback (
+    id            BIGSERIAL PRIMARY KEY,
+    tenant_id     VARCHAR(50)  NOT NULL,
+    request_id    VARCHAR(100),
+    callback_type VARCHAR(80)  NOT NULL,   -- CONSENT_NOTIFY | HI_REQUEST | ON_DISCOVER | ...
+    payload       JSONB        NOT NULL,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING',  -- PENDING | PROCESSED | FAILED
+    retry_count   INTEGER      NOT NULL DEFAULT 0,
+    error         VARCHAR(500),
+    created_at    TIMESTAMP    NOT NULL DEFAULT now(),
+    processed_at  TIMESTAMP
+);
+CREATE INDEX idx_abdm_callback_status ON abdm_callback(status, created_at);
+
+-- ABDM consent artefact — machine-readable grant from the consent manager
+-- authorising a record exchange. DISTINCT from medico-legal consent_record.
+CREATE TABLE abha_consent_artefact (
+    id                 BIGSERIAL PRIMARY KEY,
+    tenant_id          VARCHAR(50)  NOT NULL,
+    hospital_group_id  BIGINT       NOT NULL,
+    branch_id          BIGINT       NOT NULL,
+    patient_id         BIGINT,
+    consent_request_id VARCHAR(100),
+    artefact_id        VARCHAR(100),
+    status             VARCHAR(20)  NOT NULL DEFAULT 'REQUESTED', -- REQUESTED|GRANTED|DENIED|EXPIRED|REVOKED
+    hi_types           VARCHAR(255),
+    date_range_from    TIMESTAMP,
+    date_range_to      TIMESTAMP,
+    expiry             TIMESTAMP,
+    hiu_id             VARCHAR(100),
+    requester          VARCHAR(150),
+    granted_at         TIMESTAMP,
+    raw_artefact       JSONB,
+    created_by         BIGINT       NOT NULL,
+    created_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by         BIGINT       NOT NULL,
+    updated_at         TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_abha_consent_patient ON abha_consent_artefact(tenant_id, patient_id);
+
+-- ABDM data-exchange transaction log: one row per HIP care-context link / HIP
+-- data push / HIU consent or data request / NHCX claim, with status + references.
+CREATE TABLE abdm_data_flow (
+    id                 BIGSERIAL PRIMARY KEY,
+    tenant_id          VARCHAR(50)  NOT NULL,
+    hospital_group_id  BIGINT       NOT NULL,
+    branch_id          BIGINT       NOT NULL,
+    role               VARCHAR(10)  NOT NULL,  -- HIP | HIU | NHCX
+    flow_type          VARCHAR(15)  NOT NULL,  -- LINK | CONSENT | DATA | CLAIM
+    status             VARCHAR(15)  NOT NULL DEFAULT 'INITIATED', -- INITIATED|SENT|RECEIVED|COMPLETED|FAILED
+    patient_id         BIGINT,
+    reference_id       VARCHAR(120),           -- consent/transaction/correlation id
+    detail             TEXT,
+    created_by         BIGINT       NOT NULL,
+    created_at         TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by         BIGINT       NOT NULL,
+    updated_at         TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_abdm_data_flow_ref ON abdm_data_flow(tenant_id, reference_id);
+CREATE INDEX idx_abdm_data_flow_patient ON abdm_data_flow(tenant_id, patient_id);
+
+-- Minimal clinical terminology map (SNOMED CT / LOINC) so free-text diagnoses,
+-- tests and medicines can be emitted as coded FHIR for ABDM. Seeded with a
+-- high-frequency starter set in V2; the hospital extends it as needed.
+CREATE TABLE clinical_code (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    category            VARCHAR(20)  NOT NULL,   -- DIAGNOSIS | LAB | MEDICINE
+    code_system         VARCHAR(20)  NOT NULL,   -- SNOMED_CT | LOINC | OTHER
+    code                VARCHAR(50)  NOT NULL,
+    display             VARCHAR(255) NOT NULL,
+    local_term          VARCHAR(255) NOT NULL,   -- lower-cased free-text key we map from
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, category, local_term)
+);
+CREATE INDEX idx_clinical_code_lookup ON clinical_code(tenant_id, category, local_term);
+
 CREATE TABLE notification_template (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(50)  NOT NULL,

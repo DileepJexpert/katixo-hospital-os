@@ -45,6 +45,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         // Board WS authenticates in its own JWT handshake interceptor.
                         .requestMatchers("/ws/**").permitAll()
+                        // ABDM gateway callbacks carry no JWT; verified by gateway
+                        // session/signature in the handler (SECURITY TODO before prod).
+                        .requestMatchers("/api/v1/abdm/callback/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

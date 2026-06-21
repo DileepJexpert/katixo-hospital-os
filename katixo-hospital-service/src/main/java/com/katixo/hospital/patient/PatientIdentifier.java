@@ -94,6 +94,8 @@ public class PatientIdentifier {
         GST_ID,
         EPIC_NO,
         EMPLOYEE_ID,
+        ABHA_NUMBER,    // 14-digit ABHA number (issuingAuthority = "ABDM")
+        ABHA_ADDRESS,   // ABHA address / PHR handle, e.g. user@abdm
         OTHER
     }
 
