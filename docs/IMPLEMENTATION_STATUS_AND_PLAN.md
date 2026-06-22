@@ -346,8 +346,13 @@ design tokens, provider + setState, raw-map API calls).
    dashboard (read model) and ~~notifications~~ **(notifications DONE 2026-06-16:
    `features/notification/notifications_screen.dart` — SMS/WhatsApp provider
    settings, per-(type,channel) templates, manual send, delivery log; mounted in
-   Admin + SuperAdmin homes)**. _Discharge has no standalone backend yet (only
-   IPD's bed-freeing discharge) — building that module is future work._
+   Admin + SuperAdmin homes)**. ~~_Discharge has no standalone backend yet…_~~
+   **CORRECTION (2026-06-22): discharge IS fully built** — `discharge/` module
+   (DischargeSummary CRUD + sign-off + PDF), IPD discharge with NORMAL/LAMA/DEATH
+   types and the **policy-driven blocking/warning checklist** (`ipd.discharge.
+   checklist_*`; LAMA/DEATH bypass blocking), `GET /ipd/discharge-checklist`, and
+   the Flutter `features/discharge/discharge_summary_screen.dart` (wired in Doctor
+   + SuperAdmin homes). Nothing pending here.
 6. ~~**Real-time** WebSocket queue/bed boards (sub-2s) per architecture rules.~~
    **DONE (2026-06-16):** raw-text WebSocket at `/ws/board` (JWT in the handshake
    query param, tenant:branch-isolated sessions). `BoardBroadcaster` pushes a
@@ -367,9 +372,12 @@ a group is rough priority.
 ### Clinical depth
 - **OT module** UI + scheduling (booking, surgery notes, anaesthesia record).
 - **Radiology** orders + report capture (mirrors lab).
-- **Discharge** workflow in app (summary, blocking vs warning checklist from policy).
+- ~~**Discharge** workflow~~ **DONE** — summary CRUD + sign-off + PDF, NORMAL/LAMA/
+  DEATH types, policy-driven blocking/warning checklist, Flutter screen.
 - **Nursing station** screens (vitals charting, indent raise/approve, eMAR).
 - **Appointment scheduling** + online/self booking; doctor calendars.
+- **CDSS**: real drug-interaction / allergy DB (current allergy check is a
+  name-match prompt only).
 
 ### Revenue cycle & finance
 - **TPA / insurance** full lifecycle (preauth → query → enhance → claim → settle),
@@ -387,7 +395,11 @@ a group is rough priority.
 - **Elasticsearch** patient + medicine search (replace LIKE queries).
 - **Notifications**: WhatsApp/SMS for appointments, reports-ready, bill receipts,
   collection reminders; push notifications.
-- **ABHA / ABDM** (India health stack) integration; **e-invoice/e-way** where applicable.
+- ~~**ABHA / ABDM** (India health stack) integration~~ **BUILT (skeleton, 2026-06-22,
+  PR #56)** — ABHA (M1), terminology (SNOMED/LOINC), FHIR R4, X25519/AES-GCM crypto,
+  HIP (M2), HIU (M3), NHCX claims, console UI. **Pending: ABDM sandbox certification +
+  real gateway transport beans** — see `docs/ABDM_GO_LIVE_CHECKLIST.md`. Plus
+  **e-invoice/e-way** where applicable (not started).
 - **NABH** quality indicators + incident reporting; audit/compliance exports.
 - **Multi-branch** rollups for hospital groups; per-branch dashboards.
 
@@ -402,7 +414,8 @@ a group is rough priority.
 
 ## 7. Branch / workflow
 
-- Active branch: `claude/friendly-johnson-gd10qe`. Commit + push here; no PRs unless asked.
+- Latest integration: merged to `main` via PR #56 (2026-06-22) — ABDM + review fixes.
+  New feature work branches off `main`; commit + push to the feature branch; no PRs unless asked.
 - Backend verify: `mvn -pl katixo-hospital-service test`.
 - Flutter verify: `flutter analyze` + `flutter build web` (needs a local Flutter SDK;
   the Claude Code env has none by default — install with

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
@@ -46,6 +47,10 @@ public class Appointment extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    /** Set when the day-before reminder has been sent, so the scheduler never double-sends. */
+    @Column
+    private LocalDateTime reminderSentAt;
 
     public enum AppointmentStatus {
         BOOKED, CONFIRMED, CHECKED_IN, COMPLETED, CANCELLED, NO_SHOW

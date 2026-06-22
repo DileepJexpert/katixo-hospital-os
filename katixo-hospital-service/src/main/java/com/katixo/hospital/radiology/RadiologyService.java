@@ -4,6 +4,10 @@ import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.notification.NotificationService;
+import com.katixo.hospital.notification.NotificationType;
+import com.katixo.hospital.patient.Patient;
+import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +34,8 @@ public class RadiologyService {
 
     private final RadiologyOrderRepository orderRepository;
     private final AuditService auditService;
+    private final PatientRepository patientRepository;
+    private final NotificationService notificationService;
 
     public RadiologyOrder order(Long patientId, Long referringDoctorId, RadiologyOrder.Modality modality,
                                 String studyName, String notes) {
@@ -101,7 +107,18 @@ public class RadiologyService {
         o.setReportedAt(LocalDateTime.now());
         o.setRadiologyStatus(RadiologyOrder.RadiologyStatus.REPORTED);
         o.setUpdatedBy(userId());
-        return audited(orderRepository.save(o), "REPORTED");
+        RadiologyOrder saved = audited(orderRepository.save(o), "REPORTED");
+
+        // Best-effort "your report is ready" to the patient (consent-gated, never blocks). Mirrors lab.
+        var ctx = TenantContext.get();
+        Patient patient = patientRepository.findByIdAndTenantIdAndBranchId(
+                saved.getPatientId(), ctx.getTenantId(), branchId()).orElse(null);
+        String reportLabel = saved.getStudyName() != null ? saved.getStudyName()
+                : (saved.getModality() != null ? saved.getModality() + " report" : "Radiology report");
+        notificationService.notifyPatient(NotificationType.REPORT_READY, patient, Map.of(
+                "name", patient == null || patient.getFullName() == null ? "" : patient.getFullName(),
+                "report", reportLabel), "RadiologyReport", saved.getId());
+        return saved;
     }
 
     public RadiologyOrder cancel(Long id, String reason) {

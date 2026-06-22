@@ -196,3 +196,29 @@ VALUES
   ('${tenantId}', 1, 1, 'LAB', 'LOINC', '3024-7',  'Thyroxine (T4) free [Mass/volume]', 'free t4', 'ACTIVE', 1, NOW(), 1, NOW()),
   ('${tenantId}', 1, 1, 'LAB', 'LOINC', '3016-3',  'Thyrotropin [Units/volume] in Serum or Plasma', 'tsh', 'ACTIVE', 1, NOW(), 1, NOW())
 ON CONFLICT (tenant_id, category, local_term) DO NOTHING;
+
+-- ============================================================
+-- Default SMS notification templates (placeholders match what the services pass).
+-- provider_ref (DLT template id) is left blank — the hospital fills its
+-- DLT-registered ids before transactional SMS will pass through MSG91. Bodies
+-- can be edited via PUT /api/v1/notifications/templates.
+-- ============================================================
+INSERT INTO notification_template (tenant_id, hospital_group_id, branch_id, notification_type, channel,
+                                   provider_ref, body, active, status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, 'WALK_IN',      'SMS', NULL,
+   'Dear {name}, your OPD visit {visit} is registered. Your token is {token}. - Katixo Hospital',
+   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'APPOINTMENT',  'SMS', NULL,
+   'Dear {name}, your appointment is booked for {date} at {time} (Dr {doctor}). - Katixo Hospital',
+   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'APPOINTMENT_REMINDER', 'SMS', NULL,
+   'Reminder: dear {name}, you have an appointment on {date} at {time} (Dr {doctor}). - Katixo Hospital',
+   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'REPORT_READY', 'SMS', NULL,
+   'Dear {name}, your {report} is ready for collection. - Katixo Hospital',
+   TRUE, 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'BILL',         'SMS', NULL,
+   'Dear {name}, your bill {bill} for Rs {amount} has been generated. - Katixo Hospital',
+   TRUE, 'ACTIVE', 1, NOW(), 1, NOW())
+ON CONFLICT (tenant_id, branch_id, notification_type, channel) DO NOTHING;

@@ -31,4 +31,10 @@ public interface AppointmentRepository extends BaseRepository<Appointment> {
                           @Param("date") LocalDate date,
                           @Param("slotStart") LocalTime slotStart,
                           @Param("slotEnd") LocalTime slotEnd);
+
+    /** Upcoming appointments on {@code date} still awaiting a reminder (not cancelled/done). */
+    @Query("SELECT a FROM Appointment a WHERE a.tenantId = :tenantId AND a.appointmentDate = :date " +
+            "AND a.reminderSentAt IS NULL AND a.appointmentStatus IN ('BOOKED', 'CONFIRMED') " +
+            "ORDER BY a.slotStart ASC")
+    List<Appointment> findDueForReminder(@Param("tenantId") String tenantId, @Param("date") LocalDate date);
 }
