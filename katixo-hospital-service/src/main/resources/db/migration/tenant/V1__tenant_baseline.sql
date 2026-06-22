@@ -42,6 +42,7 @@ CREATE TABLE appointment (
     appointment_status character varying(20) DEFAULT 'BOOKED'::character varying NOT NULL,
     visit_id bigint,
     notes text,
+    reminder_sent_at timestamp without time zone,
     status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL,
     created_by bigint,
     created_at timestamp without time zone DEFAULT now() NOT NULL,

@@ -4,6 +4,7 @@ package com.katixo.hospital.notification;
 public enum NotificationType {
     WALK_IN,
     APPOINTMENT,
+    APPOINTMENT_REMINDER,
     REPORT_READY,
     BILL,
     GENERIC
