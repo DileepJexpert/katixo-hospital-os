@@ -309,8 +309,13 @@ katixo-hospital-service/
 - **DLT (India):** transactional SMS needs a DLT-registered header + approved template id —
   the hospital registers these and stores them in settings/templates; code passes them through.
 - Endpoints `/api/v1/notifications` (settings [keys write-only/masked], templates, send, logs).
-  Triggers: **walk-in registration wired** (`OPDService` → patient, consent-gated, best-effort).
-  TODO triggers: appointment, report-ready, bill; doctor alerts + SSE; platform doctor registry.
+  Triggers wired (all patient-facing, consent-gated, best-effort, never block the flow):
+  **walk-in** (`OPDService`), **appointment** (`OPDService.bookAppointment`), **report-ready**
+  (`LabService.approveReport` + `RadiologyService.report`), **bill** (`BillingService.finalizeBill`).
+  Default SMS templates for WALK_IN/APPOINTMENT/REPORT_READY/BILL are seeded in V2 (DLT id blank —
+  the hospital fills its DLT-registered ids before transactional SMS passes through MSG91).
+  TODO triggers: appointment **reminders** (scheduled day-before), payment-receipt confirmation,
+  doctor alerts + SSE; platform doctor registry.
 - Design/roadmap: `docs/NOTIFICATIONS_AND_MULTI_HOSPITAL_DESIGN.md`. **Built fresh here — never call katasticho.**
 
 ## WebSocket / Real-time

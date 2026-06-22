@@ -2,6 +2,9 @@ package com.katixo.hospital.radiology;
 
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.exception.BusinessException;
+import com.katixo.hospital.notification.NotificationService;
+import com.katixo.hospital.notification.NotificationType;
+import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +19,9 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,12 +31,14 @@ class RadiologyServiceTest {
 
     @Mock RadiologyOrderRepository orderRepository;
     @Mock AuditService auditService;
+    @Mock PatientRepository patientRepository;
+    @Mock NotificationService notificationService;
 
     private RadiologyService service;
 
     @BeforeEach
     void setUp() {
-        service = new RadiologyService(orderRepository, auditService);
+        service = new RadiologyService(orderRepository, auditService, patientRepository, notificationService);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "doctor"));
         lenient().when(orderRepository.nextOrderSequence()).thenReturn(1001L);
         lenient().when(orderRepository.save(any())).thenAnswer(inv -> {
@@ -71,6 +78,9 @@ class RadiologyServiceTest {
         RadiologyOrder reported = service.report(4L, "No fracture", "Normal study");
         assertEquals(RadiologyOrder.RadiologyStatus.REPORTED, reported.getRadiologyStatus());
         assertEquals("Normal study", reported.getImpression());
+        // "report ready" patient notification fires (consent-gated, best-effort) on report.
+        verify(notificationService).notifyPatient(eq(NotificationType.REPORT_READY), any(), any(),
+                eq("RadiologyReport"), any());
     }
 
     @Test
