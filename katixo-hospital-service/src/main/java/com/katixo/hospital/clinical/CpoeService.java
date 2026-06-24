@@ -38,6 +38,7 @@ public class CpoeService {
     private final PatientRepository patientRepository;
     private final CdsService cdsService;
     private final AuditService auditService;
+    private final ClinicalOrderRouter orderRouter;
 
     public record PlaceResult(ClinicalOrder order, List<CdsAlert> alerts) {}
 
@@ -82,6 +83,21 @@ public class CpoeService {
         proposed.setPlacedByDoctorId(userId());
         stamp(proposed);
         ClinicalOrder saved = orderRepository.save(proposed);
+
+        // Route to the executing department (Lab/Radiology) — best-effort + isolated:
+        // a routing failure (own tx) never breaks the CPOE placement; on success the
+        // unified order back-links to the real department order.
+        try {
+            ClinicalOrderRouter.Ref ref = orderRouter.route(saved, enc);
+            if (ref != null) {
+                saved.setLinkedRefType(ref.type());
+                saved.setLinkedRefId(ref.id());
+                saved = orderRepository.save(saved);
+                log.info("CPOE order {} routed to {} {}", saved.getId(), ref.type(), ref.id());
+            }
+        } catch (RuntimeException ex) {
+            log.warn("CPOE order {} not routed ({} {}): {}", saved.getId(), orderType, saved.getName(), ex.getMessage());
+        }
 
         auditService.audit("ClinicalOrder", String.valueOf(saved.getId()), AuditLog.AuditAction.CREATE,
                 null, Map.of("encounterId", encounterId, "type", orderType.name(), "name", saved.getName(),

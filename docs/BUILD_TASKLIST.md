@@ -15,8 +15,10 @@
 - [x] **T0.1.4** CDS SPI (`CdsRule`/`CdsService`) + AllergyCdsRule (CRITICAL) + DuplicateOrderCdsRule (WARNING)
 - [x] **T0.1.5** `ClinicalService` + `CpoeService` (CDS gate: CRITICAL blocks unless override) + `ClinicalController`
 - [x] **T0.1.6** V1 tables + unit tests (CDS rules, CPOE gate) — *195 tests pass*
-- [ ] **T0.1.7** Route CPOE orders → existing services: LAB→`LabService`, RADIOLOGY→`RadiologyService`,
-  PHARMACY→prescription/dispense; back-link `linkedRefType`/`linkedRefId`; sync status back to ClinicalOrder
+- [~] **T0.1.7** Route CPOE orders → department services (`ClinicalOrderRouter`, best-effort + REQUIRES_NEW isolation):
+  **RADIOLOGY→`RadiologyService`** (any encounter), **LAB→`LabService`** (OPD/IPD-sourced + valid code), back-link
+  `linkedRefType`/`linkedRefId`. *Remaining:* PHARMACY→prescription, and reverse status-sync
+  (department completion → ClinicalOrder COMPLETED) via events to avoid a dependency cycle.
 - [ ] **T0.1.8** Auto-open an Encounter from OPD `startConsultation` / IPD admit (so docs/orders attach automatically)
 - [x] **T0.1.9** Flutter EMR chart screen (`features/clinical/emr_chart_screen.dart`) — encounter open/close, SOAP note editor + versioned note list, CPOE order entry with CDS override dialog + order status; wired into Doctor + SuperAdmin homes
 - [ ] **T0.1.10** Encounter summary PDF (problem list, notes, orders) via openhtmltopdf

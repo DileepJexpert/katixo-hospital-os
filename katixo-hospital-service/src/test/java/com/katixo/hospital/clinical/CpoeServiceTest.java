@@ -36,12 +36,13 @@ class CpoeServiceTest {
     @Mock PatientRepository patientRepository;
     @Mock CdsService cdsService;
     @Mock AuditService auditService;
+    @Mock ClinicalOrderRouter orderRouter;
 
     private CpoeService service;
 
     @BeforeEach
     void setUp() {
-        service = new CpoeService(orderRepository, clinicalService, patientRepository, cdsService, auditService);
+        service = new CpoeService(orderRepository, clinicalService, patientRepository, cdsService, auditService, orderRouter);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "3", "doctor"));
 
         Encounter enc = new Encounter();
@@ -99,5 +100,33 @@ class CpoeServiceTest {
         assertEquals(ClinicalOrder.OrderStatus.PLACED, r.order().getOrderStatus());
         assertEquals(ClinicalOrder.Priority.ROUTINE, r.order().getPriority());
         verify(orderRepository).save(any());
+    }
+
+    @Test
+    void routedOrderIsBackLinked() {
+        when(cdsService.evaluate(any())).thenReturn(List.of());
+        when(cdsService.hasBlocking(any())).thenReturn(false);
+        when(orderRouter.route(any(), any())).thenReturn(new ClinicalOrderRouter.Ref("RADIOLOGY_ORDER", 99L));
+
+        CpoeService.PlaceResult r = service.placeOrder(
+                10L, ClinicalOrder.OrderType.RADIOLOGY, "CTHEAD", "CT Head",
+                null, null, null);
+
+        assertEquals("RADIOLOGY_ORDER", r.order().getLinkedRefType());
+        assertEquals(99L, r.order().getLinkedRefId());
+    }
+
+    @Test
+    void routingFailureDoesNotBreakPlacement() {
+        when(cdsService.evaluate(any())).thenReturn(List.of());
+        when(cdsService.hasBlocking(any())).thenReturn(false);
+        when(orderRouter.route(any(), any())).thenThrow(new BusinessException("TEST_NOT_FOUND", "no such test"));
+
+        CpoeService.PlaceResult r = service.placeOrder(
+                10L, ClinicalOrder.OrderType.LAB, "BOGUS", "Unknown test",
+                null, null, null);
+
+        assertEquals(ClinicalOrder.OrderStatus.PLACED, r.order().getOrderStatus());
+        assertEquals(null, r.order().getLinkedRefType());
     }
 }
