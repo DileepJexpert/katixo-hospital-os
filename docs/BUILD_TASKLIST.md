@@ -18,7 +18,7 @@
 - [ ] **T0.1.7** Route CPOE orders → existing services: LAB→`LabService`, RADIOLOGY→`RadiologyService`,
   PHARMACY→prescription/dispense; back-link `linkedRefType`/`linkedRefId`; sync status back to ClinicalOrder
 - [ ] **T0.1.8** Auto-open an Encounter from OPD `startConsultation` / IPD admit (so docs/orders attach automatically)
-- [ ] **T0.1.9** Flutter EMR chart screen (encounter: SOAP note editor + order entry + CDS alert dialog), wired into Doctor worklist
+- [x] **T0.1.9** Flutter EMR chart screen (`features/clinical/emr_chart_screen.dart`) — encounter open/close, SOAP note editor + versioned note list, CPOE order entry with CDS override dialog + order status; wired into Doctor + SuperAdmin homes
 - [ ] **T0.1.10** Encounter summary PDF (problem list, notes, orders) via openhtmltopdf
 - [ ] **T0.1.11** Vitals + prescription surfaced on the encounter chart (reuse `nursing`/`prescription`)
 
@@ -87,6 +87,10 @@
 > Compliance / patient-safety / revenue micro-features. P0 = blocks NABH/law/sale. IDs stable.
 > (FEFO, TPA pre-auth+disallowance, ICD-10 infra, occupancy% are already partly built — see the
 > "Validated corrections" in the analysis; backlog below is the *true* remainder only.)
+>
+> **Build-effort tag (from the UI audit):** **(A)** full build, backend + UI · **(B)** backend exists,
+> **needs UI surfacing only** (cheap) · **(C)** shallow on UI today (a field exists; needs the logic).
+> Untagged = assume **(A)**.
 
 ### Track SC — Statutory / compliance (India) — Stage 0
 - [ ] **SC1** Schedule H1 register (Rule 65: prescriber/patient/drug/qty, 3-yr retention) — **P0**
@@ -95,14 +99,14 @@
 - [ ] **SC4** MLC register (auto-trigger on RTA/assault/poisoning/burns) — **P0**
 - [ ] **SC5** Birth & death registration + ICD-10 cause-of-death → registrar export — **P0**
 - [ ] **SC6** MPI duplicate-detection (deterministic+probabilistic) & merge/overlay w/ audit — **P0** (COP 1B)
-- [ ] **SC7** ICD-10 coding at discharge (extend terminology `codeSystem=ICD10` + capture) — **P0**
+- [ ] **SC7** ICD-10 coding at discharge (extend terminology `codeSystem=ICD10` + capture) — **P0** **(C)**
 - [ ] **SC8** Govt statutory reporting: HMIS / IDSP notifiable-disease / CEA — **P0**
 - [ ] **SC9** Credentialing / license-expiry tracking (staff + ABDM HPR) — **P0** (HRM)
 - [ ] **SC10** Data-retention / medico-legal retention enforcement (3-yr IN / 25-yr UAE) — P1
 
 ### Track PS — Patient-safety / NABH core — Stage 0→1
-- [ ] **PS1** Structured EMR notes w/ coded dx (SNOMED/ICD-10) — **P0** (extends `clinical/ClinicalNote`)
-- [ ] **PS2** CDS tier-1: DDI, dose-range, duplicate-therapy, renal/hepatic, pregnancy/pediatric — **P0/P1** (extend `clinical/cds`)
+- [ ] **PS1** Structured EMR notes w/ coded dx (SNOMED/ICD-10) — **P0** **(B/C)** note UI now shipped (T0.1.9); add ICD/SNOMED coded capture
+- [ ] **PS2** CDS tier-1: DDI, dose-range, duplicate-therapy, renal/hepatic, pregnancy/pediatric — **P0/P1** **(B** allergy+dup done; **A** for DDI/dose/renal/preg)
 - [ ] **PS3** LASA alerts (tall-man) — **P0** (MOM Core)
 - [ ] **PS4** eMAR with 5-rights (+barcode) — **P0**
 - [ ] **PS5** LIS critical/panic-value alert & escalation — **P0**
@@ -112,7 +116,7 @@
 - [ ] **PS9** Discharge medication reconciliation — **P0**
 - [ ] **PS10** Death summary + DAMA/LAMA handling — **P0**
 - [ ] **PS11** ADR / medication-error reporting (+ near-miss, RCA, CAPA) — **P0/P1**
-- [ ] **PS12** Pharmacy near-expiry alerts (FEFO present) + LASA separation flag — **P0/P1**
+- [ ] **PS12** Pharmacy near-expiry alerts + LASA separation flag — **P0/P1** **(B** surface FEFO; **A** alerts/LASA)
 - [ ] **PS13** Nursing: assessment forms, care plans, notes, shift handover — P1
 - [ ] **PS14** OPD vitals capture at visit — P1
 
@@ -120,7 +124,7 @@
 - [ ] **RC1** Payer rate-contracts + ward-category/room-rent-linked auto-pricing — **P0/P1**
 - [ ] **RC2** Interim/provisional + daily IP bill run — **P0**
 - [ ] **RC3** Bill pre-estimate — **P0**
-- [ ] **RC4** TPA: pre-auth doc attachment + enhancement + disallowance-recon depth (lifecycle exists) — P1
+- [ ] **RC4** TPA: pre-auth doc attachment + enhancement + disallowance-recon depth (lifecycle exists) — P1 **(B)**
 - [ ] **RC5** Credit notes + refunds + advance/deposit adjustment into IP bill — P1
 - [ ] **RC6** NHCX claim/eligibility/pre-auth FHIR profiles wired to billing — P1
 - [ ] **RC7** Corporate/sponsor billing + co-pay/deductible — P1
@@ -129,7 +133,7 @@
 - [ ] **IN1** HL7 v2 engine (ADT/ORM/ORU + MLLP) — **P0** → see T0.2
 - [ ] **IN2** Lab analyzer bidirectional interface (HL7/ASTM) — **P0** → see T0.4
 - [ ] **IN3** DICOM MWL + PACS viewer (OEM) + critical-findings — **P0** → see T1.5
-- [ ] **IN4** Terminology services (SNOMED/LOINC/ICD-10) embedded in clinical capture — **P0** (extend `terminology`)
+- [ ] **IN4** Terminology services (SNOMED/LOINC/ICD-10) embedded in clinical capture — **P0** **(B/C)** (extend `terminology`)
 - [ ] **IN5** Break-the-glass emergency access + access-log review + field-level RBAC — P1 (GCC)
 
 ### Track CM — Clinical modules (build per buyer service-mix) — Stage 1→2
