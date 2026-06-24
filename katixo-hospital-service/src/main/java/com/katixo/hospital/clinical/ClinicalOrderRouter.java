@@ -3,6 +3,9 @@ package com.katixo.hospital.clinical;
 import com.katixo.hospital.billing.HospitalCharge;
 import com.katixo.hospital.lab.LabOrder;
 import com.katixo.hospital.lab.LabService;
+import com.katixo.hospital.prescription.Prescription;
+import com.katixo.hospital.prescription.PrescriptionItem;
+import com.katixo.hospital.prescription.PrescriptionService;
 import com.katixo.hospital.radiology.RadiologyOrder;
 import com.katixo.hospital.radiology.RadiologyService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ public class ClinicalOrderRouter {
 
     private final LabService labService;
     private final RadiologyService radiologyService;
+    private final PrescriptionService prescriptionService;
 
     /** Back-link to the department order, or null if not routable. */
     public record Ref(String type, Long id) {}
@@ -43,8 +47,26 @@ public class ClinicalOrderRouter {
         return switch (order.getOrderType()) {
             case LAB -> routeLab(order, encounter);
             case RADIOLOGY -> routeRadiology(order, encounter);
-            default -> null; // PHARMACY / PROCEDURE / NURSING: in-encounter only for now
+            case PHARMACY -> routePharmacy(order, encounter);
+            default -> null; // PROCEDURE / NURSING: in-encounter only
         };
+    }
+
+    private Ref routePharmacy(ClinicalOrder order, Encounter enc) {
+        // A prescription needs an OPD visit (PrescriptionService keys off visitId).
+        if (enc.getSourceType() != Encounter.SourceType.OPD_VISIT || enc.getSourceId() == null) {
+            log.debug("Pharmacy CPOE order {} not routed — encounter is not OPD-visit sourced", order.getId());
+            return null;
+        }
+        PrescriptionItem item = new PrescriptionItem();
+        item.setMedicineCode(order.getCode());
+        item.setMedicineName(order.getName());
+        item.setInstructions(order.getInstructions());
+        item.setQuantity(1);
+        // CDS already ran in CPOE — override the prescription's own allergy guard (audited reason).
+        Prescription rx = prescriptionService.create(enc.getSourceId(), "CPOE order",
+                List.of(item), true, "CPOE order — CDS already evaluated");
+        return new Ref("PRESCRIPTION", rx.getId());
     }
 
     private Ref routeLab(ClinicalOrder order, Encounter enc) {

@@ -3,6 +3,8 @@ package com.katixo.hospital.clinical;
 import com.katixo.hospital.billing.HospitalCharge;
 import com.katixo.hospital.lab.LabOrder;
 import com.katixo.hospital.lab.LabService;
+import com.katixo.hospital.prescription.Prescription;
+import com.katixo.hospital.prescription.PrescriptionService;
 import com.katixo.hospital.radiology.RadiologyOrder;
 import com.katixo.hospital.radiology.RadiologyService;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,9 +26,10 @@ class ClinicalOrderRouterTest {
 
     @Mock LabService labService;
     @Mock RadiologyService radiologyService;
+    @Mock PrescriptionService prescriptionService;
 
     private ClinicalOrderRouter router() {
-        return new ClinicalOrderRouter(labService, radiologyService);
+        return new ClinicalOrderRouter(labService, radiologyService, prescriptionService);
     }
 
     private Encounter enc(Encounter.SourceType st, Long sid) {
@@ -87,11 +91,26 @@ class ClinicalOrderRouterTest {
     }
 
     @Test
-    void pharmacyStaysInEncounter() {
+    void pharmacyRoutesToPrescriptionForVisit() {
+        Prescription rx = new Prescription();
+        rx.setId(66L);
+        when(prescriptionService.create(eq(200L), any(), any(), eq(true), any())).thenReturn(rx);
+
         ClinicalOrderRouter.Ref ref = router().route(
                 order(ClinicalOrder.OrderType.PHARMACY, "AMOX", "Amoxicillin"),
                 enc(Encounter.SourceType.OPD_VISIT, 200L));
 
+        assertEquals("PRESCRIPTION", ref.type());
+        assertEquals(66L, ref.id());
+    }
+
+    @Test
+    void pharmacyNotRoutedForStandaloneEncounter() {
+        ClinicalOrderRouter.Ref ref = router().route(
+                order(ClinicalOrder.OrderType.PHARMACY, "AMOX", "Amoxicillin"),
+                enc(Encounter.SourceType.STANDALONE, null));
+
         assertNull(ref);
+        verify(prescriptionService, never()).create(any(), any(), any(), anyBoolean(), any());
     }
 }
