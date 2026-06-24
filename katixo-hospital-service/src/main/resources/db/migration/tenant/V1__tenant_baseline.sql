@@ -3833,6 +3833,32 @@ CREATE TABLE controlled_drug_register (
 );
 CREATE INDEX idx_cdr_tenant_date ON controlled_drug_register(tenant_id, entry_date);
 CREATE INDEX idx_cdr_schedule ON controlled_drug_register(tenant_id, drug_schedule);
+
+-- Medico-legal case (MLC) register — RTA / assault / poisoning / burns / unnatural death.
+CREATE TABLE mlc_register (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             VARCHAR(50)  NOT NULL,
+    hospital_group_id     BIGINT       NOT NULL,
+    branch_id             BIGINT       NOT NULL,
+    mlc_number            VARCHAR(40),
+    patient_id            BIGINT       NOT NULL,
+    mlc_type              VARCHAR(20)  NOT NULL,
+    incident_at           TIMESTAMP,
+    brought_by            VARCHAR(150),
+    police_station        VARCHAR(150),
+    fir_number            VARCHAR(60),
+    brought_dead          BOOLEAN      NOT NULL DEFAULT FALSE,
+    case_status           VARCHAR(20)  NOT NULL DEFAULT 'REGISTERED',
+    registered_by_doctor_id BIGINT,
+    remarks               TEXT,
+    status                VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by            BIGINT       NOT NULL,
+    created_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by            BIGINT       NOT NULL,
+    updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_mlc_patient ON mlc_register(tenant_id, patient_id);
+CREATE INDEX idx_mlc_status ON mlc_register(tenant_id, case_status);
 CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
 CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
 

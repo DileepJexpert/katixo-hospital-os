@@ -98,7 +98,7 @@
 - [x] **SC1** Schedule H1 register — `controlled_drug_register` + `ControlledDrugRegisterService` auto-records H1 supplies on pharmacy sale; prescriber capture API
 - [x] **SC2** Schedule X / NDPS register — same register auto-records X/NDPS supplies (Item.isControlled gate)
 - [x] **SC3** Drug-schedule classification on item master (`Item.drugSchedule`, settable on create, in item view)
-- [ ] **SC4** MLC register (auto-trigger on RTA/assault/poisoning/burns) — **P0**
+- [x] **SC4** MLC register (`mlc/` module: register/list/close, types RTA/assault/poisoning/burns/etc, police+FIR+brought-dead) — `/api/v1/mlc`
 - [ ] **SC5** Birth & death registration + ICD-10 cause-of-death → registrar export — **P0**
 - [ ] **SC6** MPI duplicate-detection (deterministic+probabilistic) & merge/overlay w/ audit — **P0** (COP 1B)
 - [ ] **SC7** ICD-10 coding at discharge (extend terminology `codeSystem=ICD10` + capture) — **P0** **(C)**
