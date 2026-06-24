@@ -83,6 +83,75 @@
 
 ---
 
+## Granular sub-feature backlog — from `LOW_LEVEL_GAP_ANALYSIS.md`
+> Compliance / patient-safety / revenue micro-features. P0 = blocks NABH/law/sale. IDs stable.
+> (FEFO, TPA pre-auth+disallowance, ICD-10 infra, occupancy% are already partly built — see the
+> "Validated corrections" in the analysis; backlog below is the *true* remainder only.)
+
+### Track SC — Statutory / compliance (India) — Stage 0
+- [ ] **SC1** Schedule H1 register (Rule 65: prescriber/patient/drug/qty, 3-yr retention) — **P0**
+- [ ] **SC2** Schedule X / NDPS narcotic register (triplicate/controlled) — **P0**
+- [ ] **SC3** Drug-schedule classification (H/H1/X/NDPS) on item master — P1 (feeds SC1/SC2)
+- [ ] **SC4** MLC register (auto-trigger on RTA/assault/poisoning/burns) — **P0**
+- [ ] **SC5** Birth & death registration + ICD-10 cause-of-death → registrar export — **P0**
+- [ ] **SC6** MPI duplicate-detection (deterministic+probabilistic) & merge/overlay w/ audit — **P0** (COP 1B)
+- [ ] **SC7** ICD-10 coding at discharge (extend terminology `codeSystem=ICD10` + capture) — **P0**
+- [ ] **SC8** Govt statutory reporting: HMIS / IDSP notifiable-disease / CEA — **P0**
+- [ ] **SC9** Credentialing / license-expiry tracking (staff + ABDM HPR) — **P0** (HRM)
+- [ ] **SC10** Data-retention / medico-legal retention enforcement (3-yr IN / 25-yr UAE) — P1
+
+### Track PS — Patient-safety / NABH core — Stage 0→1
+- [ ] **PS1** Structured EMR notes w/ coded dx (SNOMED/ICD-10) — **P0** (extends `clinical/ClinicalNote`)
+- [ ] **PS2** CDS tier-1: DDI, dose-range, duplicate-therapy, renal/hepatic, pregnancy/pediatric — **P0/P1** (extend `clinical/cds`)
+- [ ] **PS3** LASA alerts (tall-man) — **P0** (MOM Core)
+- [ ] **PS4** eMAR with 5-rights (+barcode) — **P0**
+- [ ] **PS5** LIS critical/panic-value alert & escalation — **P0**
+- [ ] **PS6** WHO surgical safety checklist (Sign-In / Time-Out / Sign-Out) on OT — **P0**
+- [ ] **PS7** Implant tracking (model/batch/serial/expiry/size in patient record) — **P0** (MOM 1e)
+- [ ] **PS8** Fall-risk assessment (COP 16C) + pressure-ulcer scale — **P0/P1**
+- [ ] **PS9** Discharge medication reconciliation — **P0**
+- [ ] **PS10** Death summary + DAMA/LAMA handling — **P0**
+- [ ] **PS11** ADR / medication-error reporting (+ near-miss, RCA, CAPA) — **P0/P1**
+- [ ] **PS12** Pharmacy near-expiry alerts (FEFO present) + LASA separation flag — **P0/P1**
+- [ ] **PS13** Nursing: assessment forms, care plans, notes, shift handover — P1
+- [ ] **PS14** OPD vitals capture at visit — P1
+
+### Track RC — Revenue-cycle depth — Stage 1→2
+- [ ] **RC1** Payer rate-contracts + ward-category/room-rent-linked auto-pricing — **P0/P1**
+- [ ] **RC2** Interim/provisional + daily IP bill run — **P0**
+- [ ] **RC3** Bill pre-estimate — **P0**
+- [ ] **RC4** TPA: pre-auth doc attachment + enhancement + disallowance-recon depth (lifecycle exists) — P1
+- [ ] **RC5** Credit notes + refunds + advance/deposit adjustment into IP bill — P1
+- [ ] **RC6** NHCX claim/eligibility/pre-auth FHIR profiles wired to billing — P1
+- [ ] **RC7** Corporate/sponsor billing + co-pay/deductible — P1
+
+### Track IN — Interoperability / terminology — Stage 0→1 (overlaps macro T0.2/T0.4/T1.5)
+- [ ] **IN1** HL7 v2 engine (ADT/ORM/ORU + MLLP) — **P0** → see T0.2
+- [ ] **IN2** Lab analyzer bidirectional interface (HL7/ASTM) — **P0** → see T0.4
+- [ ] **IN3** DICOM MWL + PACS viewer (OEM) + critical-findings — **P0** → see T1.5
+- [ ] **IN4** Terminology services (SNOMED/LOINC/ICD-10) embedded in clinical capture — **P0** (extend `terminology`)
+- [ ] **IN5** Break-the-glass emergency access + access-log review + field-level RBAC — P1 (GCC)
+
+### Track CM — Clinical modules (build per buyer service-mix) — Stage 1→2
+- [ ] **CM1** Emergency/casualty: triage ESI 1–5, MLC auto-trigger, trauma, code-triage, brought-dead, police-intimation — **P0 if ED**
+- [ ] **CM2** Blood bank: donor+deferral, grouping+cross-match, components+storage/expiry, issue+compat, transfusion-reaction, TTI — **P0 if licensed**
+- [ ] **CM3** ICU/critical-care charting (flowsheets, vent/monitor, APACHE/SOFA/GCS) — P1
+- [ ] **CM4** CSSD (cycle tracking, Bowie-Dick/BI, tray barcode, load recall) — P1 (HIC)
+- [ ] **CM5** Biomedical equipment: asset register, PPM, calibration, breakdown, AMC/CMC — P1 (FMS)
+- [ ] **CM6** Dietary (diet orders, therapeutic, kitchen indent) — P2
+- [ ] **CM7** Ambulance/EMS (roster, trip log, dispatch) — P2
+
+### Track RG/INV — Registration·OPD·IPD·inventory depth — Stage 1→2
+- [ ] **RG1** Next-of-kin/guardian/emergency contacts; payer-at-registration; blood group/deceased/VIP flags — P1
+- [ ] **RG2** Patient photo / biometric capture — P1
+- [ ] **RG3** Bed-status/housekeeping board; ALOS + expected-discharge analytics — P1
+- [ ] **RG4** Deposit/advance management during admission — P1
+- [ ] **INV1** Reorder level/min-max + near-expiry mgmt — P0/P1
+- [ ] **INV2** Requisition → PO → GRN → invoice 3-way match + GRN-QC — P1
+- [ ] **INV3** Multi-store/sub-store; ABC/VED; rate contracts + vendor scoring — P1
+
+---
+
 ## Already shipped (context — not in scope to rebuild)
 - [x] Double-entry accounting, billing, inventory (FEFO), procurement, payroll, expense, vendor, TPA
 - [x] OPD/IPD/nursing/lab/radiology/discharge(full)/consent/certificate/NABH
