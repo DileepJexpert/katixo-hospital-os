@@ -51,6 +51,7 @@ public class PharmacySaleService {
     private final PharmacySaleLineRepository lineRepository;
     private final JournalService journalService;
     private final AuditService auditService;
+    private final ControlledDrugRegisterService controlledRegister;
 
     /** One requested sale line: an item code and quantity (price defaults to the item's MRP). */
     public record SaleLineInput(String itemCode, BigDecimal quantity) {
@@ -124,6 +125,11 @@ public class PharmacySaleService {
             line.setCostTotal(issued.totalCost());
             stamp(line);
             lineRepository.save(line);
+
+            // Schedule H1/X/NDPS supplies must hit the controlled-drug register (Rule 65 / NDPS).
+            if (item.isControlled()) {
+                controlledRegister.record(savedSale, line, item, null);
+            }
 
             taxableTotal = taxableTotal.add(gst.taxableValue());
             cgstTotal = cgstTotal.add(gst.cgst());

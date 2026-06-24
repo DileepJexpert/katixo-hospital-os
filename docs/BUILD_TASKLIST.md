@@ -95,9 +95,9 @@
 > Untagged = assume **(A)**.
 
 ### Track SC — Statutory / compliance (India) — Stage 0
-- [ ] **SC1** Schedule H1 register (Rule 65: prescriber/patient/drug/qty, 3-yr retention) — **P0**
-- [ ] **SC2** Schedule X / NDPS narcotic register (triplicate/controlled) — **P0**
-- [ ] **SC3** Drug-schedule classification (H/H1/X/NDPS) on item master — P1 (feeds SC1/SC2)
+- [x] **SC1** Schedule H1 register — `controlled_drug_register` + `ControlledDrugRegisterService` auto-records H1 supplies on pharmacy sale; prescriber capture API
+- [x] **SC2** Schedule X / NDPS register — same register auto-records X/NDPS supplies (Item.isControlled gate)
+- [x] **SC3** Drug-schedule classification on item master (`Item.drugSchedule`, settable on create, in item view)
 - [ ] **SC4** MLC register (auto-trigger on RTA/assault/poisoning/burns) — **P0**
 - [ ] **SC5** Birth & death registration + ICD-10 cause-of-death → registrar export — **P0**
 - [ ] **SC6** MPI duplicate-detection (deterministic+probabilistic) & merge/overlay w/ audit — **P0** (COP 1B)

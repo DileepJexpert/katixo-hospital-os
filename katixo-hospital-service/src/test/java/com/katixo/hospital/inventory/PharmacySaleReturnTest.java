@@ -38,13 +38,14 @@ class PharmacySaleReturnTest {
     @Mock PharmacySaleLineRepository lineRepository;
     @Mock JournalService journalService;
     @Mock AuditService auditService;
+    @Mock ControlledDrugRegisterService controlledRegister;
 
     private PharmacySaleService service;
 
     @BeforeEach
     void setUp() {
         service = new PharmacySaleService(itemRepository, inventoryService, saleRepository,
-                lineRepository, journalService, auditService);
+                lineRepository, journalService, auditService, controlledRegister);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "pharmacist"));
         lenient().when(lineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         JournalEntry je = new JournalEntry();

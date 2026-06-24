@@ -3797,6 +3797,7 @@ CREATE TABLE pharmacy_item (
     manufacturer        VARCHAR(150),
     track_batches       BOOLEAN      NOT NULL DEFAULT TRUE,
     reorder_level       NUMERIC(12,2),
+    drug_schedule       VARCHAR(10)  NOT NULL DEFAULT 'NONE',
     status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
     created_by          BIGINT       NOT NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3804,6 +3805,34 @@ CREATE TABLE pharmacy_item (
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, code)
 );
+
+-- Schedule H1 / X / NDPS controlled-drug register (Drugs & Cosmetics Rule 65 / NDPS):
+-- one append-only row per controlled-drug supply, retained for inspection (>= 3 years).
+CREATE TABLE controlled_drug_register (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    entry_date          DATE         NOT NULL,
+    drug_schedule       VARCHAR(10)  NOT NULL,
+    item_id             BIGINT,
+    item_code           VARCHAR(50),
+    item_name           VARCHAR(255) NOT NULL,
+    quantity            NUMERIC(12,2) NOT NULL,
+    batch_number        VARCHAR(60),
+    patient_id          BIGINT,
+    sale_id             BIGINT,
+    sale_number         VARCHAR(40),
+    prescriber_name     VARCHAR(150),
+    prescriber_address  VARCHAR(255),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_cdr_tenant_date ON controlled_drug_register(tenant_id, entry_date);
+CREATE INDEX idx_cdr_schedule ON controlled_drug_register(tenant_id, drug_schedule);
 CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
 CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
 
