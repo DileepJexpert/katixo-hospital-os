@@ -22,6 +22,17 @@ public class ClinicalController {
 
     private final ClinicalService clinicalService;
     private final CpoeService cpoeService;
+    private final EncounterPdfService encounterPdfService;
+
+    @GetMapping(value = "/encounters/{id}/summary.pdf",
+            produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'ADMIN')")
+    public ResponseEntity<byte[]> summaryPdf(@PathVariable Long id) {
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=encounter-" + id + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(encounterPdfService.renderSummaryPdf(id));
+    }
 
     // ---- encounters ----
     public record OpenEncounterRequest(Long patientId, Encounter.EncounterType encounterType,
