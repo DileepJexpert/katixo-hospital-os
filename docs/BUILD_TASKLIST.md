@@ -15,14 +15,14 @@
 - [x] **T0.1.4** CDS SPI (`CdsRule`/`CdsService`) + AllergyCdsRule (CRITICAL) + DuplicateOrderCdsRule (WARNING)
 - [x] **T0.1.5** `ClinicalService` + `CpoeService` (CDS gate: CRITICAL blocks unless override) + `ClinicalController`
 - [x] **T0.1.6** V1 tables + unit tests (CDS rules, CPOE gate) — *195 tests pass*
-- [~] **T0.1.7** Route CPOE orders → department services (`ClinicalOrderRouter`, best-effort + REQUIRES_NEW isolation):
-  **RADIOLOGY→`RadiologyService`** (any encounter), **LAB→`LabService`** (OPD/IPD-sourced + valid code), back-link
-  `linkedRefType`/`linkedRefId`. *Remaining:* PHARMACY→prescription, and reverse status-sync
-  (department completion → ClinicalOrder COMPLETED) via events to avoid a dependency cycle.
-- [ ] **T0.1.8** Auto-open an Encounter from OPD `startConsultation` / IPD admit (so docs/orders attach automatically)
+- [x] **T0.1.7** Route CPOE orders → department services (`ClinicalOrderRouter`, best-effort + REQUIRES_NEW isolation):
+  RADIOLOGY→`RadiologyService` (any encounter), LAB→`LabService` (OPD/IPD-sourced + valid code),
+  PHARMACY→`PrescriptionService` (OPD visit). Back-link `linkedRefType`/`linkedRefId`; reverse status-sync
+  via `common.event.DepartmentOrderStatusEvent` → `ClinicalOrderStatusListener` (no dependency cycle).
+- [x] **T0.1.8** Auto-open an Encounter from OPD `startConsultation` / IPD `admitPatient` (idempotent, best-effort)
 - [x] **T0.1.9** Flutter EMR chart screen (`features/clinical/emr_chart_screen.dart`) — encounter open/close, SOAP note editor + versioned note list, CPOE order entry with CDS override dialog + order status; wired into Doctor + SuperAdmin homes
-- [ ] **T0.1.10** Encounter summary PDF (problem list, notes, orders) via openhtmltopdf
-- [ ] **T0.1.11** Vitals + prescription surfaced on the encounter chart (reuse `nursing`/`prescription`)
+- [x] **T0.1.10** Encounter summary PDF (`EncounterPdfService` + `/encounters/{id}/summary.pdf`); open button on the chart
+- [x] **T0.1.11** Vitals surfaced on the encounter chart (recent-vitals card); meds appear as PHARMACY CPOE orders
 
 ### T0.2 — HL7 v2 interface engine
 - [ ] **T0.2.1** Add HAPI HL7 v2 dependency; `hl7/` package

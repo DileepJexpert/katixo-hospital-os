@@ -5,6 +5,7 @@ import '../../core/api/http_client.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/responsive/responsive_builder.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../core/util/pdf_actions.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_card.dart';
 import '../../core/widgets/status_chip.dart';
@@ -35,6 +36,7 @@ class _EmrChartScreenState extends State<EmrChartScreen> {
   Map<String, dynamic>? _encounter; // current OPEN encounter
   List<Map<String, dynamic>> _notes = [];
   List<Map<String, dynamic>> _orders = [];
+  List<Map<String, dynamic>> _vitals = [];
 
   // open-encounter
   final _ccCtrl = TextEditingController();
@@ -101,6 +103,7 @@ class _EmrChartScreenState extends State<EmrChartScreen> {
       if (open != null) {
         await _loadNotesOrders((open['id'] as num).toInt());
       }
+      await _loadVitals();
     } on ApiException catch (e) {
       _error = e.error.message;
     } finally {
@@ -119,6 +122,29 @@ class _EmrChartScreenState extends State<EmrChartScreen> {
       fromJson: (j) => List<Map<String, dynamic>>.from(j as List? ?? const []),
     );
     if (mounted) setState(() { _notes = notes; _orders = orders; });
+  }
+
+  Future<void> _loadVitals() async {
+    if (_patientId == null) return;
+    final api = context.read<ApiClient>();
+    final v = await api.get<List<Map<String, dynamic>>>(
+      '/api/v1/nursing/vitals?patientId=$_patientId&limit=5',
+      fromJson: (j) => List<Map<String, dynamic>>.from(j as List? ?? const []),
+    );
+    if (mounted) setState(() => _vitals = v);
+  }
+
+  String _vitalSummary(Map<String, dynamic> v) {
+    final parts = <String>[];
+    if (v['temperatureCelsius'] != null) parts.add('T ${v['temperatureCelsius']}°C');
+    if (v['pulseBpm'] != null) parts.add('P ${v['pulseBpm']}');
+    if (v['systolicBp'] != null || v['diastolicBp'] != null) {
+      parts.add('BP ${v['systolicBp'] ?? '—'}/${v['diastolicBp'] ?? '—'}');
+    }
+    if (v['spo2'] != null) parts.add('SpO₂ ${v['spo2']}%');
+    if (v['respiratoryRate'] != null) parts.add('RR ${v['respiratoryRate']}');
+    if (v['weightKg'] != null) parts.add('Wt ${v['weightKg']}kg');
+    return parts.isEmpty ? '—' : parts.join(' · ');
   }
 
   Future<void> _run(Future<void> Function() action, String okMsg) async {
@@ -332,11 +358,21 @@ class _EmrChartScreenState extends State<EmrChartScreen> {
       SectionCard(
         title: 'Encounter',
         icon: Icons.event_note_outlined,
-        action: TextButton.icon(
-          onPressed: _loading ? null : _closeEncounter,
-          icon: const Icon(Icons.lock_outline, size: 18),
-          label: const Text('Close'),
-        ),
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          TextButton.icon(
+            onPressed: () => openPdf(context, context.read<ApiClient>(),
+                '/api/v1/clinical/encounters/${enc['id']}/summary.pdf',
+                filename: 'encounter-${enc['id']}.pdf'),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Summary PDF'),
+          ),
+          if ('${enc['encounterStatus']}' == 'OPEN')
+            TextButton.icon(
+              onPressed: _loading ? null : _closeEncounter,
+              icon: const Icon(Icons.lock_outline, size: 18),
+              label: const Text('Close'),
+            ),
+        ]),
         child: Wrap(spacing: Space.xl, runSpacing: Space.sm, crossAxisAlignment: WrapCrossAlignment.center, children: [
           StatusChip.auto('${enc['encounterStatus']}'),
           Text('${enc['encounterType'] ?? ''}', style: theme.textTheme.bodyMedium),
@@ -345,10 +381,35 @@ class _EmrChartScreenState extends State<EmrChartScreen> {
         ]),
       ),
       const SizedBox(height: Space.md),
+      _vitalsCard(theme),
+      const SizedBox(height: Space.md),
       _noteCard(theme),
       const SizedBox(height: Space.md),
       _orderCard(theme),
     ];
+  }
+
+  Widget _vitalsCard(ThemeData theme) {
+    return SectionCard(
+      title: 'Recent vitals',
+      icon: Icons.monitor_heart_outlined,
+      child: _vitals.isEmpty
+          ? Text('No vitals recorded.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final v in _vitals)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: Space.xs),
+                    child: Text(
+                      '${('${v['recordedAt'] ?? ''}').replaceFirst('T', ' ')}  ·  ${_vitalSummary(v)}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+              ],
+            ),
+    );
   }
 
   Widget _noteCard(ThemeData theme) {
