@@ -44,6 +44,8 @@ public class DischargeSummaryController {
         private String medicationsAtDischarge;
         private String activityRestrictions;
         private String dietAdvice;
+        private String finalDiagnosisCode;
+        private String finalDiagnosisCodeSystem;
     }
 
     @Getter
@@ -58,6 +60,8 @@ public class DischargeSummaryController {
         private String medicationsAtDischarge;
         private String activityRestrictions;
         private String dietAdvice;
+        private String finalDiagnosisCode;
+        private String finalDiagnosisCodeSystem;
     }
 
     @Getter
@@ -83,7 +87,9 @@ public class DischargeSummaryController {
                 req.getFollowUpInstructions(),
                 req.getMedicationsAtDischarge(),
                 req.getActivityRestrictions(),
-                req.getDietAdvice());
+                req.getDietAdvice(),
+                req.getFinalDiagnosisCode(),
+                req.getFinalDiagnosisCodeSystem());
         return respond(view(ds), "Discharge summary created", HttpStatus.CREATED);
     }
 
@@ -99,7 +105,9 @@ public class DischargeSummaryController {
                 req.getFollowUpInstructions(),
                 req.getMedicationsAtDischarge(),
                 req.getActivityRestrictions(),
-                req.getDietAdvice());
+                req.getDietAdvice(),
+                req.getFinalDiagnosisCode(),
+                req.getFinalDiagnosisCodeSystem());
         return respond(view(ds), "Discharge summary updated", HttpStatus.OK);
     }
 
@@ -150,6 +158,8 @@ public class DischargeSummaryController {
         v.put("admissionId", ds.getAdmissionId());
         v.put("summaryStatus", ds.getSummaryStatus().name());
         v.put("finalDiagnosis", ds.getFinalDiagnosis());
+        v.put("finalDiagnosisCode", ds.getFinalDiagnosisCode());
+        v.put("finalDiagnosisCodeSystem", ds.getFinalDiagnosisCodeSystem());
         v.put("courseInHospital", ds.getCourseInHospital());
         v.put("proceduresPerformed", ds.getProceduresPerformed());
         v.put("conditionAtDischarge", ds.getConditionAtDischarge() == null ? null

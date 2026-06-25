@@ -103,7 +103,7 @@
 - [x] **SC4** MLC register (`mlc/` module: register/list/close, types RTA/assault/poisoning/burns/etc, police+FIR+brought-dead) — `/api/v1/mlc`
 - [ ] **SC5** Birth & death registration + ICD-10 cause-of-death → registrar export — **P0**
 - [x] **SC6** MPI duplicate-detection (same mobile / name+DOB) & merge (link+deactivate, audited) — `MpiService` + `/api/v1/patients/{id}/duplicates`, `/patients/merge`. (Full FK re-pointing = follow-up; probabilistic match later.)
-- [ ] **SC7** ICD-10 coding at discharge (extend terminology `codeSystem=ICD10` + capture) — **P0** **(C)**
+- [x] **SC7** ICD-10 coding at discharge — DischargeSummary.finalDiagnosisCode/CodeSystem (default ICD10) threaded through create/update/view; V2 seeds a starter ICD-10 diagnosis set in `clinical_code`
 - [ ] **SC8** Govt statutory reporting: HMIS / IDSP notifiable-disease / CEA — **P0**
 - [ ] **SC9** Credentialing / license-expiry tracking (staff + ABDM HPR) — **P0** (HRM)
 - [ ] **SC10** Data-retention / medico-legal retention enforcement (3-yr IN / 25-yr UAE) — P1

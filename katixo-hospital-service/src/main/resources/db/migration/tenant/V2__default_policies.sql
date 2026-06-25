@@ -222,3 +222,18 @@ VALUES
    'Dear {name}, your bill {bill} for Rs {amount} has been generated. - Katixo Hospital',
    TRUE, 'ACTIVE', 1, NOW(), 1, NOW())
 ON CONFLICT (tenant_id, branch_id, notification_type, channel) DO NOTHING;
+
+-- Starter ICD-10 diagnosis codes (for discharge cause-of-diagnosis coding + terminology lookup).
+-- Distinct local_terms so they coexist with the SNOMED diagnosis seed.
+INSERT INTO clinical_code (tenant_id, hospital_group_id, branch_id, category, code_system, code, display, local_term,
+                           status, created_by, created_at, updated_by, updated_at)
+VALUES
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'I10',    'Essential (primary) hypertension', 'essential hypertension', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'E11.9',  'Type 2 diabetes mellitus without complications', 'type 2 diabetes without complications', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'J18.9',  'Pneumonia, unspecified organism', 'pneumonia unspecified', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'A09',    'Infectious gastroenteritis and colitis, unspecified', 'infectious gastroenteritis', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'J45.909','Unspecified asthma, uncomplicated', 'asthma uncomplicated', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'N39.0',  'Urinary tract infection, site not specified', 'urinary tract infection', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'K35.80', 'Unspecified acute appendicitis', 'acute appendicitis', 'ACTIVE', 1, NOW(), 1, NOW()),
+  ('${tenantId}', 1, 1, 'DIAGNOSIS', 'ICD10', 'O80',    'Encounter for full-term uncomplicated delivery', 'normal delivery', 'ACTIVE', 1, NOW(), 1, NOW())
+ON CONFLICT (tenant_id, category, local_term) DO NOTHING;

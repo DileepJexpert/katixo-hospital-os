@@ -42,7 +42,9 @@ public class DischargeSummaryService {
                                    String followUpInstructions,
                                    String medicationsAtDischarge,
                                    String activityRestrictions,
-                                   String dietAdvice) {
+                                   String dietAdvice,
+                                   String finalDiagnosisCode,
+                                   String finalDiagnosisCodeSystem) {
         if (admissionId == null) {
             throw new BusinessException("DSUM_ADMISSION_REQUIRED", "Admission ID is required");
         }
@@ -58,6 +60,8 @@ public class DischargeSummaryService {
         ds.setSummaryNumber("DSUM-" + repository.nextSeq());
         ds.setSummaryStatus(DischargeSummary.SummaryStatus.DRAFT);
         ds.setFinalDiagnosis(finalDiagnosis);
+        ds.setFinalDiagnosisCode(finalDiagnosisCode);
+        ds.setFinalDiagnosisCodeSystem(defaultCodeSystem(finalDiagnosisCode, finalDiagnosisCodeSystem));
         ds.setCourseInHospital(courseInHospital);
         ds.setProceduresPerformed(proceduresPerformed);
         ds.setConditionAtDischarge(parseCondition(conditionAtDischarge));
@@ -87,13 +91,17 @@ public class DischargeSummaryService {
                                    String followUpInstructions,
                                    String medicationsAtDischarge,
                                    String activityRestrictions,
-                                   String dietAdvice) {
+                                   String dietAdvice,
+                                   String finalDiagnosisCode,
+                                   String finalDiagnosisCodeSystem) {
         DischargeSummary ds = getOwned(id);
         if (ds.getSummaryStatus() != DischargeSummary.SummaryStatus.DRAFT) {
             throw new BusinessException("DSUM_NOT_DRAFT",
                     "Discharge summary " + ds.getSummaryNumber() + " is already signed and cannot be edited");
         }
         ds.setFinalDiagnosis(finalDiagnosis);
+        ds.setFinalDiagnosisCode(finalDiagnosisCode);
+        ds.setFinalDiagnosisCodeSystem(defaultCodeSystem(finalDiagnosisCode, finalDiagnosisCodeSystem));
         ds.setCourseInHospital(courseInHospital);
         ds.setProceduresPerformed(proceduresPerformed);
         ds.setConditionAtDischarge(parseCondition(conditionAtDischarge));
@@ -162,6 +170,12 @@ public class DischargeSummaryService {
         return repository.findByIdAndTenantIdAndBranchId(id, ctx.getTenantId(), branchId())
                 .orElseThrow(() -> new BusinessException("DSUM_NOT_FOUND",
                         "Discharge summary not found: " + id));
+    }
+
+    /** Default the diagnosis code system to ICD-10 when a code is supplied without one. */
+    private String defaultCodeSystem(String code, String system) {
+        if (code == null || code.isBlank()) return null;
+        return (system == null || system.isBlank()) ? "ICD10" : system.trim().toUpperCase();
     }
 
     private DischargeSummary.ConditionAtDischarge parseCondition(String value) {

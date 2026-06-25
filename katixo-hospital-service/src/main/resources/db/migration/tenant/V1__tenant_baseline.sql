@@ -715,6 +715,8 @@ CREATE TABLE discharge_summary (
     summary_number character varying(30) NOT NULL,
     summary_status character varying(20) DEFAULT 'DRAFT' NOT NULL,
     final_diagnosis text,
+    final_diagnosis_code character varying(20),
+    final_diagnosis_code_system character varying(20),
     course_in_hospital text,
     procedures_performed text,
     condition_at_discharge character varying(20),

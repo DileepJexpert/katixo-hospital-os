@@ -44,6 +44,13 @@ public class DischargeSummary extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String finalDiagnosis;
 
+    /** Coded final diagnosis (EMR Standards India / HMIS): the code + its system (default ICD-10). */
+    @Column(name = "final_diagnosis_code", length = 20)
+    private String finalDiagnosisCode;
+
+    @Column(name = "final_diagnosis_code_system", length = 20)
+    private String finalDiagnosisCodeSystem;
+
     /** Chronological treatment narrative. */
     @Column(columnDefinition = "TEXT")
     private String courseInHospital;
