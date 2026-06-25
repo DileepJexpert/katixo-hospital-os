@@ -42,4 +42,21 @@ public interface PatientRepository extends BaseRepository<Patient> {
 
     @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
     Long nextUhidSequence();
+
+    /**
+     * MPI deterministic duplicate candidates for a patient: same mobile, or same
+     * name + DOB. Excludes self and non-ACTIVE (already-merged) records.
+     */
+    @Query("SELECT p FROM Patient p WHERE p.tenantId = :tenantId AND p.branchId = :branchId " +
+            "AND p.id <> :excludeId AND p.status = 'ACTIVE' AND (" +
+            "(:mobile IS NOT NULL AND p.mobile = :mobile) OR " +
+            "(LOWER(p.firstName) = :firstName AND LOWER(p.lastName) = :lastName AND p.dateOfBirth = :dob)) " +
+            "ORDER BY p.createdAt DESC")
+    List<Patient> findDuplicateCandidates(@Param("tenantId") String tenantId,
+                                          @Param("branchId") Long branchId,
+                                          @Param("excludeId") Long excludeId,
+                                          @Param("mobile") String mobile,
+                                          @Param("firstName") String firstName,
+                                          @Param("lastName") String lastName,
+                                          @Param("dob") LocalDate dob);
 }

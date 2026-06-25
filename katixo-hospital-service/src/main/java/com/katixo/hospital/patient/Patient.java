@@ -126,6 +126,10 @@ public class Patient extends BaseEntity {
     @Column(nullable = false, precision = 14, scale = 2)
     private java.math.BigDecimal creditLimit = java.math.BigDecimal.ZERO;
 
+    /** When this record was merged into a surviving MPI record (set + status INACTIVE on merge). */
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
+
     public enum Gender {
         MALE, FEMALE, OTHER, PREFER_NOT_TO_SAY
     }

@@ -1137,7 +1137,8 @@ CREATE TABLE patient (
     privacy_consent_at timestamp without time zone,
     data_sharing_consent boolean DEFAULT false NOT NULL,
     data_sharing_consent_at timestamp without time zone,
-    credit_limit numeric(14,2) DEFAULT 0 NOT NULL
+    credit_limit numeric(14,2) DEFAULT 0 NOT NULL,
+    merged_into_id bigint
 );
 
 
