@@ -113,7 +113,7 @@
 - [ ] **PS2** CDS tier-1: DDI, dose-range, duplicate-therapy, renal/hepatic, pregnancy/pediatric — **P0/P1** **(B** allergy+dup done; **A** for DDI/dose/renal/preg)
 - [ ] **PS3** LASA alerts (tall-man) — **P0** (MOM Core)
 - [ ] **PS4** eMAR with 5-rights (+barcode) — **P0**
-- [ ] **PS5** LIS critical/panic-value alert & escalation — **P0**
+- [x] **PS5** LIS critical/panic-value alert & escalation — LabTestMaster.criticalLow/High; LabReport.critical + ack; auto-flag on result entry; `/lab/critical-results` worklist + `/lab/reports/{id}/acknowledge-critical`
 - [ ] **PS6** WHO surgical safety checklist (Sign-In / Time-Out / Sign-Out) on OT — **P0**
 - [ ] **PS7** Implant tracking (model/batch/serial/expiry/size in patient record) — **P0** (MOM 1e)
 - [ ] **PS8** Fall-risk assessment (COP 16C) + pressure-ulcer scale — **P0/P1**

@@ -861,6 +861,9 @@ CREATE TABLE lab_report (
     approved_by bigint,
     released_at timestamp without time zone,
     file_url character varying(500),
+    critical boolean DEFAULT false NOT NULL,
+    critical_ack_by bigint,
+    critical_ack_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     updated_at timestamp without time zone DEFAULT now() NOT NULL
 );
@@ -959,6 +962,8 @@ CREATE TABLE lab_test_master (
     rate numeric(10,2) NOT NULL,
     unit character varying(50),
     reference_range character varying(100),
+    critical_low numeric(12,3),
+    critical_high numeric(12,3),
     status character varying(20) DEFAULT 'ACTIVE'::character varying NOT NULL,
     created_by bigint,
     created_at timestamp without time zone DEFAULT now() NOT NULL,

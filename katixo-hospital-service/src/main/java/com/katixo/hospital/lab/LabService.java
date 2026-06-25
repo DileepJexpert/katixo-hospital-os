@@ -60,7 +60,8 @@ public class LabService {
     // ------------------------------------------------------------
 
     public LabTestMaster createTest(String code, String name, LabTestMaster.SpecimenType specimenType,
-                                    BigDecimal rate, String unit, String referenceRange) {
+                                    BigDecimal rate, String unit, String referenceRange,
+                                    BigDecimal criticalLow, BigDecimal criticalHigh) {
         if (rate == null || rate.signum() < 0) {
             throw new BusinessException("INVALID_RATE", "Test rate must be zero or positive");
         }
@@ -71,6 +72,8 @@ public class LabService {
         test.setRate(rate);
         test.setUnit(unit);
         test.setReferenceRange(referenceRange);
+        test.setCriticalLow(criticalLow);
+        test.setCriticalHigh(criticalHigh);
         stamp(test);
         return testRepository.save(test);
     }
@@ -196,6 +199,7 @@ public class LabService {
         report.setIsAbnormal(Boolean.TRUE.equals(isAbnormal));
         report.setEnteredBy(userId());
         report.setFileUrl(fileUrl);
+        report.setCritical(isCritical(test, resultValue));
 
         if (APPROVAL_AUTO.equals(mode)) {
             report.setReportStatus(LabReport.ReportStatus.RELEASED);
@@ -218,6 +222,49 @@ public class LabService {
 
         log.info("Result for item {} ({}) entered — mode {}, status {}", itemId, item.getTestCode(),
                 mode, saved.getReportStatus());
+        if (Boolean.TRUE.equals(saved.getCritical())) {
+            log.warn("CRITICAL lab value: item {} ({}) result {} — needs acknowledgement", itemId,
+                    item.getTestCode(), resultValue);
+        }
+        return saved;
+    }
+
+    /** Numeric result outside the test's critical (panic) thresholds. Non-numeric results are never critical. */
+    static boolean isCritical(LabTestMaster test, String resultValue) {
+        if (test == null || (test.getCriticalLow() == null && test.getCriticalHigh() == null)) {
+            return false;
+        }
+        try {
+            BigDecimal v = new BigDecimal(resultValue.trim());
+            if (test.getCriticalLow() != null && v.compareTo(test.getCriticalLow()) < 0) return true;
+            return test.getCriticalHigh() != null && v.compareTo(test.getCriticalHigh()) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /** Unacknowledged critical results — the escalation worklist. */
+    @Transactional(readOnly = true)
+    public List<LabReport> listCriticalResults() {
+        var ctx = TenantContext.get();
+        return reportRepository.findByTenantIdAndBranchIdAndCriticalTrueAndCriticalAckAtIsNullOrderByCreatedAtDesc(
+                ctx.getTenantId(), branchId());
+    }
+
+    /** Acknowledge a critical result (closes the escalation; audited). */
+    public LabReport acknowledgeCritical(Long reportId) {
+        var ctx = TenantContext.get();
+        LabReport report = reportRepository.findById(reportId)
+                .filter(r -> r.getTenantId().equals(ctx.getTenantId()) && r.getBranchId().equals(branchId()))
+                .orElseThrow(() -> new BusinessException("REPORT_NOT_FOUND", "Lab report not found: " + reportId));
+        if (!Boolean.TRUE.equals(report.getCritical())) {
+            throw new BusinessException("NOT_CRITICAL", "Report " + reportId + " is not a critical result");
+        }
+        report.setCriticalAckBy(userId());
+        report.setCriticalAckAt(LocalDateTime.now());
+        LabReport saved = reportRepository.save(report);
+        auditService.audit("LabReport", String.valueOf(reportId), AuditLog.AuditAction.UPDATE,
+                null, Map.of("action", "CRITICAL_ACK"), UUID.randomUUID().toString());
         return saved;
     }
 

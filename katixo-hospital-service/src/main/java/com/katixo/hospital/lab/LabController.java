@@ -44,15 +44,39 @@ public class LabController {
         private BigDecimal rate;
         private String unit;
         private String referenceRange;
+        private BigDecimal criticalLow;
+        private BigDecimal criticalHigh;
     }
 
     @PostMapping("/tests")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Object>> createTest(@Valid @RequestBody CreateTestRequest req) {
         LabTestMaster t = labService.createTest(req.getTestCode(), req.getTestName(), req.getSpecimenType(),
-                req.getRate(), req.getUnit(), req.getReferenceRange());
+                req.getRate(), req.getUnit(), req.getReferenceRange(),
+                req.getCriticalLow(), req.getCriticalHigh());
         return respond(Map.of("id", t.getId(), "testCode", t.getTestCode(), "rate", t.getRate()),
                 "Test created", HttpStatus.CREATED);
+    }
+
+    // ---------- critical (panic) values ----------
+
+    @GetMapping("/critical-results")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'LAB_TECH', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> criticalResults() {
+        List<Map<String, Object>> rows = labService.listCriticalResults().stream()
+                .map(r -> Map.<String, Object>of("reportId", r.getId(), "labOrderItemId", r.getLabOrderItemId(),
+                        "resultValue", r.getResultValue(), "unit", r.getUnit() == null ? "" : r.getUnit(),
+                        "referenceRange", r.getReferenceRange() == null ? "" : r.getReferenceRange()))
+                .toList();
+        return respond(rows, "Unacknowledged critical results", HttpStatus.OK);
+    }
+
+    @PostMapping("/reports/{reportId}/acknowledge-critical")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'LAB_TECH', 'NURSE', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Object>> acknowledgeCritical(@PathVariable Long reportId) {
+        var r = labService.acknowledgeCritical(reportId);
+        return respond(Map.of("reportId", r.getId(), "criticalAckAt", String.valueOf(r.getCriticalAckAt())),
+                "Critical result acknowledged", HttpStatus.OK);
     }
 
     @GetMapping("/tests")

@@ -67,6 +67,16 @@ public class LabReport {
     @Column(length = 500)
     private String fileUrl;
 
+    /** Critical/panic value: result breached the test's critical thresholds — must be acknowledged. */
+    @Column(nullable = false)
+    private Boolean critical = false;
+
+    @Column
+    private Long criticalAckBy;
+
+    @Column
+    private LocalDateTime criticalAckAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

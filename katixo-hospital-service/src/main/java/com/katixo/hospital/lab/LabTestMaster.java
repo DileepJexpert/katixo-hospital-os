@@ -38,6 +38,13 @@ public class LabTestMaster extends BaseEntity {
     @Column(length = 100)
     private String referenceRange;
 
+    /** Critical (panic) thresholds — a numeric result below low / above high is flagged + escalated. */
+    @Column(name = "critical_low", precision = 12, scale = 3)
+    private BigDecimal criticalLow;
+
+    @Column(name = "critical_high", precision = 12, scale = 3)
+    private BigDecimal criticalHigh;
+
     public enum SpecimenType {
         BLOOD, URINE, SWAB, STOOL, OTHER
     }
