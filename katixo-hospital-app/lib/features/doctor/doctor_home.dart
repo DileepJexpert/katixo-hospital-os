@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/app_shell.dart';
+import '../clinical/emr_chart_screen.dart';
 import '../certificate/certificate_screen.dart';
 import '../consent/consent_screen.dart';
 import '../discharge/discharge_summary_screen.dart';
@@ -91,6 +92,11 @@ class _DoctorHomeState extends State<DoctorHome> {
           icon: Icons.summarize_outlined,
           selectedIcon: Icons.summarize,
         ),
+        ShellDestination(
+          label: 'EMR Chart',
+          icon: Icons.assignment_ind_outlined,
+          selectedIcon: Icons.assignment_ind,
+        ),
       ],
       selectedIndex: _index,
       onDestinationSelected: (i) => setState(() => _index = i),
@@ -121,6 +127,7 @@ class _DoctorHomeState extends State<DoctorHome> {
         8 => const ConsentScreen(),
         9 => const CertificateScreen(),
         10 => const DischargeSummaryScreen(),
+        11 => const EmrChartScreen(),
         _ => const DoctorWorklistScreen(),
       },
     );

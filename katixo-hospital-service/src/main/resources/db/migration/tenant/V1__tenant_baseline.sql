@@ -3797,6 +3797,7 @@ CREATE TABLE pharmacy_item (
     manufacturer        VARCHAR(150),
     track_batches       BOOLEAN      NOT NULL DEFAULT TRUE,
     reorder_level       NUMERIC(12,2),
+    drug_schedule       VARCHAR(10)  NOT NULL DEFAULT 'NONE',
     status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
     created_by          BIGINT       NOT NULL,
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3804,6 +3805,60 @@ CREATE TABLE pharmacy_item (
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, code)
 );
+
+-- Schedule H1 / X / NDPS controlled-drug register (Drugs & Cosmetics Rule 65 / NDPS):
+-- one append-only row per controlled-drug supply, retained for inspection (>= 3 years).
+CREATE TABLE controlled_drug_register (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    entry_date          DATE         NOT NULL,
+    drug_schedule       VARCHAR(10)  NOT NULL,
+    item_id             BIGINT,
+    item_code           VARCHAR(50),
+    item_name           VARCHAR(255) NOT NULL,
+    quantity            NUMERIC(12,2) NOT NULL,
+    batch_number        VARCHAR(60),
+    patient_id          BIGINT,
+    sale_id             BIGINT,
+    sale_number         VARCHAR(40),
+    prescriber_name     VARCHAR(150),
+    prescriber_address  VARCHAR(255),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT       NOT NULL,
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by          BIGINT       NOT NULL,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_cdr_tenant_date ON controlled_drug_register(tenant_id, entry_date);
+CREATE INDEX idx_cdr_schedule ON controlled_drug_register(tenant_id, drug_schedule);
+
+-- Medico-legal case (MLC) register — RTA / assault / poisoning / burns / unnatural death.
+CREATE TABLE mlc_register (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             VARCHAR(50)  NOT NULL,
+    hospital_group_id     BIGINT       NOT NULL,
+    branch_id             BIGINT       NOT NULL,
+    mlc_number            VARCHAR(40),
+    patient_id            BIGINT       NOT NULL,
+    mlc_type              VARCHAR(20)  NOT NULL,
+    incident_at           TIMESTAMP,
+    brought_by            VARCHAR(150),
+    police_station        VARCHAR(150),
+    fir_number            VARCHAR(60),
+    brought_dead          BOOLEAN      NOT NULL DEFAULT FALSE,
+    case_status           VARCHAR(20)  NOT NULL DEFAULT 'REGISTERED',
+    registered_by_doctor_id BIGINT,
+    remarks               TEXT,
+    status                VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by            BIGINT       NOT NULL,
+    created_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by            BIGINT       NOT NULL,
+    updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_mlc_patient ON mlc_register(tenant_id, patient_id);
+CREATE INDEX idx_mlc_status ON mlc_register(tenant_id, case_status);
 CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
 CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
 
@@ -4459,6 +4514,82 @@ CREATE TABLE clinical_code (
     UNIQUE (tenant_id, category, local_term)
 );
 CREATE INDEX idx_clinical_code_lookup ON clinical_code(tenant_id, category, local_term);
+
+-- ============================================================
+-- EMR / CPOE core (Stage 0.1): an Encounter wraps an OPD visit / IPD admission
+-- and anchors versioned SOAP notes + unified CPOE orders (with CDS at entry).
+-- ============================================================
+CREATE TABLE clinical_encounter (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    encounter_type      VARCHAR(12)  NOT NULL,
+    source_type         VARCHAR(16)  NOT NULL DEFAULT 'STANDALONE',
+    source_id           BIGINT,
+    attending_doctor_id BIGINT,
+    chief_complaint     TEXT,
+    encounter_status    VARCHAR(10)  NOT NULL DEFAULT 'OPEN',
+    started_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    closed_at           TIMESTAMP,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_encounter_patient ON clinical_encounter(tenant_id, patient_id);
+CREATE INDEX idx_encounter_source ON clinical_encounter(tenant_id, source_type, source_id);
+
+CREATE TABLE clinical_note (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    encounter_id        BIGINT       NOT NULL,
+    note_type           VARCHAR(12)  NOT NULL DEFAULT 'SOAP',
+    subjective          TEXT,
+    objective           TEXT,
+    assessment          TEXT,
+    plan                TEXT,
+    version             INTEGER      NOT NULL DEFAULT 1,
+    active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    author_id           BIGINT,
+    author_name         VARCHAR(150),
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_clinical_note_encounter ON clinical_note(tenant_id, encounter_id);
+
+CREATE TABLE clinical_order (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           VARCHAR(50)  NOT NULL,
+    hospital_group_id   BIGINT       NOT NULL,
+    branch_id           BIGINT       NOT NULL,
+    encounter_id        BIGINT       NOT NULL,
+    patient_id          BIGINT       NOT NULL,
+    order_type          VARCHAR(12)  NOT NULL,
+    code                VARCHAR(50),
+    name                VARCHAR(255) NOT NULL,
+    priority            VARCHAR(10)  NOT NULL DEFAULT 'ROUTINE',
+    order_status        VARCHAR(12)  NOT NULL DEFAULT 'PLACED',
+    instructions        TEXT,
+    linked_ref_type     VARCHAR(30),
+    linked_ref_id       BIGINT,
+    placed_by_doctor_id BIGINT,
+    cds_override_reason TEXT,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by          BIGINT,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    updated_by          BIGINT,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_clinical_order_encounter ON clinical_order(tenant_id, encounter_id);
+CREATE INDEX idx_clinical_order_patient ON clinical_order(tenant_id, patient_id);
 
 CREATE TABLE notification_template (
     id                  BIGSERIAL PRIMARY KEY,

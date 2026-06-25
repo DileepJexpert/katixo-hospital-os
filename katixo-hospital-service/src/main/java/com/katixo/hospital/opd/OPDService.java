@@ -44,6 +44,7 @@ public class OPDService {
     private final OutboxEventService outboxEventService;
     private final NotificationService notificationService;
     private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
+    private final com.katixo.hospital.clinical.ClinicalService clinicalService;
 
     private static final List<QueueToken.QueueStatus> OPEN_QUEUE_STATUSES =
             List.of(QueueToken.QueueStatus.WAITING, QueueToken.QueueStatus.CALLED, QueueToken.QueueStatus.IN_PROGRESS);
@@ -288,6 +289,17 @@ public class OPDService {
         });
 
         OPDVisit started = visitRepository.save(visit);
+
+        // Auto-open the EMR encounter so notes/orders attach to the consultation (idempotent, best-effort).
+        try {
+            clinicalService.openEncounter(started.getPatientId(),
+                    com.katixo.hospital.clinical.Encounter.EncounterType.OPD,
+                    com.katixo.hospital.clinical.Encounter.SourceType.OPD_VISIT,
+                    started.getId(), started.getPrimaryDoctorId(), started.getChiefComplaint());
+        } catch (RuntimeException ex) {
+            log.warn("Auto-open encounter failed for visit {}: {}", visitId, ex.getMessage());
+        }
+
         boardBroadcaster.queueChanged();
         return started;
     }

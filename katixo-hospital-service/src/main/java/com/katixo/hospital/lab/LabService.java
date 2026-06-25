@@ -5,6 +5,7 @@ import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.billing.HospitalCharge;
 import com.katixo.hospital.billing.HospitalChargeRepository;
 import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.event.DepartmentOrderStatusEvent;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.ipd.IPDAdmissionRepository;
 import com.katixo.hospital.opd.OPDVisitRepository;
@@ -17,6 +18,7 @@ import com.katixo.hospital.policy.PolicyService;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,7 @@ public class LabService {
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher events;
 
     private static final String APPROVAL_POLICY_PREFIX = "lab.report_approval.";
     private static final String APPROVAL_AUTO = "AUTO_RELEASE";
@@ -505,6 +508,7 @@ public class LabService {
                     .ifPresent(o -> {
                         o.setOrderStatus(LabOrder.OrderStatus.COMPLETED);
                         orderRepository.save(o);
+                        publishOrderStatus(orderId, "COMPLETED");
                     });
         }
     }
@@ -523,10 +527,18 @@ public class LabService {
                     .ifPresent(o -> {
                         o.setOrderStatus(LabOrder.OrderStatus.CANCELLED);
                         orderRepository.save(o);
+                        publishOrderStatus(orderId, "CANCELLED");
                     });
             return;
         }
         completeOrderIfDone(orderId);
+    }
+
+    /** Notify the CPOE layer (if a ClinicalOrder routed here) of a terminal lab-order status. */
+    private void publishOrderStatus(Long orderId, String status) {
+        var ctx = TenantContext.get();
+        events.publishEvent(new DepartmentOrderStatusEvent(
+                ctx.getTenantId(), branchId(), "LAB_ORDER", orderId, status));
     }
 
     /**

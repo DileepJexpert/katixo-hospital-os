@@ -53,7 +53,7 @@ public class InventoryService {
     // ------------------------------------------------------------
 
     public Item createItem(String code, String name, String hsnCode, BigDecimal gstRate,
-                           BigDecimal mrp, String manufacturer) {
+                           BigDecimal mrp, String manufacturer, Item.DrugSchedule drugSchedule) {
         var ctx = TenantContext.get();
         itemRepository.findByTenantIdAndBranchIdAndCode(ctx.getTenantId(), branchId(), code)
                 .ifPresent(existing -> {
@@ -66,6 +66,7 @@ public class InventoryService {
         item.setGstRate(gstRate == null ? BigDecimal.ZERO : gstRate);
         item.setMrp(mrp == null ? BigDecimal.ZERO : mrp);
         item.setManufacturer(manufacturer);
+        item.setDrugSchedule(drugSchedule == null ? Item.DrugSchedule.NONE : drugSchedule);
         stamp(item);
         return itemRepository.save(item);
     }

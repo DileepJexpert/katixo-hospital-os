@@ -42,13 +42,14 @@ public class InventoryController {
         private BigDecimal gstRate;
         private BigDecimal mrp;
         private String manufacturer;
+        private Item.DrugSchedule drugSchedule;
     }
 
     @PostMapping("/items")
     @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
     public ResponseEntity<ApiResponse<Object>> createItem(@Valid @RequestBody CreateItemRequest req) {
         Item item = inventoryService.createItem(req.getCode(), req.getName(), req.getHsnCode(),
-                req.getGstRate(), req.getMrp(), req.getManufacturer());
+                req.getGstRate(), req.getMrp(), req.getManufacturer(), req.getDrugSchedule());
         return respond(itemView(item), "Item created", HttpStatus.CREATED);
     }
 
@@ -116,6 +117,7 @@ public class InventoryController {
         view.put("gstRate", item.getGstRate());
         view.put("mrp", item.getMrp());
         view.put("manufacturer", item.getManufacturer());
+        view.put("drugSchedule", item.getDrugSchedule());
         return view;
     }
 

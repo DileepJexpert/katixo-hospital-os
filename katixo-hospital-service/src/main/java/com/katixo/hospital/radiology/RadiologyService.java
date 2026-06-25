@@ -3,6 +3,7 @@ package com.katixo.hospital.radiology;
 import com.katixo.hospital.audit.AuditLog;
 import com.katixo.hospital.audit.AuditService;
 import com.katixo.hospital.common.entity.BaseEntity;
+import com.katixo.hospital.common.event.DepartmentOrderStatusEvent;
 import com.katixo.hospital.common.exception.BusinessException;
 import com.katixo.hospital.notification.NotificationService;
 import com.katixo.hospital.notification.NotificationType;
@@ -11,6 +12,7 @@ import com.katixo.hospital.patient.PatientRepository;
 import com.katixo.hospital.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ public class RadiologyService {
     private final AuditService auditService;
     private final PatientRepository patientRepository;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher events;
 
     public RadiologyOrder order(Long patientId, Long referringDoctorId, RadiologyOrder.Modality modality,
                                 String studyName, String notes) {
@@ -118,7 +121,14 @@ public class RadiologyService {
         notificationService.notifyPatient(NotificationType.REPORT_READY, patient, Map.of(
                 "name", patient == null || patient.getFullName() == null ? "" : patient.getFullName(),
                 "report", reportLabel), "RadiologyReport", saved.getId());
+        publishStatus(saved.getId(), "COMPLETED");
         return saved;
+    }
+
+    /** Notify the CPOE layer (if a ClinicalOrder routed here) of a terminal radiology status. */
+    private void publishStatus(Long orderId, String status) {
+        events.publishEvent(new DepartmentOrderStatusEvent(
+                TenantContext.get().getTenantId(), branchId(), "RADIOLOGY_ORDER", orderId, status));
     }
 
     public RadiologyOrder cancel(Long id, String reason) {
@@ -132,7 +142,9 @@ public class RadiologyService {
             o.setNotes((o.getNotes() == null ? "" : o.getNotes() + " | ") + "Cancelled: " + reason);
         }
         o.setUpdatedBy(userId());
-        return audited(orderRepository.save(o), "CANCELLED");
+        RadiologyOrder saved = audited(orderRepository.save(o), "CANCELLED");
+        publishStatus(saved.getId(), "CANCELLED");
+        return saved;
     }
 
     private RadiologyOrder audited(RadiologyOrder o, String status) {

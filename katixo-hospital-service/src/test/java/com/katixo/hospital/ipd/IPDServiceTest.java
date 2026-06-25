@@ -35,6 +35,7 @@ class IPDServiceTest {
     @Mock AuditService auditService;
     @Mock com.katixo.hospital.outbox.OutboxEventService outboxEventService;
     @Mock BoardBroadcaster boardBroadcaster;
+    @Mock com.katixo.hospital.clinical.ClinicalService clinicalService;
 
     @InjectMocks IPDService service;
 

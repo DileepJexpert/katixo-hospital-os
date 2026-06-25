@@ -36,13 +36,14 @@ class PharmacySaleReversalTest {
     @Mock private PharmacySaleLineRepository lineRepository;
     @Mock private JournalService journalService;
     @Mock private AuditService auditService;
+    @Mock private ControlledDrugRegisterService controlledRegister;
 
     private PharmacySaleService service;
 
     @BeforeEach
     void setUp() {
         service = new PharmacySaleService(itemRepository, inventoryService, saleRepository,
-                lineRepository, journalService, auditService);
+                lineRepository, journalService, auditService, controlledRegister);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "pharmacist"));
         lenient().when(saleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }

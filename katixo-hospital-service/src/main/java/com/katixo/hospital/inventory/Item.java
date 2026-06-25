@@ -3,6 +3,8 @@ package com.katixo.hospital.inventory;
 import com.katixo.hospital.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -58,4 +60,25 @@ public class Item extends BaseEntity {
 
     @Column(precision = 12, scale = 2)
     private BigDecimal reorderLevel;
+
+    /**
+     * Drugs &amp; Cosmetics schedule classification. H1 / X / NDPS are "controlled":
+     * each supply must be recorded in a separate register (Rule 65 / NDPS).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "drug_schedule", nullable = false, length = 10)
+    private DrugSchedule drugSchedule = DrugSchedule.NONE;
+
+    public enum DrugSchedule {
+        NONE, H, H1, X, NDPS;
+
+        /** Schedules whose every supply must hit the controlled-drug register. */
+        public boolean controlled() {
+            return this == H1 || this == X || this == NDPS;
+        }
+    }
+
+    public boolean isControlled() {
+        return drugSchedule != null && drugSchedule.controlled();
+    }
 }

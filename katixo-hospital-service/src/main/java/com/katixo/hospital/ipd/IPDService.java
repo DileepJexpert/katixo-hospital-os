@@ -42,6 +42,7 @@ public class IPDService {
     private final AuditService auditService;
     private final OutboxEventService outboxEventService;
     private final com.katixo.hospital.realtime.BoardBroadcaster boardBroadcaster;
+    private final com.katixo.hospital.clinical.ClinicalService clinicalService;
 
     // ------------------------------------------------------------
     // Masters (ward / room / bed)
@@ -133,6 +134,16 @@ public class IPDService {
         openAllocation(saved, bed);
         occupyBed(bed);
         updateVisitSummary(patientId, true, saved.getId());
+
+        // Auto-open the EMR encounter for the admission (idempotent, best-effort).
+        try {
+            clinicalService.openEncounter(saved.getPatientId(),
+                    com.katixo.hospital.clinical.Encounter.EncounterType.IPD,
+                    com.katixo.hospital.clinical.Encounter.SourceType.IPD_ADMISSION,
+                    saved.getId(), saved.getAdmittingDoctorId(), saved.getDiagnosis());
+        } catch (RuntimeException ex) {
+            log.warn("Auto-open encounter failed for admission {}: {}", saved.getId(), ex.getMessage());
+        }
 
         outboxEventService.publish("IPDAdmission", String.valueOf(saved.getId()), "PatientAdmitted",
                 snapshot(saved));

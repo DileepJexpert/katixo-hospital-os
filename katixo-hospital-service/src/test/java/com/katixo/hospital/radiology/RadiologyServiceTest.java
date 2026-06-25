@@ -33,12 +33,13 @@ class RadiologyServiceTest {
     @Mock AuditService auditService;
     @Mock PatientRepository patientRepository;
     @Mock NotificationService notificationService;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     private RadiologyService service;
 
     @BeforeEach
     void setUp() {
-        service = new RadiologyService(orderRepository, auditService, patientRepository, notificationService);
+        service = new RadiologyService(orderRepository, auditService, patientRepository, notificationService, events);
         TenantContext.set(new TenantContext(TENANT, "1", "1", "9", "doctor"));
         lenient().when(orderRepository.nextOrderSequence()).thenReturn(1001L);
         lenient().when(orderRepository.save(any())).thenAnswer(inv -> {
