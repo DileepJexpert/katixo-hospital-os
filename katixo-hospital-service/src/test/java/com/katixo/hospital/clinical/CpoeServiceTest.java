@@ -117,6 +117,19 @@ class CpoeServiceTest {
     }
 
     @Test
+    void cannotCancelRoutedOrderDirectly() {
+        ClinicalOrder linked = new ClinicalOrder();
+        linked.setLinkedRefType("LAB_ORDER");
+        linked.setLinkedRefId(7L);
+        when(orderRepository.findByIdAndTenantIdAndBranchId(20L, TENANT, 1L))
+                .thenReturn(java.util.Optional.of(linked));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.updateStatus(20L, ClinicalOrder.OrderStatus.CANCELLED));
+        assertEquals("ORDER_LINKED", ex.getCode());
+    }
+
+    @Test
     void routingFailureDoesNotBreakPlacement() {
         when(cdsService.evaluate(any())).thenReturn(List.of());
         when(cdsService.hasBlocking(any())).thenReturn(false);

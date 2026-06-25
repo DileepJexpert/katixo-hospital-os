@@ -19,6 +19,8 @@
   RADIOLOGY→`RadiologyService` (any encounter), LAB→`LabService` (OPD/IPD-sourced + valid code),
   PHARMACY→`PrescriptionService` (OPD visit). Back-link `linkedRefType`/`linkedRefId`; reverse status-sync
   via `common.event.DepartmentOrderStatusEvent` → `ClinicalOrderStatusListener` (no dependency cycle).
+  Direct cancel of a routed CPOE order is blocked (cancel in the department → syncs back); full
+  cancel-propagation from EMR is a follow-up (lab/Rx lack clean order-level cancel APIs).
 - [x] **T0.1.8** Auto-open an Encounter from OPD `startConsultation` / IPD `admitPatient` (idempotent, best-effort)
 - [x] **T0.1.9** Flutter EMR chart screen (`features/clinical/emr_chart_screen.dart`) — encounter open/close, SOAP note editor + versioned note list, CPOE order entry with CDS override dialog + order status; wired into Doctor + SuperAdmin homes
 - [x] **T0.1.10** Encounter summary PDF (`EncounterPdfService` + `/encounters/{id}/summary.pdf`); open button on the chart

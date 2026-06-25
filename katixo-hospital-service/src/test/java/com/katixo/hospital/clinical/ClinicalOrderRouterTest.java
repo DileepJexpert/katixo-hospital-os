@@ -94,7 +94,7 @@ class ClinicalOrderRouterTest {
     void pharmacyRoutesToPrescriptionForVisit() {
         Prescription rx = new Prescription();
         rx.setId(66L);
-        when(prescriptionService.create(eq(200L), any(), any(), eq(true), any())).thenReturn(rx);
+        when(prescriptionService.create(eq(200L), any(), any(), anyBoolean(), any())).thenReturn(rx);
 
         ClinicalOrderRouter.Ref ref = router().route(
                 order(ClinicalOrder.OrderType.PHARMACY, "AMOX", "Amoxicillin"),

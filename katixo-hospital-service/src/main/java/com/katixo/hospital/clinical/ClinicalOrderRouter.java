@@ -63,9 +63,12 @@ public class ClinicalOrderRouter {
         item.setMedicineName(order.getName());
         item.setInstructions(order.getInstructions());
         item.setQuantity(1);
-        // CDS already ran in CPOE — override the prescription's own allergy guard (audited reason).
+        // Carry through ONLY a real CPOE override; otherwise let the prescription's own allergy
+        // guard run — it also checks the medicine code, which the CPOE name-match CDS does not, so a
+        // code-matching allergy still blocks (the order stays in the EMR, just not auto-prescribed).
+        boolean overridden = order.getCdsOverrideReason() != null && !order.getCdsOverrideReason().isBlank();
         Prescription rx = prescriptionService.create(enc.getSourceId(), "CPOE order",
-                List.of(item), true, "CPOE order — CDS already evaluated");
+                List.of(item), overridden, overridden ? order.getCdsOverrideReason() : null);
         return new Ref("PRESCRIPTION", rx.getId());
     }
 

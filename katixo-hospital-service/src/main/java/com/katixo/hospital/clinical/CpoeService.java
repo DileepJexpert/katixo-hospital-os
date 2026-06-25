@@ -111,6 +111,14 @@ public class CpoeService {
         var ctx = TenantContext.get();
         ClinicalOrder o = orderRepository.findByIdAndTenantIdAndBranchId(orderId, ctx.getTenantId(), branchId())
                 .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found: " + orderId));
+        // A routed order is owned by its department: cancel it there (Lab/Radiology/Pharmacy),
+        // which syncs the cancellation back here — don't let the EMR cancel only the CPOE row,
+        // leaving the department order live (billable/reportable).
+        if (status == ClinicalOrder.OrderStatus.CANCELLED && o.getLinkedRefType() != null) {
+            throw new BusinessException("ORDER_LINKED",
+                    "This order is routed to " + o.getLinkedRefType()
+                            + " — cancel it in that department; the status syncs back automatically.");
+        }
         o.setOrderStatus(status);
         o.setUpdatedBy(userId());
         return orderRepository.save(o);
