@@ -3896,6 +3896,30 @@ CREATE TABLE medication_administration (
 );
 CREATE INDEX idx_mar_patient ON medication_administration(tenant_id, patient_id);
 CREATE INDEX idx_mar_admission ON medication_administration(tenant_id, admission_id);
+
+-- Fall-risk assessment (NABH COP 16C) — Morse / Humpty Dumpty score + derived band.
+CREATE TABLE fall_risk_assessment (
+    id                BIGSERIAL PRIMARY KEY,
+    tenant_id         VARCHAR(50)  NOT NULL,
+    hospital_group_id BIGINT       NOT NULL,
+    branch_id         BIGINT       NOT NULL,
+    patient_id        BIGINT       NOT NULL,
+    admission_id      BIGINT,
+    scale             VARCHAR(20)  NOT NULL,
+    score             INTEGER      NOT NULL,
+    risk_level        VARCHAR(20)  NOT NULL,
+    assessed_at       TIMESTAMP    NOT NULL,
+    assessed_by       BIGINT,
+    factors           TEXT,
+    notes             TEXT,
+    status            VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by        BIGINT       NOT NULL,
+    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by        BIGINT       NOT NULL,
+    updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_fall_patient ON fall_risk_assessment(tenant_id, patient_id);
+CREATE INDEX idx_fall_admission ON fall_risk_assessment(tenant_id, admission_id);
 CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
 CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
 
