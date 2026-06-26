@@ -3867,6 +3867,35 @@ CREATE TABLE mlc_register (
 );
 CREATE INDEX idx_mlc_patient ON mlc_register(tenant_id, patient_id);
 CREATE INDEX idx_mlc_status ON mlc_register(tenant_id, case_status);
+
+-- Electronic Medication Administration Record (eMAR) — one row per administration event.
+CREATE TABLE medication_administration (
+    id                BIGSERIAL PRIMARY KEY,
+    tenant_id         VARCHAR(50)  NOT NULL,
+    hospital_group_id BIGINT       NOT NULL,
+    branch_id         BIGINT       NOT NULL,
+    patient_id        BIGINT       NOT NULL,
+    admission_id      BIGINT,
+    prescription_id   BIGINT,
+    medicine_code     VARCHAR(50),
+    medicine_name     VARCHAR(255) NOT NULL,
+    dose              VARCHAR(80),
+    route             VARCHAR(40),
+    scheduled_at      TIMESTAMP,
+    administered_at   TIMESTAMP    NOT NULL,
+    administered_by   BIGINT,
+    admin_status      VARCHAR(20)  NOT NULL DEFAULT 'ADMINISTERED',
+    reason            VARCHAR(500),
+    rights_confirmed  BOOLEAN      NOT NULL DEFAULT FALSE,
+    notes             TEXT,
+    status            VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
+    created_by        BIGINT       NOT NULL,
+    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by        BIGINT       NOT NULL,
+    updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_mar_patient ON medication_administration(tenant_id, patient_id);
+CREATE INDEX idx_mar_admission ON medication_administration(tenant_id, admission_id);
 CREATE INDEX idx_pharmacy_item_tenant_branch ON pharmacy_item(tenant_id, branch_id);
 CREATE INDEX idx_pharmacy_item_name ON pharmacy_item(tenant_id, name);
 

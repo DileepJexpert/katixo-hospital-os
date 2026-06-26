@@ -112,7 +112,7 @@
 - [ ] **PS1** Structured EMR notes w/ coded dx (SNOMED/ICD-10) — **P0** **(B/C)** note UI now shipped (T0.1.9); add ICD/SNOMED coded capture
 - [ ] **PS2** CDS tier-1: DDI, dose-range, duplicate-therapy, renal/hepatic, pregnancy/pediatric — **P0/P1** **(B** allergy+dup done; **A** for DDI/dose/renal/preg)
 - [x] **PS3** LASA alerts — `LasaCdsRule` (curated look-alike/sound-alike pairs) raises a WARNING at CPOE naming the confusable; advisory, plugs into the CDS engine
-- [ ] **PS4** eMAR with 5-rights (+barcode) — **P0**
+- [x] **PS4** eMAR (`emar/` module): record each administration with 5-rights attestation (enforced for ADMINISTERED), REFUSED/OMITTED/HELD require a reason; `/api/v1/emar` record + MAR list. (Barcode scan = follow-up.)
 - [x] **PS5** LIS critical/panic-value alert & escalation — LabTestMaster.criticalLow/High; LabReport.critical + ack; auto-flag on result entry; `/lab/critical-results` worklist + `/lab/reports/{id}/acknowledge-critical`
 - [ ] **PS6** WHO surgical safety checklist (Sign-In / Time-Out / Sign-Out) on OT — **P0**
 - [ ] **PS7** Implant tracking (model/batch/serial/expiry/size in patient record) — **P0** (MOM 1e)
